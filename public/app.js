@@ -174,9 +174,36 @@ function drawSheet(){
   canvas.addEventListener('pointerdown',e=>{if(lines.length>=120||lines.reduce((n,l)=>n+l.length,0)>3500)return;e.preventDefault();canvas.setPointerCapture(e.pointerId);line=[point(e)];lines.push(line);redraw();});canvas.addEventListener('pointermove',e=>{if(!line||line.length>=300||lines.reduce((n,l)=>n+l.length,0)>3500)return;line.push(point(e));redraw();});canvas.addEventListener('pointerup',()=>{if(line?.length===1)line.push([Math.min(1,line[0][0]+.003),line[0][1]]);line=null;redraw();});canvas.addEventListener('pointercancel',()=>line=null);
   const row=document.createElement('div');row.className='button-row';row.append(button('Hang it up','primary-button',()=>{if(!lines.length){toast('One small scribble first.');return;}operate('draw',{lines});closeSheet();sounds.play('gift');tip('on the wall.');}));row.append(button('Undo','secondary-button',()=>{lines.pop();redraw();}));row.append(button('Clear','quiet-action',()=>{lines=[];redraw();}));body.append(row);
 }
+/** Mild inconvenience as affection: change their next game, stick a hat on them
+ * for a day, or move something of theirs somewhere else. */
 function surpriseSheet(){
-  if(!store.state)return;showSheet('surprise','A small surprise.');paragraph(`For ${NAMES[other(store.actor)]}’s next incident.`);
-  const row=document.createElement('div');row.className='surprise-row';for(const[modifier,glyph,label]of[['bouncy','↝','a passing dog'],['tiny','·','a bit smaller'],['windy','≋','a little wind'],['giant','●','a bit larger']]){const b=button('','surprise-card',()=>{operate('chaos',{modifier});closeSheet();sounds.play('gift');toast('Left for later.');});const strong=document.createElement('strong');strong.textContent=glyph;b.append(strong,document.createTextNode(label));row.append(b);}body.append(row);
+  if(!store.state)return;showSheet('surprise','');
+  const them=other(store.actor);
+  const header=document.createElement('div');header.className='result-picks';header.append(pict(store.actor));const arrow=document.createElement('span');arrow.textContent='↝';header.append(arrow,pict(them));body.append(header);
+
+  const row=document.createElement('div');row.className='surprise-row';
+  for(const[modifier,glyph]of[['bouncy','↝'],['tiny','·'],['windy','≋'],['giant','●']]){
+    const b=button('','surprise-card',()=>{operate('chaos',{modifier});closeSheet();sounds.play('gift');});
+    const strong=document.createElement('strong');strong.textContent=glyph;b.append(strong);
+    b.setAttribute('aria-label',{bouncy:'A passing dog',tiny:'Smaller',windy:'Windy',giant:'Larger'}[modifier]);row.append(b);
+  }
+  body.append(row);
+
+  // A hat they cannot take off until tomorrow.
+  const hats=store.state.inventory.filter(i=>ITEMS[i].wearable);
+  if(hats.length){
+    const stick=document.createElement('div');stick.className='item-grid';
+    for(const hat of hats){const b=button('','collection-item',()=>{operate('stick',{target:them,item:hat});closeSheet();sounds.play('gift');});b.append(pict(them,{hat}));b.setAttribute('aria-label',`Stick the ${ITEMS[hat].name} on ${NAMES[them]} for a day`);stick.append(b);}
+    body.append(stick);
+  }
+
+  // Put one of the things in the house somewhere else entirely.
+  const movable=store.state.objects.filter(o=>!store.state.hidden?.[o.id]);
+  if(movable.length){
+    const hide=document.createElement('div');hide.className='item-grid';
+    for(const o of movable.slice(0,8)){const b=button('','collection-item',()=>{operate('hide',{target:o.id});closeSheet();sounds.play('gift');});b.append(pict(o.type));b.setAttribute('aria-label',`Hide the ${ITEMS[o.type]?.name||'thing'}`);hide.append(b);}
+    body.append(hide);
+  }
 }
 function fridgeSheet(){if(!store.state)return;showSheet('fridge','The fridge.');const canvas=pict(store.state.fridgeAt?'potato':'fridge');canvas.className='big-item';body.append(canvas);if(store.state.fridgeAt)paragraph('…');else body.append(button('Put the potato in','secondary-button full',()=>{operate('fridge');closeSheet();sounds.play('tap');}));}
 
