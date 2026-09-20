@@ -39,14 +39,27 @@ export const GESTURES = {
 };
 const VERB_GESTURE = { steal: 'find', eat: 'catch', drag: 'hold', dig: 'sweep', stack: 'balance', climb: 'tap', nest: 'sweep', sleep: 'tap', wear: 'find', guard: 'aim' };
 
+/** The same seven gestures feel like one game when they all ask the same thing.
+ * The contract is what varies: how long it lasts, whether anything is counted,
+ * whether you are told the goal, and what ending even means. */
+export const CONTRACTS = {
+  score:   { weight: 26 },                                        // reach the goal before the timer
+  mystery: { weight: 16, silent: true },                          // no goal shown; working it out is the game
+  quiet:   { weight: 14, silent: true, untimed: true, goal: 0 },  // nothing counted, it ends when it ends
+  once:    { weight: 12, duration: 4, goal: 1, silent: true },    // one action, one chance
+  fragile: { weight: 10, fragile: true, silent: true },           // one mistake and it is over
+  ghost:   { weight: 12, silent: true },                          // their last score, revealed only at the end
+  watch:   { weight: 10, duration: 7, goal: 0, silent: true, untimed: true }, // not really a game
+};
+
 /** Set pieces. Deliberately scarce: these are the ones worth texting about. */
 export const INCIDENTS = [
   { id: 'balloons', actor: 'monki', kind: 'tap', item: 'balloon', reward: 'bow', aftermath: 'balloons', goal: 12 },
   { id: 'moon', actor: 'monki', kind: 'hold', item: 'moon', reward: 'star', aftermath: 'moon', goal: 3, rare: true },
   { id: 'flood', actor: 'sernik', kind: 'catch', item: 'duck', reward: 'fish', aftermath: 'flood', goal: 14, rare: true },
   { id: 'invasion', actor: 'galgan', kind: 'sweep', item: 'frog', reward: 'frog', aftermath: 'frog', goal: 20, rare: true },
-  { id: 'lostmoon', actor: 'monki', kind: 'find', item: 'moon', reward: 'moon', aftermath: 'moon', goal: 5, rare: true },
-  { id: 'fireflies', actor: 'galgan', kind: 'tap', item: 'star', reward: 'star', aftermath: 'stars', goal: 14, night: true, rare: true },
+  { id: 'lostmoon', actor: 'monki', kind: 'find', item: 'moon', reward: 'moon', aftermath: 'moon', goal: 5, rare: true, contract: 'fragile' },
+  { id: 'fireflies', actor: 'galgan', kind: 'tap', item: 'star', reward: 'star', aftermath: 'stars', goal: 14, night: true, rare: true, contract: 'quiet' },
   { id: 'sofa', actor: 'galgan', kind: 'hold', item: 'couch', reward: 'lamp', aftermath: 'sofa', goal: 3, rare: true },
   { id: 'tower', actor: 'monki', kind: 'balance', item: 'potato', reward: 'potato', aftermath: 'tower', goal: 10, rare: true },
   { id: 'icecream', actor: 'sernik', kind: 'aim', item: 'icecream', reward: 'cone', aftermath: 'crumbs', goal: 8, rare: true },
@@ -85,6 +98,8 @@ export function createWorld(seed = 'monki', now = Date.now()) {
     traces: [], log: [], gifts: [], drawing: [], chaos: {}, choices: { round: 0, picks: {}, revealed: [] },
     secrets: [], fridgeAt: null, incident: null, nextAt: now, applied: [],
     digs: 0, stacks: 0, hidden: {}, stuck: {},
+    // Per person, so each of you is shown only what you personally missed.
+    changes: [], chains: [], seen: { david: now, julia: now }, best: {},
   };
   state.incident = makeIncident(state, now, 'balloons');
   return state;
@@ -94,12 +109,14 @@ export function createWorld(seed = 'monki', now = Date.now()) {
 function normalize(state) {
   state.digs ??= 0; state.stacks ??= 0; state.hidden ??= {}; state.stuck ??= {};
   state.recent ??= []; state.secrets ??= []; state.traces ??= []; state.log ??= [];
+  state.changes ??= []; state.chains ??= []; state.best ??= {};
+  state.seen ??= { david: state.updated || 0, julia: state.updated || 0 };
   return state;
 }
 
 function frame(state, def, rng, now) {
   const room = state.unlocked.includes(def.room) ? def.room : pick(state.unlocked, rng);
-  return { ...def, uid: `${state.seed}-${state.serial}`, seed: hash(`${state.seed}:${state.serial}:${def.id}`), room,
+  return { contract: 'score', ...def, uid: `${state.seed}-${state.serial}`, seed: hash(`${state.seed}:${state.serial}:${def.id}`), room,
     modifier: state.serial === 0 ? 'plain' : pick(MODIFIERS, rng), born: now };
 }
 
@@ -119,7 +136,12 @@ function compose(state, rng) {
   const reward = missing.length && rng() < 0.75 ? pick(missing, rng) : pick(liked.length ? liked : gesture.items, rng);
   const aftermath = pick(gesture.aftermath, rng);
   const [low, high] = gesture.goal;
-  return { id: `${actor}-${kind}-${item}`, actor, kind, item, reward, aftermath, goal: low + Math.floor(rng() * (high - low + 1)) };
+  const contract = weighted(Object.fromEntries(Object.entries(CONTRACTS).map(([k, v]) => [k, v.weight])), rng);
+  const shape = CONTRACTS[contract];
+  let goal = shape.goal ?? low + Math.floor(rng() * (high - low + 1));
+  // A ghost game is played against whatever they managed last time, unannounced.
+  if (contract === 'ghost') goal = Math.max(3, Math.round((state.best?.[kind] ?? low) * 1.05));
+  return { id: `${actor}-${kind}-${item}-${contract}`, actor, kind, item, reward, aftermath, goal, contract };
 }
 
 export function makeIncident(state, now, forcedId) {
@@ -134,6 +156,37 @@ export function makeIncident(state, now, forcedId) {
   let composed = compose(state, rng);
   for (let i = 0; i < 6 && state.recent.includes(composed.id); i++) composed = compose(state, rng);
   return frame(state, composed, rng, now);
+}
+
+function snapshot(state) {
+  const shot = { a: {}, o: {}, t: state.traces.length };
+  for (const id of ACTORS) { const a = state.actors[id]; shot.a[id] = { x: a.x, y: a.y, room: a.room, hat: a.hat }; }
+  for (const o of state.objects) shot.o[o.id] = { x: o.x, y: o.y, room: o.room, type: o.type };
+  return shot;
+}
+/** Everything that visibly moved between two snapshots, in a form the room can animate. */
+function changesBetween(before, after) {
+  const moves = [];
+  for (const id in after.a) {
+    const b = before.a[id], n = after.a[id]; if (!b) continue;
+    if (b.x !== n.x || b.y !== n.y || b.room !== n.room) moves.push({ id, kind: 'actor', type: id, from: b, to: n });
+    if (b.hat !== n.hat) moves.push({ id, kind: 'hat', type: n.hat || b.hat, from: b, to: n });
+  }
+  for (const id in after.o) {
+    const b = before.o[id], n = after.o[id];
+    if (!b) moves.push({ id, kind: 'appear', type: n.type, to: n });
+    else if (b.x !== n.x || b.y !== n.y || b.room !== n.room) moves.push({ id, kind: 'object', type: n.type, from: b, to: n });
+  }
+  for (const id in before.o) if (!after.o[id]) moves.push({ id, kind: 'gone', type: before.o[id].type, from: before.o[id] });
+  return moves;
+}
+function record(state, who, before, at) {
+  const after = snapshot(state);
+  const moves = changesBetween(before, after);
+  const traces = state.traces.slice(before.t);
+  if (!moves.length && !traces.length) return;
+  state.changes.push({ at, who, moves, traces });
+  state.changes = state.changes.slice(-40);
 }
 
 function log(state, who, action, target, now, extra = {}) {
@@ -265,14 +318,18 @@ function ambient(state, now) {
   for (let i = 0; i < ticks; i++) {
     const actor = pick(RESIDENTS, rng);
     const verb = weighted(TENDENCIES[actor].verbs, rng);
+    const at = now - (ticks - i) * TICK;
+    const before = snapshot(state);
     const done = BEHAVIOUR[verb]?.(state, actor, rng, now);
-    if (done) log(state, actor, done[0], done[1], now - (ticks - i) * TICK, done[2]);
+    if (done) { log(state, actor, done[0], done[1], at, done[2]); record(state, actor, before, at); }
   }
   // Left completely alone for days, somebody starts a project. Nobody explains it.
   if (away > 2 * 86400000) {
+    const before = snapshot(state);
     const done = BEHAVIOUR.monument(state, pick(RESIDENTS, rng), rng, now);
-    if (done) log(state, done[3], done[0], done[1], now - TICK, done[2]);
+    if (done) { log(state, done[3], done[0], done[1], now - TICK, done[2]); record(state, done[3], before, now - TICK); }
   }
+  fireChains(state, rng, now);
   if (!state.incident && now >= state.nextAt) state.incident = makeIncident(state, now);
   if (state.fridgeAt && now - state.fridgeAt >= 3 * 86400000 && !state.secrets.includes('cold-potato')) {
     state.secrets.push('cold-potato'); discover(state, 'frog');
@@ -283,15 +340,55 @@ function ambient(state, now) {
   state.lastVisit = now;
 }
 
+/** Something you did days ago comes back without warning or explanation.
+ * Chains are scheduled far enough out that nobody connects cause to effect. */
+function schedule(state, kind, now, days, data = {}) {
+  if (state.chains.some(c => c.kind === kind)) return;
+  state.chains.push({ kind, at: now + Math.round(days * 86400000), data });
+}
+function fireChains(state, rng, now) {
+  const due = state.chains.filter(c => now >= c.at);
+  state.chains = state.chains.filter(c => now < c.at);
+  for (const chain of due) {
+    const before = snapshot(state);
+    if (chain.kind === 'returns') {
+      // The thing that was hidden turns up somewhere it has no business being.
+      const o = state.objects.find(x => x.id === chain.data.id);
+      if (o) { o.room = pick(state.unlocked, rng); o.x = 40 + Math.floor(rng() * 320); o.y = 175 + Math.floor(rng() * 135); }
+      delete state.hidden[chain.data.id];
+    }
+    if (chain.kind === 'collapse') {
+      for (let i = 0; i < 5; i++) trace(state, 'mess', pick(state.unlocked, rng), 60 + Math.floor(rng() * 280), 200 + Math.floor(rng() * 100), now);
+      state.stacks = 0;
+    }
+    if (chain.kind === 'multiply') {
+      // One of them became several. Nobody saw it happen.
+      const type = chain.data.item;
+      for (let i = 0; i < 3; i++) {
+        const id = `many-${type}-${i}`;
+        if (!state.objects.some(o => o.id === id)) state.objects.push({ id, type, room: 'house', x: 70 + i * 90 + Math.floor(rng() * 30), y: 250 + Math.floor(rng() * 50), movedAt: now });
+      }
+    }
+    if (chain.kind === 'thirdhat') {
+      const who = pick(RESIDENTS, rng);
+      state.actors[who].hat = chain.data.item; discover(state, chain.data.item);
+    }
+    log(state, 'monki', 'chain', chain.data.item || 'potato', now);
+    record(state, 'monki', before, now);
+  }
+}
+
 /** Pure shared reducer: clients queue small operations; the server applies them serially.
  * No full-state uploads, so one partner cannot overwrite the other's newer actions. */
 export function applyOperation(input, operation, now = Date.now()) {
   if (!operation || typeof operation.id !== 'string' || operation.id.length > 96 || !PEOPLE.includes(operation.actor)) throw new Error('Invalid operation');
   if (input.applied.includes(operation.id)) return input;
   const state = normalize(clone(input)), op = operation, actor = op.actor;
+  const beforeOp = snapshot(state);
   const target = (ACTORS.includes(op.target) ? state.actors[op.target] : null) || state.objects.find(o => o.id === op.target);
   switch (op.type) {
     case 'visit': ambient(state, now); break;
+    case 'seen': state.seen[actor] = now; break;
     case 'poke': {
       const a = ACTORS.includes(op.target) ? state.actors[op.target] : null; if (!a) throw new Error('Unknown character');
       a.pokes++; a.mood = a.pokes % 5 === 0 ? 'annoyed' : a.pokes % 3 === 0 ? 'sleep' : 'happy'; a.lastBy = actor;
@@ -312,7 +409,7 @@ export function applyOperation(input, operation, now = Date.now()) {
       a.hat = op.item; a.lastBy = actor; a.mood = 'idle';
       log(state, actor, 'wear', op.target, now, { item: op.item });
       const d = state.actors.david.hat, j = state.actors.julia.hat;
-      if (d && d === j && !state.secrets.includes(`twins-${d}`)) { state.secrets.push(`twins-${d}`); discover(state, 'star'); trace(state, 'stars', 'house', 210, 239, now); }
+      if (d && d === j && !state.secrets.includes(`twins-${d}`)) { state.secrets.push(`twins-${d}`); discover(state, 'star'); trace(state, 'stars', 'house', 210, 239, now); schedule(state, 'thirdhat', now, 5 + Math.random() * 4, { item: d }); }
       break;
     }
     case 'place': {
@@ -330,6 +427,7 @@ export function applyOperation(input, operation, now = Date.now()) {
       const gift = state.gifts.find(g => g.id === op.target && g.to === actor && !g.opened);
       if (!gift) throw new Error('This gift is for your partner');
       gift.opened = true; discover(state, gift.item);
+      if (gift.item) schedule(state, 'multiply', now, 4 + Math.random() * 6, { item: gift.item });
       const id = `gift-${gift.item}`; const obj = state.objects.find(o => o.id === id);
       // The recipient's optimistic view has a sealed gift; the server reveals it.
       if (!obj && gift.item) state.objects.push({ id, type: gift.item, room: 'house', x: 227, y: 278, lastBy: gift.from });
@@ -347,6 +445,7 @@ export function applyOperation(input, operation, now = Date.now()) {
       const o = state.objects.find(o => o.id === op.target);
       if (!o) throw new Error('Nothing to hide');
       state.hidden[o.id] = { from: actor, at: now };
+      schedule(state, 'returns', now, 2 + Math.random() * 3, { id: o.id, item: o.type });
       o.room = pick(state.unlocked, random(`${op.id}`)); o.x = 40 + Math.floor(random(op.id)() * 320); o.y = 180 + Math.floor(random(`${op.id}y`)() * 130);
       log(state, actor, 'hide', o.type, now); break;
     }
@@ -391,7 +490,10 @@ export function applyOperation(input, operation, now = Date.now()) {
       trace(state, event.aftermath, event.room, state.actors[event.actor].x, state.actors[event.actor].y, now);
       if (event.aftermath === 'hat') state.actors[event.actor].hat = event.reward;
       if (event.aftermath === 'sofa') { const sofa = state.objects.find(o => o.id === 'couch'); if (sofa) { sofa.x = 280; sofa.room = event.room; sofa.lastBy = event.actor; } }
-      log(state, actor, 'play', event.actor, now, { item: event.item, count: score });
+      // Remembered per gesture, so a later ghost game plays against what you managed.
+      state.best[event.kind] = Math.max(state.best[event.kind] || 0, score);
+      if (state.stacks >= 3) schedule(state, 'collapse', now, 3 + Math.random() * 4);
+      log(state, actor, 'play', event.actor, now, { item: event.item, count: score, contract: event.contract });
       delete state.chaos[actor];
       // The next thing turns up on its own schedule, not on a clock you can learn.
       state.incident = null;
@@ -400,6 +502,8 @@ export function applyOperation(input, operation, now = Date.now()) {
     }
     default: throw new Error('Unknown operation');
   }
+  // Anything your person does in here is replayed to you the next time you look.
+  if (op.type !== 'visit' && op.type !== 'seen') record(state, actor, beforeOp, now);
   state.revision++; state.updated = now; state.applied = [...state.applied.slice(-511), op.id];
   return state;
 }

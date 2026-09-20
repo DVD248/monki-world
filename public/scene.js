@@ -1,5 +1,5 @@
 import {character,item,rect,poly,ellipse,shadow} from './art.js';
-import {random,ACTORS} from './shared/world.js';
+import {random,clamp,ACTORS} from './shared/world.js';
 
 const rng=random('a-house-for-five');
 const plants=Array.from({length:115},()=>({x:rng()*600,y:rng()*400,s:rng()}));
@@ -8,12 +8,13 @@ export class Scene {
     this.canvas=canvas;this.c=canvas.getContext('2d');this.callbacks={onTap,onMove,onDoor,onFrame,onFridge,onIncident,onGift};this.room='house';this.state=null;this.animations={};this.hitboxes=[];this.down=null;this.moving=null;this.time=0;this.selected=null;this.night=false;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.resize();window.addEventListener('resize',()=>this.resize());
     canvas.addEventListener('pointerdown',e=>this.pointerDown(e));canvas.addEventListener('pointermove',e=>this.pointerMove(e));canvas.addEventListener('pointerup',e=>this.pointerUp(e));canvas.addEventListener('pointercancel',()=>{this.down=null;this.moving=null});
+    this.override={};this.hiddenObjects=new Set();this.traceCutoff=Infinity;this.replaying=false;this.highlight=null;
     this.running=true;this.draw(0);
   }
   resize(){const mobile=window.innerWidth<701;this.canvas.width=mobile?400:560;this.canvas.height=mobile?376:336;this.ox=(this.canvas.width-400)/2;this.oy=mobile?22:0;this.c.imageSmoothingEnabled=false;}
   update(state,room,actor){this.state=state;this.room=room;this.actor=actor;}
   at(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*this.canvas.width/r.width-this.ox,y:(e.clientY-r.top)*this.canvas.height/r.height-this.oy};}
-  pointerDown(e){if(e.button!==0)return;this.canvas.setPointerCapture(e.pointerId);const p=this.at(e);const hit=[...this.hitboxes].reverse().find(h=>p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h);if(hit?.movable){const entity=this.state.actors[hit.id]||this.state.objects.find(o=>o.id===hit.id);hit.offsetY=entity.y-p.y;}this.down={...p,hit,time:performance.now()};}
+  pointerDown(e){if(this.replaying){this.stopReplay();return;}if(e.button!==0)return;this.canvas.setPointerCapture(e.pointerId);const p=this.at(e);const hit=[...this.hitboxes].reverse().find(h=>p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h);if(hit?.movable){const entity=this.state.actors[hit.id]||this.state.objects.find(o=>o.id===hit.id);hit.offsetY=entity.y-p.y;}this.down={...p,hit,time:performance.now()};}
   pointerMove(e){if(!this.down?.hit?.movable)return;const p=this.at(e);if(this.moving||Math.hypot(p.x-this.down.x,p.y-this.down.y)>5){this.moving={id:this.down.hit.id,x:Math.max(35,Math.min(365,p.x)),y:Math.max(171,Math.min(314,p.y+this.down.hit.offsetY))};}}
   pointerUp(e){if(!this.down)return;const p=this.at(e),hit=this.down.hit;
     if(this.moving)this.callbacks.onMove(this.moving,this.room);
@@ -22,17 +23,62 @@ export class Scene {
     this.down=null;this.moving=null;
   }
   react(id){this.animations[id]=performance.now()+1100;}
+
+  /** Show someone what moved while they were not looking. The room rewinds to how
+   * they left it and then plays the changes back, one at a time, with no words. */
+  startReplay(items,onDone){
+    this.replayQueue=items;this.replayIndex=-1;this.replayDone=onDone;
+    this.override={};this.hiddenObjects=new Set();this.highlight=null;
+    let cutoff=Infinity;
+    for(const it of items){
+      // Items are chronological, so the earliest one holds the position she left it in.
+      if((it.kind==='object'||it.kind==='actor')&&!this.override[it.id])this.override[it.id]={...it.from};
+      if(it.kind==='appear')this.hiddenObjects.add(it.id);
+      if(it.kind==='trace')cutoff=Math.min(cutoff,it.trace.at-1);
+    }
+    this.traceCutoff=cutoff;this.replaying=true;this.stepAt=0;this.tween=null;
+  }
+  stopReplay(){
+    if(!this.replaying)return;
+    this.replaying=false;this.override={};this.hiddenObjects=new Set();this.traceCutoff=Infinity;this.tween=null;this.highlight=null;
+    const done=this.replayDone;this.replayDone=null;done?.();
+  }
+  advanceReplay(time){
+    const STEP=560;
+    if(!this.stepAt){this.stepAt=time;return;}
+    if(this.tween){
+      const t=this.tween,k=clamp((time-t.at)/400,0,1),ease=k*k*(3-2*k),o=this.override[t.id];
+      if(o){o.x=t.from.x+(t.to.x-t.from.x)*ease;o.y=t.from.y+(t.to.y-t.from.y)*ease;
+        if(k>=1){o.room=t.to.room;delete this.override[t.id];this.tween=null;}}
+      else this.tween=null;
+    }
+    if(time-this.stepAt<STEP)return;
+    this.stepAt=time;this.replayIndex++;
+    const item=this.replayQueue[this.replayIndex];
+    if(!item){this.stopReplay();return;}
+    const mark=(x,y,room)=>{this.highlight={who:item.who,at:time,x,y,room};};
+    if(item.kind==='object'||item.kind==='actor'){
+      this.override[item.id]={...item.from};
+      this.tween={id:item.id,from:item.from,to:item.to,at:time};
+      mark(item.to.x,item.to.y,item.to.room);
+    }else if(item.kind==='appear'){this.hiddenObjects.delete(item.id);mark(item.to.x,item.to.y,item.to.room);}
+    else if(item.kind==='gone')mark(item.from.x,item.from.y,item.from.room);
+    else if(item.kind==='hat'){const a=this.state.actors[item.id];this.react(item.id);mark(a.x,a.y,a.room);}
+    else if(item.kind==='trace'){this.traceCutoff=item.trace.at;mark(item.trace.x,item.trace.y,item.trace.room);}
+  }
   hit(id,x,y,w,h,extra={}){this.hitboxes.push({id,x,y,w,h,...extra});}
   draw(time){if(!this.running)return;this.time=time;requestAnimationFrame(t=>this.draw(t));if(document.hidden||!this.state)return;
+    if(this.replaying)this.advanceReplay(time);
     const c=this.c,w=this.canvas.width,h=this.canvas.height,t=this.reduced?0:time/1000;
     c.clearRect(0,0,w,h);rect(c,0,0,w,h,this.night?'#6c7d72':'#dbe5c8');
     // Quiet, wide landscape continues around the dollhouse at desktop sizes.
     for(const p of plants){const x=(p.x+w)%w,y=p.y%h;rect(c,x,y,2,1,this.night?'#829482':p.s>.5?'#c3d3aa':'#ceddb8');if(p.s>.88){rect(c,x,y-2,1,3,'#aebf92');rect(c,x-1,y-3,3,1,'#f0e9c4');}}
     c.save();c.translate(this.ox,this.oy);this.hitboxes=[];
     if(this.room==='house')this.house(c,t);else if(this.room==='garden')this.garden(c,t);else if(this.room==='roof')this.roof(c,t);else this.cellar(c,t);
-    for(const trace of this.state.traces.filter(v=>v.room===this.room))this.trace(c,trace,t);
-    const objects=this.state.objects.filter(o=>o.room===this.room).map(o=>({...o,kind:'object'}));
-    const actors=ACTORS.filter(id=>this.state.actors[id].room===this.room).map(id=>({...this.state.actors[id],id,kind:'actor'}));
+    for(const trace of this.state.traces.filter(v=>v.room===this.room&&v.at<=this.traceCutoff))this.trace(c,trace,t);
+    const place=e=>{const o=this.override[e.id];return o?{...e,x:o.x,y:o.y,room:o.room}:e;};
+    const objects=this.state.objects.filter(o=>!this.hiddenObjects.has(o.id)).map(o=>place({...o,kind:'object'})).filter(o=>o.room===this.room);
+    const actors=ACTORS.map(id=>place({...this.state.actors[id],id,kind:'actor'})).filter(a=>a.room===this.room);
     const entities=[...objects,...actors].map(e=>this.moving?.id===e.id?{...e,...this.moving}:e).sort((a,b)=>a.y-b.y);
     const event=this.state.incident;
     for(const entity of entities){const{x,y,id}=entity;
@@ -50,7 +96,15 @@ export class Scene {
         this.hit(id,x-dimensions[0]/2,y-dimensions[1],...dimensions,{movable:true,offsetY:y-(this.down?.y||y)});
       }
     }
-    if(event?.room===this.room)this.incident(c,event,t);
+    // Who did it, floating over the thing they did it to.
+    if(this.replaying&&this.highlight?.room===this.room){
+      const h=this.highlight,age=Math.min(1,(time-h.at)/700);
+      const r=13+Math.sin(age*Math.PI)*11;
+      c.strokeStyle='#87996a';c.lineWidth=1.5;c.globalAlpha=1-age*.35;
+      c.beginPath();c.ellipse(h.x,h.y+2,r,r*.42,0,0,7);c.stroke();c.globalAlpha=1;
+      if(ACTORS.includes(h.who))character(c,h.who,h.x,h.y-36,{scale:.62});
+    }
+    if(event?.room===this.room&&!this.replaying)this.incident(c,event,t);
     const gifts=this.state.gifts.filter(g=>!g.opened);
     if(this.room==='house')gifts.slice(0,3).forEach((g,i)=>{const x=208+i*31,y=282;item(c,'present',x,y,{shadow:true});if(g.to===this.actor){this.sparkle(c,x,y-34,t);this.hit(g.id,x-17,y-35,34,39,{action:'onGift'});}});
     c.restore();

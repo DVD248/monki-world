@@ -1,10 +1,14 @@
 import {character,item,rect,poly,ellipse,shadow} from './art.js';
-import {random,clamp} from './shared/world.js';
+import {random,clamp,CONTRACTS} from './shared/world.js';
 
 export class Microgame {
   constructor(canvas,event,{onFinish,onProgress,sound,reduced=false}){
     this.canvas=canvas;this.c=canvas.getContext('2d');this.event=event;this.rng=random(event.seed+event.modifier);this.onFinish=onFinish;this.onProgress=onProgress;this.sound=sound;this.reduced=reduced;
-    this.time=0;this.last=0;this.duration=event.kind==='hold'?25:22;this.score=0;this.started=false;this.finished=false;this.paused=false;this.pointer={x:200,y:350,down:false};this.keys=new Set();this.entities=[];this.particles=[];this.spawnAt=0;this.angle=0;this.velocity=0;this.balanceTime=0;this.charge=0;this.flash=0;this.round=0;this.findPhase=0;this.findTarget=0;this.findAt=0;this.findOrder=[0,1,2];this.cleanup=[];
+    this.contract=event.contract||'score';this.shape=CONTRACTS[this.contract]||{};
+    this.silent=!!this.shape.silent;this.fragile=!!this.shape.fragile;this.untimed=!!this.shape.untimed;
+    // A quiet game has no announced length either; it simply stops at some point.
+    this.duration=this.contract==='quiet'?10+this.rng()*10:(this.shape.duration??(event.kind==='hold'?25:22));
+    this.time=0;this.last=0;this.score=0;this.started=false;this.finished=false;this.paused=false;this.pointer={x:200,y:350,down:false};this.keys=new Set();this.entities=[];this.particles=[];this.spawnAt=0;this.angle=0;this.velocity=0;this.balanceTime=0;this.charge=0;this.flash=0;this.round=0;this.findPhase=0;this.findTarget=0;this.findAt=0;this.findOrder=[0,1,2];this.cleanup=[];
     this.spawnInitial();
     this.listen(canvas,'pointerdown',e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);this.input(e,'down')});
     this.listen(canvas,'pointermove',e=>this.input(e,'move'));
@@ -40,15 +44,16 @@ export class Microgame {
     }
     if(type==='up'&&k==='hold'){
       if(this.charge>=.58&&this.charge<=.84){this.pointWon(200,215);this.round++;}
-      else if(this.charge>.04){this.flash=.3;this.sound('boop');}
+      else if(this.charge>.04){this.mistake();}
       this.charge=0;
     }
     if(type==='down'&&k==='find'&&this.findPhase===2){
       const index=[0,1,2].find(i=>Math.abs(x-(86+i*114))<46&&y>200&&y<320);
-      if(index!==undefined){if(this.findOrder[index]===this.findTarget){this.pointWon(86+index*114,240);this.findPhase=3;this.findAt=this.time;}else{this.flash=.3;this.findPhase=3;this.findAt=this.time;this.sound('boop');}}
+      if(index!==undefined){if(this.findOrder[index]===this.findTarget){this.pointWon(86+index*114,240);this.findPhase=3;this.findAt=this.time;}else{this.findPhase=3;this.findAt=this.time;this.mistake();}}
     }
     if(type==='up')this.pointer.down=false;
   }
+  mistake(){this.flash=.3;this.sound('boop');if(this.fragile)this.finish();}
   pointWon(x,y){this.score++;this.sound('pop');this.onProgress(this.score,this.event.goal);for(let i=0;i<5;i++)this.particles.push({x,y,vx:(this.rng()-.5)*90,vy:-25-this.rng()*75,life:.55});}
   nextFind(){this.findTarget=Math.floor(this.rng()*3);this.findPhase=0;this.findAt=this.time;this.findOrder=[0,1,2];this.nextOrder=[0,1,2].sort(()=>this.rng()-.5);if(this.nextOrder.every((n,i)=>n===i))this.nextOrder=[1,2,0];}
   setPaused(value){this.paused=value;this.pointer.down=false;this.keys.clear();this.charge=0;document.getElementById('resume-game').hidden=!value;}
@@ -64,7 +69,7 @@ export class Microgame {
     if(k==='catch'){
       this.spawnAt-=dt;
       if(this.spawnAt<=0){this.spawnAt=mod==='sleepy'?.85:.56;this.entities.push({x:30+this.rng()*340,y:40,vx:mod==='windy'?50:0,vy:mod==='sleepy'?80:100+this.rng()*50,alive:true,bad:this.rng()<.18});}
-      for(const o of this.entities){if(!o.alive)continue;o.y+=o.vy*dt;o.x+=o.vx*dt;if(mod==='bouncy')o.x+=Math.sin(this.time*4+o.y/30)*dt*40;if(o.y>346&&o.y<380&&Math.abs(o.x-this.pointer.x)<30){o.alive=false;if(!o.bad)this.pointWon(o.x,o.y);else{this.flash=.3;this.sound('boop');}}if(o.y>425)o.alive=false;}
+      for(const o of this.entities){if(!o.alive)continue;o.y+=o.vy*dt;o.x+=o.vx*dt;if(mod==='bouncy')o.x+=Math.sin(this.time*4+o.y/30)*dt*40;if(o.y>346&&o.y<380&&Math.abs(o.x-this.pointer.x)<30){o.alive=false;if(!o.bad)this.pointWon(o.x,o.y);else{this.mistake();}}if(o.y>425)o.alive=false;}
     }
     if(k==='aim'){
       const tx=200+Math.sin(elapsed*(mod==='sleepy'?.6:1.4))*120,ty=154+Math.sin(elapsed)*20;
@@ -77,7 +82,7 @@ export class Microgame {
       // The finger is a direct support point, so one-handed play is forgiving.
       const support=(this.pointer.x-200)/170,wind=mod==='windy'?Math.sin(elapsed*2)*.32:.07;
       this.velocity+=(this.angle*.7+support*1.7+Math.sin(elapsed*1.5)*.35+wind)*dt;this.velocity*=Math.pow(.985,dt*60);this.angle+=this.velocity*dt;
-      if(Math.abs(this.angle)>.95){this.angle=0;this.velocity=0;this.balanceTime=0;this.flash=.5;this.sound('boop');}
+      if(Math.abs(this.angle)>.95){this.angle=0;this.velocity=0;this.balanceTime=0;this.flash=.5;this.sound('boop');if(this.fragile){this.finish();return;}}
       else{this.balanceTime+=dt;this.score=Math.floor(this.balanceTime);this.onProgress(this.score,this.event.goal);}
     }
     if(k==='hold'&&this.pointer.down){this.charge+=dt*(mod==='sleepy'?.6:mod==='bouncy'?1.2:.85);if(this.charge>1){this.charge=0;this.flash=.2;}}
@@ -88,13 +93,19 @@ export class Microgame {
       else if(this.findPhase===3&&age>.75){this.nextFind();}
     }
     this.entities=this.entities.filter(o=>o.alive);for(const p of this.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=120*dt;p.life-=dt;}this.particles=this.particles.filter(p=>p.life>0);
-    if(this.score>=this.event.goal||elapsed>=this.duration)this.finish();
+    const reachedGoal=this.event.goal>0&&this.score>=this.event.goal;
+    const ranOut=elapsed>=this.duration;
+    // A quiet game also stops early once there is simply nothing left to touch.
+    const nothingLeft=this.contract==='quiet'&&this.time>3&&!this.entities.length;
+    if(reachedGoal||ranOut||nothingLeft)this.finish();
   }
   draw(){const c=this.c,k=this.event.kind,elapsed=Math.max(0,this.time-1.2),mod=this.event.modifier;
     rect(c,0,0,400,420,'#dce6c8');rect(c,0,52,400,2,'#c3d1ab');rect(c,0,350,400,70,'#c2d0ac');
     for(let i=0;i<18;i++)rect(c,(i*73)%400,70+(i*47)%269,3,1,'#c8d8b3');
-    rect(c,25,23,350,3,'#c2ceaa');rect(c,25,23,350*(1-Math.min(1,elapsed/this.duration)),3,'#849d66');
-    c.fillStyle='#70835b';c.font='10px monospace';c.textAlign='left';c.fillText(String(this.score).padStart(2,'0'),25,42);c.textAlign='right';c.fillText(`${Math.ceil(Math.max(0,this.duration-elapsed))}s`,375,42);
+    if(!this.silent&&!this.untimed){
+      rect(c,25,23,350,3,'#c2ceaa');rect(c,25,23,350*(1-Math.min(1,elapsed/this.duration)),3,'#849d66');
+      c.fillStyle='#70835b';c.font='10px monospace';c.textAlign='left';c.fillText(String(this.score).padStart(2,'0'),25,42);c.textAlign='right';c.fillText(`${Math.ceil(Math.max(0,this.duration-elapsed))}s`,375,42);
+    }
     const scale=mod==='tiny'?.65:mod==='giant'?1.6:1;
     if(k==='tap'){
       character(c,this.event.actor,200,382,{scale:1.65,frame:Math.floor(this.time)});
@@ -110,7 +121,7 @@ export class Microgame {
       for(const o of this.entities)item(c,this.event.item,o.x,o.y,{scale:1.1*scale});
       item(c,this.event.item,200,375,{scale:1.5});
       if(this.pointer.down){c.strokeStyle='#99ac7c';c.setLineDash([3,6]);c.beginPath();c.moveTo(200,351);c.lineTo(this.pointer.x,this.pointer.y);c.stroke();c.setLineDash([]);ellipse(c,this.pointer.x,this.pointer.y,7,7,'#849d6644');}
-      if(elapsed<3)this.hintArrow(c,200,310,200,235);
+      if(elapsed<3&&!this.silent)this.hintArrow(c,200,310,200,235);
     }
     if(k==='sweep'){
       character(c,this.event.actor,335,126,{scale:1.4});
@@ -119,12 +130,12 @@ export class Microgame {
     }
     if(k==='balance'){
       character(c,this.event.actor,200,346,{scale:1.9});c.save();c.translate(200,279);c.rotate(this.angle);rect(c,-52,-4,104,5,'#a18a5c');for(let i=0;i<4;i++)item(c,this.event.item,0,-9-i*30,{scale:1.5});c.restore();
-      rect(c,54,381,292,2,'#97ac7a');ellipse(c,this.pointer.x,382,7,7,'#758e5c');if(elapsed<3)this.hintArrow(c,130,362,270,362);
+      rect(c,54,381,292,2,'#97ac7a');ellipse(c,this.pointer.x,382,7,7,'#758e5c');if(elapsed<3&&!this.silent)this.hintArrow(c,130,362,270,362);
     }
     if(k==='hold'){
       character(c,this.event.actor,200,337,{scale:2});item(c,this.event.item,200,250-this.charge*80,{scale:2+this.round*.3});
       rect(c,63,365,274,20,'#b6c89d');rect(c,63+274*.58,365,274*.26,20,'#889f69');rect(c,63,386,274,1,'#90a475');rect(c,63+274*this.charge-2,360,4,30,'#f5e8bc');
-      if(elapsed<3){c.fillStyle='#70835b';c.textAlign='center';c.font='11px monospace';c.fillText('↓  …  ↑',200,407);}
+      if(elapsed<3&&!this.silent){c.fillStyle='#70835b';c.textAlign='center';c.font='11px monospace';c.fillText('↓  …  ↑',200,407);}
     }
     if(k==='find'){
       character(c,this.event.actor,200,150,{scale:1.75});item(c,this.event.item,200,80,{scale:.9});

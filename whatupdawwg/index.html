@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pixelated Summer Scene with Toggles</title>
+  <!-- Pixel Font for Retro Feel -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    /* Reset and Base Styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(to bottom, 
+        #87ceeb,
+        #97d5ef 30%,
+        #a7ddf3 50%,
+        #c8eaf7 70%,
+        #e4f3fa 80%,
+        #f4e7c0 90%,
+        #f5d76e);
+      font-family: "Press Start 2P", monospace;
+      color: #ffffff;
+      transition: background 0.8s ease;
+    }
+
+    body.night {
+      background: linear-gradient(to bottom,
+        #0a1128,
+        #1c2541 30%,
+        #293356 50%,
+        #3d4e7c 70%,
+        #475c96 85%,
+        #516aa3);
+    }
+
+    /* Controls Panel */
+    .controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 12px;
+      border-radius: 6px;
+      z-index: 1000;
+      user-select: none;
+      transition: background 0.3s ease;
+    }
+    .controls:hover {
+      background: rgba(0, 0, 0, 0.7);
+    }
+    .controls label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .controls label:hover {
+      text-shadow: 0 0 5px #fff;
+    }
+    .controls input[type="checkbox"] {
+      margin-right: 6px;
+    }
+
+    /* Container for all scene elements */
+    #scene {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      animation: none; /* Remove animation from scene */
+    }
+
+    /* Common class for all pixel-art elements */
+    .element {
+      position: absolute;
+      image-rendering: pixelated;
+      will-change: transform, opacity;
+    }
+
+    /* Updated cloud styles for easter egg */
+    .cloud {
+      width: 64px;
+      top: -10px; /* Higher starting position */
+      left: -80px; /* start off-screen */
+      animation: floatCloud linear infinite;
+      opacity: 0.3; /* Much fainter clouds */
+      pointer-events: none;
+    }
+    .cloud:hover {
+      opacity: 1;
+    }
+    @keyframes floatCloud {
+      0% {
+        transform: translateX(0);
+      }
+      100% {
+        transform: translateX(110vw);
+      }
+    }
+
+    /* Enhanced sun styles - update the colors */
+    .sun {
+      top: 20px;
+      right: 20px;
+      width: 64px;
+      animation: spinSun 40s linear infinite;
+      filter: drop-shadow(0 0 15px rgba(255, 180, 0, 0.9)) brightness(1.2);
+    }
+
+    .sun:hover {
+      animation: spinSun 20s linear infinite;
+      filter: drop-shadow(0 0 20px rgba(255, 160, 0, 1)) brightness(1.3);
+      cursor: pointer;
+    }
+
+    body.night .sun {
+      filter: brightness(0.7) saturate(0.7);
+    }
+
+    @keyframes spinSun {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Updated Palm Trees */
+    .tree {
+      bottom: 50px;
+      width: 96px;
+      transform-origin: bottom center;
+      animation: swayTree 8s ease-in-out infinite;
+      filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
+      transition: transform 0.5s ease-out;
+    }
+    @keyframes swayTree {
+      0%, 100% { 
+        transform: rotate(0deg) translateY(0); 
+        filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
+      }
+      50% { 
+        transform: rotate(3deg) translateY(-2px);
+        filter: drop-shadow(3px 3px 5px rgba(0,0,0,0.25));
+      }
+    }
+
+    /* Ice cream updates - replace existing ice cream styles */
+    .icecream {
+      width: 48px;
+      height: 48px;
+      top: -48px;
+      transform-origin: center;
+      animation: fallIcecream 4s ease-in forwards;
+      will-change: transform, opacity;
+      z-index: 202;
+      pointer-events: none;
+    }
+
+    @keyframes fallIcecream {
+      0% {
+        transform: translateY(0) translateX(0) rotate(0deg);
+        opacity: 0;
+      }
+      10% {
+        opacity: 1;
+      }
+      90% {
+        transform: translateY(calc(100vh - 80px)) translateX(calc(sin(360deg) * 30px)) rotate(180deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(calc(100vh - 64px)) translateX(calc(sin(360deg) * 30px)) rotate(200deg);
+        opacity: 0;
+      }
+    }
+
+    /* 6. Pixel Sand */
+    .sand {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 64px;
+      background: 
+        linear-gradient(45deg, #f4d03f 25%, transparent 25%) -4px 0,
+        linear-gradient(-45deg, #f4d03f 25%, transparent 25%) -4px 0,
+        linear-gradient(45deg, transparent 75%, #f4d03f 75%),
+        linear-gradient(-45deg, transparent 75%, #f4d03f 75%);
+      background-size: 8px 8px;
+      background-color: #f5d76e;
+      z-index: 200;
+    }
+
+    /* Interactive hover effects */
+    .sun:hover {
+      animation: spinSun 20s linear infinite;
+      filter: brightness(1.2);
+      cursor: pointer;
+    }
+
+    .tree:hover {
+      animation-duration: 4s;
+      filter: drop-shadow(3px 3px 6px rgba(0,0,0,0.3));
+      cursor: pointer;
+    }
+
+    /* Scene container enhancement */
+    #scene::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle at center, transparent 60%, rgba(135, 206, 235, 0.1));
+      pointer-events: none;
+    }
+
+    /* Add splat effect */
+    .splat {
+      position: absolute;
+      width: 48px;
+      height: 48px;
+      animation: melt 2s ease-out forwards;
+      z-index: 201;
+    }
+
+    @keyframes melt {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2) translateY(10px); opacity: 0; }
+    }
+
+    /* Night mode enhancements */
+    body.night .sand {
+      background-color: #c4a853;
+      background-image: 
+        linear-gradient(45deg, #b3982f 25%, transparent 25%),
+        linear-gradient(-45deg, #b3982f 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #b3982f 75%),
+        linear-gradient(-45deg, transparent 75%, #b3982f 75%);
+      filter: brightness(0.7);
+    }
+
+    body.night .tree {
+      filter: brightness(0.5) saturate(0.6);
+      transition: all 0.8s ease;
+    }
+
+    /* Add umbrella styles */
+    .umbrella {
+      position: absolute;
+      width: 64px;
+      height: 64px;
+      bottom: 54px; /* Sink slightly into sand */
+      transform: rotate(-15deg); /* Slight tilt for beach vibe */
+      opacity: 0.95;
+      z-index: 150;
+      filter: drop-shadow(3px 3px 5px rgba(0,0,0,0.25));
+      transition: all 0.3s ease;
+    }
+
+    .umbrella:hover {
+      filter: drop-shadow(4px 4px 6px rgba(0,0,0,0.3));
+    }
+
+    body.night .umbrella {
+      filter: drop-shadow(3px 3px 5px rgba(0,0,0,0.4)) brightness(0.7);
+    }
+
+    /* Fixed Chippy styles */
+    .chippy {
+      position: fixed;
+      width: 100px;
+      height: 100px;
+      bottom: 55px; /* Slightly sunk into sand */
+      right: -150px;
+      z-index: 201; /* Between sand pattern and ice cream */
+      transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
+    }
+
+    .chippy::after {
+      content: '';
+      position: absolute;
+      bottom: -10px;
+      left: 15px;
+      right: 15px;
+      height: 15px;
+      background: rgba(244, 208, 63, 0.6);
+      border-radius: 50%;
+      filter: blur(3px);
+      z-index: -1;
+    }
+
+    .chippy.active {
+      right: 40px;
+    }
+
+    .chippy.happy {
+      animation: happyDance 1s ease-in-out;
+    }
+
+    @keyframes happyDance {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      25% { transform: translateY(-20px) rotate(-5deg); }
+      75% { transform: translateY(-10px) rotate(5deg); }
+    }
+
+    /* Calendar reveal styles */
+    .calendar-reveal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      padding: 20px;
+      border-radius: 10px;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    .calendar-reveal.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Enhanced night mode effects */
+    body.night .element,
+    body.night .umbrella,
+    body.night .chippy {
+      filter: brightness(0.7) saturate(0.8);
+    }
+
+    /* Treat counter styles */
+    .treat-counter {
+      position: fixed;
+      top: 90px; /* Moved below sun which is at 20px */
+      right: 20px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      z-index: 1000;
+    }
+
+    /* Enhanced night mode for trees */
+    body.night .tree {
+      filter: brightness(0.6) saturate(0.7) drop-shadow(3px 3px 5px rgba(0,0,0,0.4));
+      transition: all 0.8s ease;
+    }
+
+    /* Make ice cream draggable */
+    .icecream {
+      cursor: move;
+      touch-action: none;
+      pointer-events: auto !important;
+      user-select: none;
+      position: absolute;
+      z-index: 202;
+    }
+
+    .icecream.dragging {
+      animation: none !important;
+      transition: none;
+      position: fixed; /* This helps with precise positioning */
+      transform: translate(-50%, -50%) !important; /* Center on cursor */
+    }
+
+    .icecream.throwing {
+      position: fixed;
+      pointer-events: none;
+      transition: none;
+      animation: none;
+    }
+
+    /* Update tree hover effect */
+    .tree:hover {
+      animation-duration: 2s;
+      filter: brightness(1.2);
+      cursor: pointer;
+    }
+
+    /* Updated 8-bit style audio controls */
+    .audio-controls {
+      position: fixed;
+      bottom: 15px;
+      left: 15px;
+      background: #333;
+      padding: 6px;
+      border: 2px solid #fff;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 1000;
+      image-rendering: pixelated;
+      box-shadow: 3px 3px 0 rgba(0,0,0,0.2);
+    }
+
+    .audio-controls button {
+      background: #fff;
+      border: 2px solid #000;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      cursor: pointer;
+      image-rendering: pixelated;
+      box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+    }
+
+    .audio-controls input[type="range"] {
+      width: 60px;
+      height: 4px;
+      -webkit-appearance: none;
+      background: #fff;
+      border: 1px solid #000;
+    }
+
+    .audio-controls input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 8px;
+      height: 12px;
+      background: #fff;
+      border: 2px solid #000;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Updated Controls Panel -->
+  <div class="controls">
+    <label>
+      <input type="checkbox" id="toggleBeach" checked /> Toggle Beach
+    </label>
+    <label>
+      <input type="checkbox" id="toggleSun" /> Show Sun
+    </label>
+    <label>
+      <input type="checkbox" id="toggleIcecreams" /> Show Ice Cream
+    </label>
+  </div>
+
+  <!-- Simplify audio controls HTML -->
+  <div class="audio-controls">
+    <button id="muteBtn">🔊</button>
+    <input type="range" id="volumeSlider" min="0" max="100" value="50">
+  </div>
+
+  <!-- Add audio elements -->
+  <audio id="bgMusic" loop>
+    <source src="nodog.ogg" type="audio/ogg">
+  </audio>
+  <audio id="chippyMusic" loop>
+    <source src="snp.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="treatSound">
+    <source src="coin.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="victorySound">
+    <source src="victory.mp3" type="audio/mpeg">
+  </audio>
+
+  <!-- Scene Container -->
+  <div id="scene"></div>
+
+  <script>
+    // Update audioManager with better initialization and error handling
+    const audioManager = {
+      bgMusic: document.getElementById('bgMusic'),
+      chippyMusic: document.getElementById('chippyMusic'),
+      treatSound: document.getElementById('treatSound'),
+      victorySound: document.getElementById('victorySound'),
+      volumeSlider: document.getElementById('volumeSlider'),
+      muteBtn: document.getElementById('muteBtn'),
+      statusElement: document.querySelector('.audio-status'),
+      isMuted: false,
+
+      init() {
+        // Set initial volumes and load sounds immediately
+        const volume = this.volumeSlider.value / 100;
+        [this.bgMusic, this.chippyMusic, this.treatSound, this.victorySound]
+          .forEach(audio => {
+            audio.volume = 0; // Start at 0 volume
+            audio.preload = 'auto';
+          });
+
+        // Start background music immediately
+        window.onload = () => {
+          const fadeIn = () => {
+            let vol = 0;
+            const interval = setInterval(() => {
+              vol += 0.05;
+              if (vol >= volume) {
+                vol = volume;
+                clearInterval(interval);
+              }
+              this.bgMusic.volume = vol;
+            }, 50);
+            
+            this.bgMusic.play().catch(() => {
+              // If autoplay fails, try on first interaction
+              const startAudio = () => {
+                this.bgMusic.play();
+                document.removeEventListener('click', startAudio);
+                document.removeEventListener('touchstart', startAudio);
+              };
+              document.addEventListener('click', startAudio);
+              document.addEventListener('touchstart', startAudio);
+            });
+          };
+          fadeIn();
+        };
+
+        // Backup autoplay on any user interaction
+        const startOnInteraction = () => {
+          if (this.bgMusic.paused) {
+            this.bgMusic.play();
+          }
+          ['click', 'touchstart', 'keydown'].forEach(event => 
+            document.removeEventListener(event, startOnInteraction)
+          );
+        };
+
+        ['click', 'touchstart', 'keydown'].forEach(event => 
+          document.addEventListener(event, startOnInteraction)
+        );
+
+        this.volumeSlider.addEventListener('input', (e) => {
+          const vol = e.target.value / 100;
+          [this.bgMusic, this.chippyMusic, this.treatSound, this.victorySound]
+            .forEach(audio => audio.volume = vol);
+        });
+
+        this.muteBtn.addEventListener('click', () => {
+          this.isMuted = !this.isMuted;
+          [this.bgMusic, this.chippyMusic, this.treatSound, this.victorySound]
+            .forEach(audio => audio.muted = this.isMuted);
+          this.muteBtn.textContent = this.isMuted ? '🔇' : '🔊';
+        });
+      },
+
+      playTreatSound() {
+        // Create and play treat sound immediately
+        const sound = new Audio('coin.mp3');
+        sound.volume = this.volumeSlider.value / 100;
+        sound.muted = this.isMuted;
+        sound.play().catch(e => console.warn('Treat sound error:', e));
+        setTimeout(() => sound.remove(), 1000);
+      },
+
+      updateStatus(text) {
+        if (this.statusElement) {
+          this.statusElement.textContent = `Now Playing: ${text}`;
+          this.statusElement.classList.add('audio-playing');
+        }
+      },
+
+      switchToChippyMusic() {
+        // Crossfade between background and chippy music
+        const fadeOut = (audio) => {
+          let vol = audio.volume;
+          const interval = setInterval(() => {
+            vol -= 0.05;
+            if (vol <= 0) {
+              vol = 0;
+              clearInterval(interval);
+              audio.pause();
+            }
+            audio.volume = vol;
+          }, 50);
+        };
+
+        const fadeIn = (audio) => {
+          audio.volume = 0;
+          audio.play();
+          let vol = 0;
+          const interval = setInterval(() => {
+            vol += 0.05;
+            if (vol >= this.volumeSlider.value / 100) {
+              vol = this.volumeSlider.value / 100;
+              clearInterval(interval);
+            }
+            audio.volume = vol;
+          }, 50);
+        };
+
+        fadeOut(this.bgMusic);
+        fadeIn(this.chippyMusic);
+        this.updateStatus('Chippy Theme');
+      },
+
+      playVictorySound() {
+        const fadeOut = () => {
+          let vol = this.chippyMusic.volume;
+          const interval = setInterval(() => {
+            vol -= 0.1;
+            if (vol <= 0) {
+              vol = 0;
+              clearInterval(interval);
+              this.chippyMusic.pause();
+              playVictory();
+            }
+            this.chippyMusic.volume = vol;
+          }, 50);
+        };
+
+        const playVictory = () => {
+          this.victorySound.volume = this.volumeSlider.value / 100;
+          this.victorySound.play();
+          
+          this.victorySound.onended = () => {
+            setTimeout(() => {
+              this.chippyMusic.volume = 0;
+              this.chippyMusic.play();
+              let vol = 0;
+              const interval = setInterval(() => {
+                vol += 0.1;
+                if (vol >= this.volumeSlider.value / 100) {
+                  vol = this.volumeSlider.value / 100;
+                  clearInterval(interval);
+                }
+                this.chippyMusic.volume = vol;
+              }, 50);
+            }, 1000);
+          };
+        };
+
+        fadeOut();
+      }
+    };
+
+    // Initialize audio manager
+    audioManager.init();
+
+    // Grab the scene container
+    const scene = document.getElementById("scene");
+
+    /* Utility: Generate a random integer between min (inclusive) and max (exclusive) */
+    function randInt(min, max) {
+      return Math.floor(Math.random() * (max - min) + min);
+    }
+
+    /* Utility functions */
+    function getRandomCloudImage() {
+      return 'pixel_cloud_avr/cloud_45.png';
+    }
+
+    /* Update cloud creation */
+    function addClouds() {
+      // Create 4 clouds at different vertical positions and speeds
+      for (let i = 0; i < 4; i++) {
+        const img = document.createElement("img");
+        img.src = getRandomCloudImage();
+        img.onerror = () => {
+          console.warn(`Failed to load cloud image, falling back to default`);
+          img.src = "pixel-cloud.png";
+        };
+        img.classList.add("element", "cloud");
+        img.style.top = `${10 + i * 40}px`; /* Adjusted spacing */
+        const duration = 40 + i * 10;
+        img.style.animationDuration = `${duration}s`;
+        // Remove transform scale to fix cloud visibility
+        img.style.animationDelay = `${Math.random() * -20}s`;
+        img.dataset.type = "cloud";
+        scene.appendChild(img);
+      }
+    }
+    function removeClouds() {
+      document
+        .querySelectorAll('img[data-type="cloud"]')
+        .forEach((el) => el.remove());
+    }
+
+    /* 2. Sun */
+    function addSun() {
+      const img = document.createElement("img");
+      img.src = "pixel-sun.png"; // <-- replace with actual pixel-sun.png
+      img.classList.add("element", "sun");
+      img.dataset.type = "sun";
+      
+      img.addEventListener('click', () => {
+        document.body.classList.toggle('night');
+      });
+      
+      scene.appendChild(img);
+    }
+    function removeSun() {
+      document.querySelectorAll('img[data-type="sun"]').forEach((el) => el.remove());
+    }
+
+    /* Updated Palm Trees */
+    function addTree() {
+      const treePositions = [
+        { left: '5%', scale: 1 },
+        { left: '15%', scale: 0.8 },
+        { left: '80%', scale: 0.9 }
+      ];
+      
+      treePositions.forEach(pos => {
+        const img = document.createElement("img");
+        img.src = "pixel-tree.png";
+        img.classList.add("element", "tree");
+        img.style.left = pos.left;
+        img.style.transform = `scale(${pos.scale})`;
+        img.style.animationDelay = `${Math.random() * 2}s`;
+        img.dataset.type = "tree";
+        
+        // Add click handler to show Chippy
+        img.addEventListener('click', () => {
+          if (!document.querySelector('.chippy')) {
+            addChippy();
+            setTimeout(() => {
+              document.querySelector('.chippy').classList.add('active');
+            }, 100);
+          }
+        });
+        
+        scene.appendChild(img);
+      });
+    }
+    function removeTree() {
+      document.querySelectorAll('img[data-type="tree"]').forEach((el) => el.remove());
+    }
+
+    /* Update ice cream creation - replace existing addIcecreams function */
+    let icecreamsInterval = null;
+    function addIcecreams() {
+      icecreamsInterval = setInterval(() => {
+        const img = document.createElement("img");
+        img.src = "pixel-icecream.png";
+        img.classList.add("element", "icecream");
+        img.style.left = `${randInt(5, 90)}vw`;
+        const duration = randInt(4, 7);
+        img.style.animationDuration = `${duration}s`;
+        img.dataset.type = "icecream";
+        
+        // Add drag functionality
+        img.addEventListener('mousedown', startDragging);
+        img.addEventListener('touchstart', startDragging, { passive: false });
+        
+        scene.appendChild(img);
+        setTimeout(() => img.remove(), duration * 1000);
+      }, 1000);
+    }
+    function removeIcecreams() {
+      clearInterval(icecreamsInterval);
+      document
+        .querySelectorAll('img[data-type="icecream"]')
+        .forEach((el) => el.remove());
+    }
+
+    /* Create splat effect */
+    function createSplat(x, y) {
+      const splat = document.createElement('div');
+      splat.className = 'splat';
+      splat.style.left = `${x - 24}px`;
+      splat.style.top = `${y - 24}px`;
+      splat.style.backgroundImage = 'url(pixel-icecream.png)';
+      scene.appendChild(splat);
+      
+      setTimeout(() => splat.remove(), 2000);
+    }
+
+    /* 6. Sand */
+    function addSand() {
+      const div = document.createElement("div");
+      div.classList.add("sand");
+      div.dataset.type = "sand";
+      scene.appendChild(div);
+    }
+    function removeSand() {
+      document.querySelectorAll('div[data-type="sand"]').forEach((el) => el.remove());
+    }
+
+    /* Add umbrella creation */
+    function addUmbrella() {
+      const img = document.createElement("img");
+      img.src = "pixel-umbrella.webp";
+      img.classList.add("element", "umbrella");
+      img.style.left = '65%';
+      img.style.transform = `rotate(-15deg) scale(0.9)`;
+      img.dataset.type = "umbrella";
+      scene.appendChild(img);
+    }
+
+    function removeUmbrella() {
+      document.querySelectorAll('img[data-type="umbrella"]').forEach(el => el.remove());
+    }
+
+    /* Remove clouds from beach toggle */
+    function toggleBeach(show) {
+      if (show) {
+        addTree();
+        addSand();
+        addUmbrella();
+      } else {
+        removeClouds();
+        removeTree();
+        removeSand();
+        removeUmbrella();
+      }
+    }
+
+    /* Updated Event Listeners */
+    document.getElementById("toggleBeach").addEventListener("change", (e) => {
+      toggleBeach(e.target.checked);
+    });
+    
+    document.getElementById("toggleSun").addEventListener("change", (e) => {
+      if (e.target.checked) addSun();
+      else removeSun();
+    });
+    
+    document.getElementById("toggleIcecreams").addEventListener("change", (e) => {
+      if (e.target.checked) addIcecreams();
+      else removeIcecreams();
+    });
+
+    /* Add mouse tracking for wind effect */
+    let mouseX = 0;
+    scene.addEventListener('mousemove', (e) => {
+      const newMouseX = e.clientX;
+      const wind = (newMouseX - mouseX) * 0.1;
+      mouseX = newMouseX;
+      
+      document.querySelectorAll('.tree').forEach(tree => {
+        const currentRotation = parseFloat(tree.style.getPropertyValue('--rotation') || '0');
+        const newRotation = Math.max(-10, Math.min(10, currentRotation + wind));
+        tree.style.setProperty('--rotation', newRotation);
+        tree.style.transform = `rotate(${newRotation}deg)`;
+      });
+    });
+
+    /* Initialize beach scene by default */
+    toggleBeach(true);
+
+    /* Update addChippy to use fixed positioning */
+    function addChippy() {
+      const chippy = document.createElement('img');
+      chippy.src = 'giphy.webp';
+      chippy.classList.add('chippy');
+      chippy.style.right = '-150px';
+      document.body.appendChild(chippy);
+      
+      setTimeout(() => {
+        chippy.style.right = '40px';
+        audioManager.switchToChippyMusic();
+      }, 100);
+      
+      startCollisionDetection(chippy);
+    }
+
+    function removePreviousChippy() {
+      const existing = document.querySelector('.chippy');
+      if (existing) existing.remove();
+    }
+
+    /* Improved ice cream collision detection */
+    function startCollisionDetection(chippy) {
+      let treats = 0;
+      const counter = document.createElement('div');
+      counter.className = 'treat-counter';
+      counter.textContent = 'Treats: 0';
+      document.body.appendChild(counter);
+
+      function checkCollision() {
+        const chippyRect = chippy.getBoundingClientRect();
+        const hitArea = {
+          left: chippyRect.left + 20,
+          right: chippyRect.right - 20,
+          top: chippyRect.top + 10,
+          bottom: chippyRect.bottom - 10
+        };
+        
+        document.querySelectorAll('.icecream').forEach(iceCream => {
+          const iceCreamRect = iceCream.getBoundingClientRect();
+          
+          if (iceCreamRect.right > hitArea.left &&
+              iceCreamRect.left < hitArea.right &&
+              iceCreamRect.bottom > hitArea.top &&
+              iceCreamRect.bottom < hitArea.bottom) {
+            
+            // Play sound first and ensure it plays
+            audioManager.playTreatSound();
+            
+            const treats = parseInt(document.querySelector('.treat-counter')?.textContent.split(': ')[1] || '0') + 1;
+            updateTreatCounter(treats);
+            
+            if (treats === 10) {
+              audioManager.playVictorySound();
+              revealCalendar();
+              chippy.style.animation = 'happyDance 2s ease-in-out 3';
+            }
+            
+            chippy.classList.add('happy');
+            setTimeout(() => chippy.classList.remove('happy'), 1000);
+            
+            createSplat(iceCreamRect.left, chippyRect.top);
+            iceCream.remove();
+          }
+        });
+        
+        requestAnimationFrame(checkCollision);
+      }
+      
+      requestAnimationFrame(checkCollision);
+    }
+
+    function revealCalendar() {
+      const reveal = document.createElement('div');
+      reveal.className = 'calendar-reveal';
+      reveal.innerHTML = `
+        <h3 style="color: white; margin-bottom: 20px;">🎉 You found the secret! 🎉</h3>
+        <a href="webcal://p177-caldav.icloud.com/published/2/OTExNTgwMDA5OTExNTgwMDnQiPe_CxK9XyRkYkkg5MiCO8wSPvAB67xG1KrK35uhIdVjIr0AmmIwtnPbhsoUhRzwrsJ2vakrnGhmnPZEs7Q" 
+           style="color: #4CAF50; text-decoration: none;">Click to Open Calendar ✨</a>
+      `;
+      document.body.appendChild(reveal);
+      setTimeout(() => reveal.classList.add('show'), 100);
+      
+      reveal.addEventListener('click', () => {
+        reveal.classList.remove('show');
+        setTimeout(() => reveal.remove(), 500);
+      });
+    }
+
+    /* Add drag handling */
+    function startDragging(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const icecream = e.target;
+      const rect = icecream.getBoundingClientRect();
+      const x = e.clientX || e.touches[0].clientX;
+      const y = e.clientY || e.touches[0].clientY;
+
+      icecream.style.left = rect.left + 'px';
+      icecream.style.top = rect.top + 'px';
+      
+      icecream.classList.add('dragging');
+      icecream.style.animation = 'none';
+      
+      let lastX = x;
+      let lastY = y;
+      let lastTime = Date.now();
+      let velocityX = 0;
+      let velocityY = 0;
+      let isDragging = false;
+      
+      function moveIcecream(e) {
+        isDragging = true;
+        const x = e.clientX || e.touches[0].clientX;
+        const y = e.clientY || e.touches[0].clientY;
+        const now = Date.now();
+        const dt = (now - lastTime) / 1000;
+        
+        velocityX = (x - lastX) / dt;
+        velocityY = (y - lastY) / dt;
+        
+        lastX = x;
+        lastY = y;
+        lastTime = now;
+        
+        icecream.style.left = x + 'px';
+        icecream.style.top = y + 'px';
+      }
+      
+      function stopDragging() {
+        document.removeEventListener('mousemove', moveIcecream);
+        document.removeEventListener('touchmove', moveIcecream);
+        document.removeEventListener('mouseup', stopDragging);
+        document.removeEventListener('touchend', stopDragging);
+        
+        if (!isDragging) {
+          // If no drag occurred, keep the ice cream falling
+          icecream.classList.remove('dragging');
+          icecream.style.animation = '';
+          return;
+        }
+        
+        // Always throw, but with current velocity (even if very slow)
+        throwIcecream(icecream, velocityX, velocityY);
+      }
+      
+      document.addEventListener('mousemove', moveIcecream);
+      document.addEventListener('touchmove', moveIcecream, { passive: false });
+      document.addEventListener('mouseup', stopDragging);
+      document.addEventListener('touchend', stopDragging);
+    }
+
+    function throwIcecream(icecream, vx, vy) {
+      icecream.classList.remove('dragging');
+      icecream.classList.add('throwing');
+      
+      const gravity = 1200;
+      const drag = 0.001;
+      let x = parseFloat(icecream.style.left);
+      let y = parseFloat(icecream.style.top);
+      let lastTime = Date.now();
+      
+      // Add minimum velocity for very slow drops
+      if (Math.abs(vx) < 50 && Math.abs(vy) < 50) {
+        vy = 100; // Give it a slight downward velocity
+      }
+      
+      function updatePosition() {
+        const now = Date.now();
+        const dt = (now - lastTime) / 1000;
+        lastTime = now;
+        
+        vy += gravity * dt;
+        vx *= (1 - drag);
+        vy *= (1 - drag);
+        
+        x += vx * dt;
+        y += vy * dt;
+        
+        icecream.style.left = x + 'px';
+        icecream.style.top = y + 'px';
+        icecream.style.transform = `rotate(${Math.atan2(vy, vx) * 180 / Math.PI}deg)`;
+        
+        const chippy = document.querySelector('.chippy');
+        if (chippy) {
+          const chippyRect = chippy.getBoundingClientRect();
+          const icecreamRect = icecream.getBoundingClientRect();
+          
+          if (checkOverlap(icecreamRect, chippyRect)) {
+            createSplat(icecream.getBoundingClientRect().left, chippy.getBoundingClientRect().top);
+            chippy.classList.add('happy');
+            
+            // Play sound first and ensure it plays
+            audioManager.playTreatSound();
+            
+            const treats = parseInt(document.querySelector('.treat-counter')?.textContent.split(': ')[1] || '0') + 1;
+            updateTreatCounter(treats);
+            
+            if (treats === 10) {
+              audioManager.playVictorySound();
+              revealCalendar();
+              chippy.style.animation = 'happyDance 2s ease-in-out 3';
+            }
+            
+            setTimeout(() => chippy.classList.remove('happy'), 1000);
+            icecream.remove();
+            return;
+          }
+        }
+        
+        if (y > window.innerHeight || x < 0 || x > window.innerWidth) {
+          icecream.remove();
+          return;
+        }
+        
+        requestAnimationFrame(updatePosition);
+      }
+      
+      requestAnimationFrame(updatePosition);
+    }
+
+    function checkOverlap(rect1, rect2) {
+      return !(rect1.right < rect2.left || 
+              rect1.left > rect2.right || 
+              rect1.bottom < rect2.top || 
+              rect1.top > rect2.bottom);
+    }
+
+    function updateTreatCounter(count) {
+      let counter = document.querySelector('.treat-counter');
+      if (!counter) {
+        counter = document.createElement('div');
+        counter.className = 'treat-counter';
+        document.body.appendChild(counter);
+      }
+      counter.textContent = `Treats: ${count}`;
+    }
+  </script>
+</body>
+</html>

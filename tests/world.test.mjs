@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,applyOperation,visibleWorld,INCIDENTS,makeIncident,TENDENCIES,GESTURES} from '../shared/world.js';
+import {createWorld,applyOperation,visibleWorld,INCIDENTS,makeIncident,TENDENCIES,GESTURES,CONTRACTS} from '../shared/world.js';
 
 const NOW=Date.parse('2026-09-20T12:00:00Z');
 let sequence=0;
@@ -172,4 +172,66 @@ test('drawings are bounded strokes, not executable or unlimited content',()=>{
 
 test('every content definition can be constructed and resolved',()=>{
   for(const definition of INCIDENTS){let state=createWorld('test',NOW);state.incident=makeIncident(state,NOW,definition.id);state=op(state,'resolve',{target:state.incident.uid,score:definition.goal});assert.ok(state.inventory.includes(definition.reward));assert.equal(state.traces[0].type,definition.aftermath);}
+});
+
+test('what happened while you were away is recorded in a replayable form',()=>{
+  const state=op(createWorld('replay',NOW),'visit',{},NOW+3*86400000);
+  assert.ok(state.changes.length>5,`only ${state.changes.length} change records`);
+  const moves=state.changes.flatMap(c=>c.moves);
+  assert.ok(moves.length,'nothing moved');
+  // Every move knows where it started, so the room can rewind to how she left it.
+  for(const m of moves.filter(m=>m.kind==='object'||m.kind==='actor')){
+    assert.ok(m.from&&Number.isFinite(m.from.x)&&m.from.room,'a move without an origin');
+    assert.ok(m.to&&Number.isFinite(m.to.x)&&m.to.room,'a move without a destination');
+  }
+  for(const c of state.changes)assert.ok(c.who,'a change nobody is responsible for');
+});
+
+test('each person is shown only what they personally missed',()=>{
+  let state=createWorld('seen',NOW);
+  const t=NOW+60000;
+  state=op(state,'move',{target:'lamp',x:300,y:250,room:'house'},t,'david');
+  const missed=c=>state.changes.filter(x=>x.at>state.seen[c]).length;
+  // David did it, so it is Julia who has something waiting.
+  assert.ok(missed('julia')>0,'julia was not told');
+  state=op(state,'seen',{},t+1000,'julia');
+  assert.equal(missed('julia'),0);
+  // Acknowledging is the only thing that moves the marker; looking around is not.
+  const before=state.seen.david;
+  state=op(state,'visit',{},t+2*86400000,'david');
+  assert.equal(state.seen.david,before);
+});
+
+test('what a short game asks of you varies, not just the gesture',()=>{
+  let state=createWorld('shape',NOW),t=NOW;
+  const seen=new Set();
+  for(let i=0;i<50;i++){
+    const e=state.incident;if(!e)break;
+    assert.ok(CONTRACTS[e.contract],`unknown contract ${e.contract}`);
+    seen.add(e.contract);
+    state=op(state,'resolve',{target:e.uid,score:e.goal||1},t);
+    t+=25*60000;state=op(state,'visit',{},t);
+  }
+  assert.ok(seen.size>=5,`only ${seen.size} kinds of contract: ${[...seen]}`);
+  // Some of them count nothing at all.
+  assert.ok([...seen].some(c=>CONTRACTS[c].silent),'every game still announces itself');
+});
+
+test('something you did days ago comes back without explanation',()=>{
+  let state=op(createWorld('chain',NOW),'hide',{target:'lamp'});
+  assert.equal(state.chains.length,1);
+  const lampBefore={...state.objects.find(o=>o.id==='lamp')};
+  state=op(state,'visit',{},NOW+6*86400000);
+  assert.equal(state.chains.length,0,'the chain never fired');
+  assert.equal(state.hidden.lamp,undefined,'it is still hidden');
+  const lamp=state.objects.find(o=>o.id==='lamp');
+  assert.ok(lamp.x!==lampBefore.x||lamp.y!==lampBefore.y||lamp.room!==lampBefore.room,'it did not turn up anywhere');
+});
+
+test('a ghost game is played against their own previous best',()=>{
+  let state=createWorld('ghost',NOW);
+  state.best={tap:20};
+  let found=null;
+  for(let i=0;i<80&&!found;i++){const e=makeIncident({...state,serial:i},NOW);if(e.contract==='ghost'&&e.kind==='tap')found=e;}
+  if(found)assert.ok(found.goal>=20,`ghost goal ${found.goal} ignored the previous best`);
 });

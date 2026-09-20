@@ -3,7 +3,7 @@ import {Scene} from './scene.js';
 import {Microgame} from './microgames.js';
 import {Sounds} from './audio.js';
 import {icon,spriteCanvas,character,item,rect,fillSprite} from './art.js';
-import {ACTORS,NAMES,ITEMS,other,createWorld} from './shared/world.js';
+import {ACTORS,NAMES,ITEMS,other,createWorld,CONTRACTS} from './shared/world.js';
 
 const $=id=>document.getElementById(id);
 const SYMBOLS={poke:'☞',wear:'↑',move:'↔',out:'↗',take:'←',eat:'○',sleep:'z',dig:'▾',build:'▲',guard:'◉',hide:'?',find:'!',gift:'→',open:'↗',draw:'✎',chaos:'↝',play:'→',match:'=',mismatch:'≠',place:'↓',grow:'→'};
@@ -53,6 +53,29 @@ function render(){
   if(sheetKind==='history')historySheet();
 }
 
+/** Opening the game is the diff. Anything that moved since she last looked plays
+ * back in the room, then her marker advances. If nothing moved, nothing happens. */
+function playCatchUp(){
+  const st=store.state;
+  if(!st||!store.actor||scene.replaying||game)return;
+  const since=st.seen?.[store.actor]??0;
+  const unseen=(st.changes||[]).filter(c=>c.at>since);
+  if(!unseen.length)return;
+  const items=unseen.flatMap(c=>[
+    ...c.moves.map(m=>({...m,who:c.who})),
+    ...c.traces.map(tr=>({kind:'trace',trace:tr,who:c.who})),
+  ]);
+  const where=it=>it.to?.room||it.from?.room||it.trace?.room;
+  const tally={};
+  for(const it of items){const r=where(it);if(r&&st.unlocked.includes(r))tally[r]=(tally[r]||0)+1;}
+  const busiest=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0]?.[0];
+  const here=items.filter(it=>where(it)===(busiest||room)).slice(-12);
+  if(!here.length){operate('seen');return;}
+  if(busiest&&busiest!==room){room=busiest;selectedItem=null;hideMenu();}
+  render();
+  scene.startReplay(here,()=>{operate('seen');render();});
+}
+
 function clock(){const date=new Date();scene.night=nightMode==='night'||nightMode==='auto'&&(date.getHours()<7||date.getHours()>=20);}
 function goTo(place){
   if(!store.state)return;
@@ -63,6 +86,7 @@ function tap(id,point){
   if(!store.state){welcome();return;}
   if(!id){hideMenu();if(selectedItem){operate('place',{item:selectedItem,room});selectedItem=null;render();}return;}
   if(selectedItem&&ACTORS.includes(id)&&ITEMS[selectedItem]?.wearable){operate('wear',{target:id,item:selectedItem});scene.react(id);selectedItem=null;render();sounds.play('gift');tip('✓');return;}
+  if(store.actor&&id===other(store.actor)){personSheet();return;}
   if(ACTORS.includes(id)){
     operate('poke',{target:id});scene.react(id);sounds.play('tap');
     menu.replaceChildren();const name=document.createElement('b');name.textContent=NAMES[id];menu.append(name);
@@ -86,6 +110,21 @@ function welcome(){
   });b.append(pict(actor));const label=document.createElement('span');label.textContent=NAMES[actor];b.append(label);choices.append(b);}body.append(choices);
   paragraph(store.server?'Your place saves itself. Invite your person whenever.':'Playing on this device. Start the included server for a shared world.','onboarding-note');
   const instructions=document.createElement('div');instructions.className='instructions';instructions.innerHTML=`<span>${icon('hand')}tap</span><span>${icon('move')}drag</span><span>${icon('gift')}leave things</span>`;body.append(instructions);
+}
+/** Everything to do with the other person lives on the other person. */
+function personSheet(){
+  if(!store.state||!store.actor)return;
+  const them=other(store.actor);
+  showSheet('person','');
+  const header=document.createElement('div');header.className='result-picks';
+  header.append(pict(store.actor));const arrow=document.createElement('span');arrow.textContent='→';
+  header.append(arrow,pict(them,{hat:store.state.actors[them].hat}));body.append(header);
+  const row=document.createElement('div');row.className='surprise-row';
+  for(const[glyph,label,go]of[['◻','Wrap something up for them',collectionSheet],['✎','Draw them something',drawSheet],['↝','Interfere with them',surpriseSheet],['◷','What they have been doing',historySheet]]){
+    const b=button('','surprise-card',go);const strong=document.createElement('strong');strong.textContent=glyph;
+    b.append(strong);b.setAttribute('aria-label',label);row.append(b);
+  }
+  body.append(row);
 }
 function collectionSheet(){
   if(!store.state)return;showSheet('collection','Little things.');paragraph('For heads. For the floor. For each other.');
@@ -212,7 +251,8 @@ function startIncident(){
   const e=store.state.incident;room=e.room;closeSheet();hideMenu();render();
   const surprise=store.state.chaos[store.actor];const event={...e,modifier:surprise?.modifier||e.modifier};
   $('game-modifier').textContent=surprise?'↝':event.modifier==='plain'?'':{bouncy:'↝',tiny:'·',giant:'●',windy:'≋',sleepy:'z'}[event.modifier];
-  const pips=n=>'·'.repeat(Math.min(16,Math.max(0,n)));
+  const quiet=CONTRACTS[e.contract]?.silent;
+  const pips=n=>quiet?'':'·'.repeat(Math.min(16,Math.max(0,n)));
   $('game-progress').textContent=pips(e.goal);$('resume-game').hidden=true;$('microgame').showModal();
   game=new Microgame($('micro'),event,{sound:k=>sounds.play(k),reduced:scene.reduced,onProgress:(score,goal)=>$('game-progress').textContent=pips(goal-score),onFinish:finishIncident});
 }
@@ -239,7 +279,9 @@ function settingsSheet(){
   if(store.saveError)paragraph('This browser’s storage is full. Export a copy before leaving.','error-line');
 }
 
-store.addEventListener('change',render);store.addEventListener('rejected',e=>toast(e.detail));
+// The server's answer to our first visit arrives after boot, so catching up is
+// retried on every update; it costs nothing once the marker has moved.
+store.addEventListener('change',()=>{render();playCatchUp();});store.addEventListener('rejected',e=>toast(e.detail));
 $('settings').innerHTML=icon('settings');$('close-sheet').innerHTML=icon('close');$('together-icon').innerHTML=icon('users');$('leave-game').innerHTML=icon('close');$('pause-game').innerHTML=icon('pause');
 $('close-sheet').addEventListener('click',closeSheet);sheet.addEventListener('close',()=>sheetKind=null);sheet.addEventListener('click',e=>{if(e.target===sheet){const r=sheet.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeSheet();}});
 $('sound').addEventListener('click',()=>{sounds.toggle();updateSound();});$('settings').addEventListener('click',settingsSheet);$('history').addEventListener('click',historySheet);$('last-trace').addEventListener('click',historySheet);$('draw').addEventListener('click',drawSheet);$('surprise').addEventListener('click',surpriseSheet);$('together').addEventListener('click',togetherSheet);
@@ -257,7 +299,9 @@ async function boot(){
     showSheet('join','Come in.');paragraph('This link opens your person’s world.');
     if(store.state&&store.local.room!==invitation[1])paragraph('Your current world stays on its server. Save a copy in Settings if you also want a local backup.','settings-small');
     body.append(button('Enter the world','primary-button full',async()=>{try{await store.join(invitation[1],invitation[2]);history.replaceState(null,'',location.pathname);closeSheet();render();tip('you’re here.');}catch(error){toast(error.message);}}));
-  }else if(!store.actor)welcome();else{await store.sync();store.visit();}
+  }else if(!store.actor)welcome();else{await store.sync();store.visit();setTimeout(playCatchUp,700);}
+  // Coming back to the tab after a while is also an opening.
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&store.actor)setTimeout(playCatchUp,500);});
   if(store.loadError)toast('Couldn’t read the local save. Your server world is still available through its invitation.');
   if('serviceWorker'in navigator&&window.isSecureContext)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
