@@ -1,11 +1,23 @@
 import {character,item,rect,poly,ellipse,shadow} from './art.js';
 import {random,clamp,ACTORS} from './shared/world.js';
 
+/** Touching something has to be worth doing on its own, before any of the rest of
+ * the game means anything. Each resident answers a poke in their own way, and
+ * repeating it quickly escalates. */
+const REACTIONS={
+  monki:['hop','spin','tumble','squash','spin'],
+  sernik:['hop','shake','hop','spin','tumble'],
+  galgan:['shake','squash','flop','shake','flop'],
+  david:['hop','shake','squash'],
+  julia:['hop','shake','squash'],
+};
+const THING_REACTIONS={couch:'squash',lamp:'shake',plant:'shake',bowl:'hop',radio:'shake',fridge:'shake',potato:'hop'};
 const rng=random('a-house-for-five');
 const plants=Array.from({length:115},()=>({x:rng()*600,y:rng()*400,s:rng()}));
 export class Scene {
-  constructor(canvas,{onTap,onMove,onDoor,onFrame,onFridge,onIncident,onGift}){
-    this.canvas=canvas;this.c=canvas.getContext('2d');this.callbacks={onTap,onMove,onDoor,onFrame,onFridge,onIncident,onGift};this.room='house';this.state=null;this.animations={};this.hitboxes=[];this.down=null;this.moving=null;this.time=0;this.selected=null;this.night=false;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  constructor(canvas,{onTap,onMove,onDoor,onFrame,onFridge,onIncident,onGift,onHold,onPop}){
+    this.canvas=canvas;this.c=canvas.getContext('2d');this.callbacks={onTap,onMove,onDoor,onFrame,onFridge,onIncident,onGift,onHold,onPop};this.room='house';this.state=null;this.animations={};this.hitboxes=[];this.down=null;this.moving=null;this.time=0;this.selected=null;this.night=false;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.bubbles=[];this.toy=null;
     this.resize();window.addEventListener('resize',()=>this.resize());
     canvas.addEventListener('pointerdown',e=>this.pointerDown(e));canvas.addEventListener('pointermove',e=>this.pointerMove(e));canvas.addEventListener('pointerup',e=>this.pointerUp(e));canvas.addEventListener('pointercancel',()=>{this.down=null;this.moving=null});
     this.override={};this.hiddenObjects=new Set();this.traceCutoff=Infinity;this.replaying=false;this.highlight=null;
@@ -17,12 +29,61 @@ export class Scene {
   pointerDown(e){if(this.replaying){this.stopReplay();return;}if(e.button!==0)return;this.canvas.setPointerCapture(e.pointerId);const p=this.at(e);const hit=[...this.hitboxes].reverse().find(h=>p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h);if(hit?.movable){const entity=this.state.actors[hit.id]||this.state.objects.find(o=>o.id===hit.id);hit.offsetY=entity.y-p.y;}this.down={...p,hit,time:performance.now()};}
   pointerMove(e){if(!this.down?.hit?.movable)return;const p=this.at(e);if(this.moving||Math.hypot(p.x-this.down.x,p.y-this.down.y)>5){this.moving={id:this.down.hit.id,x:Math.max(35,Math.min(365,p.x)),y:Math.max(171,Math.min(314,p.y+this.down.hit.offsetY))};}}
   pointerUp(e){if(!this.down)return;const p=this.at(e),hit=this.down.hit;
+    const held=performance.now()-this.down.time>420;
     if(this.moving)this.callbacks.onMove(this.moving,this.room);
-    else if(hit){if(hit.action)this.callbacks[hit.action]?.(hit.id);else this.callbacks.onTap(hit.id,p);}
+    else if(hit){
+      if(hit.action==='popBubble'){this.bubbles=this.bubbles.filter(b=>b.id!==hit.id);this.callbacks.onPop?.();}
+      else if(hit.action)this.callbacks[hit.action]?.(hit.id);
+      else if(held)this.callbacks.onHold?.(hit.id,p);
+      else this.callbacks.onTap(hit.id,p);
+    }
     else this.callbacks.onTap(null,p);
     this.down=null;this.moving=null;
   }
-  react(id){this.animations[id]=performance.now()+1100;}
+  react(id,type){
+    const now=performance.now(),prev=this.animations[id];
+    // Poking again before the last one settles makes the next one bigger.
+    const n=prev&&now-prev.start<1500?Math.min(prev.n+1,6):1;
+    const pool=REACTIONS[id]||[THING_REACTIONS[type]||'hop'];
+    this.animations[id]={start:now,ms:480+n*45,kind:pool[(n-1)%pool.length],n};
+    return n;
+  }
+  playWith(kind){
+    const now=performance.now();
+    if(kind==='bubbles'){this.bubbles=Array.from({length:7},(_,i)=>({id:`bubble-${i}`,x:61+i*45,y:285-(i%3)*30,born:now,room:this.room,phase:i}));this.react('monki');return;}
+    const dog=this.state.actors.sernik;
+    this.toy={kind,room:this.room,born:now,from:{x:dog.room===this.room?dog.x:335,y:dog.room===this.room?dog.y:275},to:{x:82+Math.random()*225,y:269}};
+  }
+  toyFrame(time){
+    const toy=this.toy;if(!toy)return;
+    const p=clamp((time-toy.born-350)/1700,0,1),ease=p*p*(3-2*p);
+    this.override.sernik={room:toy.room,x:toy.from.x+(toy.to.x-toy.from.x)*ease,y:toy.from.y+(toy.to.y-toy.from.y)*ease};
+    if(time-toy.born>2300){this.toy=null;delete this.override.sernik;this.callbacks.onMove({id:'sernik',...toy.to},toy.room);this.react('sernik');}
+  }
+  drawToys(c,time){
+    const toy=this.toy;
+    if(toy?.room===this.room){const p=clamp((time-toy.born)/1100,0,1);item(c,'ball',210+(toy.to.x-210)*p,309+(toy.to.y-309)*p-Math.sin(p*Math.PI)*83,{scale:.8,shadow:true});}
+    this.bubbles=this.bubbles.filter(b=>time-b.born<16000);
+    for(const b of this.bubbles.filter(b=>b.room===this.room)){
+      const age=(time-b.born)/1000,x=b.x+Math.sin(age+b.phase)*10,y=b.y-age*9;
+      c.strokeStyle='#fff6d7';c.lineWidth=2;c.fillStyle='#d7e8e350';c.beginPath();c.arc(x,y,14,0,7);c.fill();c.stroke();rect(c,x-6,y-7,4,3,'#fffdf0');this.hit(b.id,x-22,y-22,44,44,{action:'popBubble'});
+    }
+  }
+  /** The transform a reaction applies this frame, pivoting on the thing's feet. */
+  reactionAt(id,time){
+    const a=this.animations[id];if(!a)return null;
+    const k=(time-a.start)/a.ms;if(k<0||k>=1)return null;
+    const amp=Math.min(2,.75+a.n*.2),fade=1-k,dir=a.n%2?1:-1;
+    switch(a.kind){
+      case 'hop':return{dy:-Math.abs(Math.sin(k*Math.PI*2))*13*amp};
+      case 'shake':return{dx:Math.sin(k*Math.PI*10)*4.5*amp*fade};
+      case 'spin':return{rot:k*Math.PI*2*dir};
+      case 'tumble':return{rot:Math.sin(k*Math.PI*2)*.9*amp*dir,dy:-Math.sin(k*Math.PI)*10};
+      case 'squash':return{sx:1+Math.sin(k*Math.PI)*.3*amp,sy:1-Math.sin(k*Math.PI)*.26*amp};
+      case 'flop':return{rot:Math.sin(k*Math.PI)*1.4*dir,dy:Math.sin(k*Math.PI)*4};
+    }
+    return null;
+  }
 
   /** Show someone what moved while they were not looking. The room rewinds to how
    * they left it and then plays the changes back, one at a time, with no words. */
@@ -69,12 +130,21 @@ export class Scene {
   hit(id,x,y,w,h,extra={}){this.hitboxes.push({id,x,y,w,h,...extra});}
   draw(time){if(!this.running)return;this.time=time;requestAnimationFrame(t=>this.draw(t));if(document.hidden||!this.state)return;
     if(this.replaying)this.advanceReplay(time);
+    this.toyFrame(time);
     const c=this.c,w=this.canvas.width,h=this.canvas.height,t=this.reduced?0:time/1000;
     c.clearRect(0,0,w,h);rect(c,0,0,w,h,this.night?'#6c7d72':'#dbe5c8');
     // Quiet, wide landscape continues around the dollhouse at desktop sizes.
     for(const p of plants){const x=(p.x+w)%w,y=p.y%h;rect(c,x,y,2,1,this.night?'#829482':p.s>.5?'#c3d3aa':'#ceddb8');if(p.s>.88){rect(c,x,y-2,1,3,'#aebf92');rect(c,x-1,y-3,3,1,'#f0e9c4');}}
     c.save();c.translate(this.ox,this.oy);this.hitboxes=[];
     if(this.room==='house')this.house(c,t);else if(this.room==='garden')this.garden(c,t);else if(this.room==='roof')this.roof(c,t);else this.cellar(c,t);
+    for(const decor of this.state.decor||[]){
+      if(decor==='ball'&&this.room==='house'&&!this.toy)item(c,'ball',79,276,{scale:.8});
+      if(decor==='boat'&&this.room==='garden')item(c,'boat',267+Math.sin(t)*6,252,{scale:.8});
+      if(decor==='kite'&&this.room==='house')item(c,'kite',180,134,{scale:.8});
+      if(decor==='telescope'&&this.room==='roof')item(c,'telescope',186,197,{scale:1.4});
+      if(decor==='lily'&&this.room==='garden'){item(c,'lily',300,255,{scale:.9});item(c,'frog',300,248,{scale:.55});}
+      if(decor==='rainbow'&&this.room==='house')item(c,'rainbow',116,111,{scale:.9});
+    }
     for(const trace of this.state.traces.filter(v=>v.room===this.room&&v.at<=this.traceCutoff))this.trace(c,trace,t);
     const place=e=>{const o=this.override[e.id];return o?{...e,x:o.x,y:o.y,room:o.room}:e;};
     const objects=this.state.objects.filter(o=>!this.hiddenObjects.has(o.id)).map(o=>place({...o,kind:'object'})).filter(o=>o.room===this.room);
@@ -84,16 +154,21 @@ export class Scene {
     for(const entity of entities){const{x,y,id}=entity;
       if(this.selected===id){ellipse(c,x,y+1,17,5,'#e9e3a5');rect(c,x-1,y+6,2,2,'#a6ad70');}
       const held=this.moving?.id===id||(this.down?.hit?.id===id&&this.down.hit.movable&&!this.replaying);
-      const lift=(this.animations[id]>time?Math.abs(Math.sin((time-this.animations[id])/150))*5:0)+(held?7:0);
+      const lift=held?7:0;
       if(held)shadow(c,x,y+2,entity.type==='couch'?30:13);
+      const fx=this.reactionAt(id,time);
+      c.save();
+      if(fx){c.translate(x+(fx.dx||0),y+(fx.dy||0));if(fx.rot)c.rotate(fx.rot);if(fx.sx||fx.sy)c.scale(fx.sx||1,fx.sy||1);c.translate(-x,-y);}
       if(entity.kind==='actor'){
         const frame=Math.floor(t+(ACTORS.indexOf(id)*.7));
         character(c,id,x,y-lift,{hat:entity.hat,mood:entity.mood,frame});
         if(entity.mood==='sleep'&&Math.sin(t*1.5)>-.5){c.fillStyle='#8d967e';c.font='8px monospace';c.fillText('z',x+15,y-30-(t%2)*3);}
         if(entity.mood==='annoyed'){rect(c,x-2,y-47,11,7,'#a8b295');rect(c,x+1,y-48,5,1,'#a8b295');c.fillStyle='#627152';c.font='6px monospace';c.fillText('...',x,y-42);}
+        c.restore();
         this.hit(id,x-20,y-42,40,46,{movable:true,offsetY:y-(this.down?.y||y)});
       }else{
         item(c,entity.type,x,y-lift,{shadow:true});
+        c.restore();
         const dimensions=entity.type==='couch'?[72,46]:entity.type==='plant'?[36,53]:entity.type==='lamp'?[37,60]:[29,31];
         this.hit(id,x-dimensions[0]/2,y-dimensions[1],...dimensions,{movable:true,offsetY:y-(this.down?.y||y)});
       }
@@ -109,6 +184,7 @@ export class Scene {
     if(event?.room===this.room&&!this.replaying)this.incident(c,event,t);
     const gifts=this.state.gifts.filter(g=>!g.opened);
     if(this.room==='house')gifts.slice(0,3).forEach((g,i)=>{const x=208+i*31,y=282;item(c,'present',x,y,{shadow:true});if(g.to===this.actor){this.sparkle(c,x,y-34,t);this.hit(g.id,x-17,y-35,34,39,{action:'onGift'});}});
+    this.drawToys(c,time);
     c.restore();
     if(this.replaying)this.replayFrame(c,w,h);
   }

@@ -1,18 +1,16 @@
 import {Store} from './store.js';
 import {Scene} from './scene.js';
-import {Microgame} from './microgames.js';
+import {AdventurePlayer} from './adventure-player.js';
 import {Sounds} from './audio.js';
 import {icon,spriteCanvas,character,item,rect,fillSprite} from './art.js';
-import {ACTORS,NAMES,ITEMS,other,createWorld,CONTRACTS} from './shared/world.js';
+import {ACTORS,NAMES,ITEMS,other,createWorld,clamp,favourite,waitingFor} from './shared/world.js';
+import {ADVENTURES,adventureFor} from './shared/adventures.js';
 
 const $=id=>document.getElementById(id);
-// Restricted to glyphs that exist in the default font on a phone, or they render
-// as empty boxes, which reads as broken images rather than as a quiet symbol.
-const SYMBOLS={poke:'!',wear:'↑',move:'→',out:'→',take:'←',eat:'×',sleep:'z',dig:'↓',build:'↑',guard:'·',hide:'?',find:'!',gift:'→',open:'→',draw:'~',chaos:'~',play:'→',match:'=',mismatch:'≠',place:'↓',grow:'→'};
 const store=new Store(),sounds=new Sounds();
 let room='house',selectedItem=null,game=null,sheetKind=null,toastTimer,tipTimer,nightMode='auto',lastRevision=-1,lastCompleted=0;
 const sheet=$('sheet'),body=$('sheet-body'),menu=$('interaction-menu');
-const scene=new Scene($('world'),{onTap:tap,onMove:(point,place)=>{operate('move',{target:point.id,x:point.x,y:point.y,room:place});sounds.play('tap');hideMenu();},onDoor:goTo,onFrame:drawSheet,onFridge:fridgeSheet,onIncident:startIncident,onGift:giftSheet});
+const scene=new Scene($('world'),{onTap:tap,onMove:(point,place)=>{operate('move',{target:point.id,x:point.x,y:point.y,room:place});sounds.play('tap');hideMenu();},onDoor:goTo,onFrame:drawSheet,onFridge:fridgeSheet,onIncident:startIncident,onGift:giftSheet,onHold:hold,onPop:()=>sounds.play('pop')});
 
 function button(label,className,fn){const b=document.createElement('button');b.className=className;b.textContent=label;b.addEventListener('click',fn);return b;}
 function pict(id,options){return spriteCanvas(id,48,options);}
@@ -27,10 +25,23 @@ function closeSheet(){sheet.close();sheetKind=null;}
 function paragraph(text,cls=''){const p=document.createElement('p');p.textContent=text;p.className=cls;body.append(p);return p;}
 function operate(type,fields={}){try{return store.op(type,fields);}catch(error){toast(error.message);return null;}}
 function relative(at){const mins=Math.max(0,Math.floor((Date.now()-at)/60000));return mins<1?'just now':mins<60?`${mins}m ago`:mins<1440?`${Math.floor(mins/60)}h ago`:`${Math.floor(mins/1440)}d ago`;}
+function describe(entry){
+  const who=NAMES[entry.who]||'Someone',target=NAMES[entry.target]||ITEMS[entry.target]?.name||'something',thing=ITEMS[entry.item]?.name||'something';
+  const actions={wear:`put ${thing} on ${target}`,move:`moved ${target}`,out:`took ${target} outside`,take:`borrowed ${target}`,eat:'found a snack',sleep:'fell asleep',dig:'dug a little hole',build:'moved things around',guard:`is watching ${target}`,hide:`hid ${target}`,find:`found ${target}`,gift:`left a present for ${target}`,open:'opened a present',draw:'left a drawing on the wall',play:'made a small mess',match:'picked the same frog',mismatch:'picked different frogs',place:`put down ${thing}`,grow:'found somewhere new',toy:entry.item==='ball'?'played ball with Sernik':'blew some bubbles',tidy:'put the loose things away',adventure:'added a picture to Moments',poke:`poked ${target}${entry.count>1?` ×${entry.count}`:''}`};
+  return `${who} ${actions[entry.action]||'was here'}.`;
+}
+function draftKey(){return `monki-adventure:${store.local.room||'solo'}:${store.actor}`;}
+function readDraft(chapter){try{const d=JSON.parse(localStorage.getItem(draftKey()));return d?.index===chapter.index?d.step:0;}catch{return 0;}}
 
 function render(){
   const state=store.state||createWorld('preview');
-  scene.update(state,room,store.actor||'david');
+  const chapter=adventureFor(state,store.actor||'david');
+  const preview={id:chapter.id==='up'?'balloons':chapter.id,uid:'adventure',actor:chapter.actor,room:state.unlocked.includes(chapter.room)?chapter.room:'house',kind:'tap',item:chapter.item,aftermath:chapter.id==='up'?'balloons':null};
+  scene.update({...state,incident:preview},room,store.actor||'david');
+  $('story-kicker').textContent=chapter.index===0?'SOMETHING IS HAPPENING':'A SMALL ADVENTURE';
+  $('story-title').textContent=chapter.title;$('story-subtitle').textContent=chapter.subtitle;
+  $('start-adventure').textContent=readDraft(chapter)>0?'Resume':'Play';
+  const art=$('story-art').getContext('2d');art.clearRect(0,0,105,90);character(art,chapter.actor,51,83,{scale:1.6});item(art,chapter.item,78,34,{scale:1.15});
   $('connection').textContent=!store.actor?'a little world':store.saveError?'storage is full':store.connected?(store.online?(store.paired?'our world · saved':'saved · invite your person'):'saved on this device'):'on this device';
   $('status-dot').classList.toggle('offline',!!store.actor&&(!store.online||store.saveError));
   const titles={house:'Home',garden:'Garden',roof:'Roof',cellar:'?'};
@@ -38,18 +49,18 @@ function render(){
   // Somewhere you cannot go yet is not shown at all. Nothing counts down to it.
   for(const place of ['house','garden','roof','cellar'].filter(p=>state.unlocked.includes(p))){
     const b=button('','place-tab'+(room===place?' active':'')+(state.incident?.room===place?' incident':''),()=>goTo(place));
-    b.innerHTML=icon(place);b.setAttribute('aria-label',titles[place]);b.setAttribute('aria-current',room===place?'location':'false');$('locations').append(b);
+    b.innerHTML=icon(place)+`<span>${titles[place]}</span>`;b.setAttribute('aria-label',titles[place]);b.setAttribute('aria-current',room===place?'location':'false');$('locations').append(b);
   }
   $('residents').replaceChildren();
   for(const id of ACTORS){const b=button('','resident'+(store.actor===id?' you':''),()=>residentSheet(id));b.title=NAMES[id];b.setAttribute('aria-label',NAMES[id]);b.append(pict(id,{hat:state.actors[id].hat}));$('residents').append(b);}
   $('pocket').replaceChildren();
   for(const id of state.inventory.slice(0,5)){const b=button('','pocket-item'+(selectedItem===id?' selected':''),()=>itemSheet(id));b.title=ITEMS[id].name;b.setAttribute('aria-label',ITEMS[id].name);b.append(pict(id));$('pocket').append(b);}
   const plus=button('+','pocket-item plus',collectionSheet);plus.setAttribute('aria-label','All little things');$('pocket').append(plus);
-  const last=state.log[0];
+  const incoming=state.gifts.find(g=>g.to===store.actor&&!g.opened),last=state.log[0];
   const img=$('trace-image');
-  if(last){img.replaceChildren(pict(last.who in NAMES?last.who:'monki'));const verb=document.createElement('span');verb.className='verb';verb.textContent=SYMBOLS[last.action]||'→';img.append(verb,pict(last.item||last.target));
-    $('trace-label').replaceChildren(document.createTextNode(relative(last.at)));}
-  else{img.replaceChildren(pict('monki'),pict('potato'));$('trace-label').textContent='';}
+  if(incoming){img.replaceChildren(pict('present'));$('trace-label').textContent=`${NAMES[incoming.from]} left you a present. Tap to open.`;}
+  else if(last){img.replaceChildren(pict(last.who in NAMES?last.who:'monki'));$('trace-label').textContent=describe(last);}
+  else{img.replaceChildren(pict(other(store.actor||'david')));$('trace-label').textContent=`Leave something for ${NAMES[other(store.actor||'david')]}.`;}
   lastCompleted=state.completed;lastRevision=state.revision;
   if(sheetKind==='together')togetherSheet();
   if(sheetKind==='history')historySheet();
@@ -57,6 +68,47 @@ function render(){
 
 /** Opening the game is the diff. Anything that moved since she last looked plays
  * back in the room, then her marker advances. If nothing moved, nothing happens. */
+/** The opening moment, in priority order. She is handed things; she is never asked
+ * to work out what is different. Something from him beats the room's own news,
+ * and if there is neither, nothing happens at all. */
+function openingMoment(){
+  const st=store.state;
+  if(!st||!store.actor||scene.replaying||game||sheet.open)return;
+  const waiting=waitingFor(st,store.actor);
+  if(waiting.length){arrivalSheet(waiting[0]);return;}
+  playCatchUp();
+  // Whoever she has petted most is pleased to see her. No number, no label.
+  const pal=favourite(st,store.actor);
+  if(pal&&!scene.replaying)scene.react(pal);
+}
+
+/** One thing, from one person, taken in one tap. */
+function arrivalSheet(item){
+  const from=item.from;
+  showSheet('arrival','');
+  const header=document.createElement('div');header.className='result-picks';
+  header.append(pict(from));const arrow=document.createElement('span');arrow.textContent='→';
+  header.append(arrow,pict(store.actor));body.append(header);
+  if(item.kind==='gift'){
+    const b=button('','reveal-gift full',async()=>{
+      b.disabled=true;sounds.play('gift');
+      if(!operate('openGift',{target:item.id}))return;
+      operate('received');
+      await store.sync();
+      const opened=store.state.gifts.find(g=>g.id===item.id);
+      if(opened?.item)showGiftResult(opened.item);else closeSheet();
+    });
+    b.append(pict('present'));body.append(b);
+    return;
+  }
+  const canvas=document.createElement('canvas');canvas.width=300;canvas.height=206;canvas.className='draw-pad';
+  const c=canvas.getContext('2d');c.strokeStyle='#61713f';c.lineWidth=2.5;c.lineCap='round';c.lineJoin='round';
+  for(const line of store.state.drawing){c.beginPath();line.forEach(([x,y],i)=>i?c.lineTo(x*300,y*206):c.moveTo(x*300,y*206));c.stroke();}
+  body.append(canvas);
+  const ok=button('','primary-button full',()=>{operate('received');closeSheet();sounds.play('pop');});
+  ok.innerHTML=icon('check');body.append(ok);
+}
+
 function playCatchUp(){
   const st=store.state;
   if(!st||!store.actor||scene.replaying||game)return;
@@ -86,49 +138,68 @@ function goTo(place){
   if(!store.state.unlocked.includes(place)){sounds.play('boop');tip(place==='garden'?'locked. for now.':'not quite yet.');return;}
   room=place;selectedItem=null;hideMenu();render();sounds.play('tap');
 }
+/** A tap is always just a reaction. Opening a menu when she touches her own dog is
+ * the difference between a toy and a file browser. Anything else is a long press. */
 function tap(id,point){
   if(!store.state){welcome();return;}
-  if(!id){hideMenu();if(selectedItem){operate('place',{item:selectedItem,room});selectedItem=null;render();}return;}
-  if(selectedItem&&ACTORS.includes(id)&&ITEMS[selectedItem]?.wearable){operate('wear',{target:id,item:selectedItem});scene.react(id);selectedItem=null;render();sounds.play('gift');tip('✓');return;}
-  if(store.actor&&id===other(store.actor)){personSheet();return;}
-  if(ACTORS.includes(id)){
-    operate('poke',{target:id});scene.react(id);sounds.play('tap');
-    menu.replaceChildren();const name=document.createElement('b');name.textContent=NAMES[id];menu.append(name);
-    const hat=button('','',()=>residentSheet(id));hat.innerHTML=icon('hat')+'a little something';menu.append(hat);
-    const move=button('','',()=>{hideMenu();tip('hold + drag');});move.innerHTML=icon('move')+'move';menu.append(move);
-    const incident=store.state.incident;if(incident?.actor===id){const play=button('','',()=>startIncident());play.innerHTML=icon('eye')+'what is that?';menu.append(play);}
-    menu.style.left=`${Math.max(20,Math.min(80,(point.x+scene.ox)/scene.canvas.width*100))}%`;menu.style.top=`${Math.max(36,(point.y-45+scene.oy)/scene.canvas.height*100)}%`;menu.hidden=false;scene.selected=id;
-  }else{
-    const object=store.state.objects.find(o=>o.id===id);if(object?.type==='radio'){sounds.toggle();updateSound();tip(sounds.enabled?'♪':'…');}
-    else if(object){scene.selected=id;tip(`${ITEMS[object.type]?.name||'thing'} · hold + drag`);}
+  hideMenu();
+  if(!id){if(selectedItem){operate('place',{item:selectedItem,room});selectedItem=null;render();}return;}
+  if(selectedItem&&ACTORS.includes(id)&&ITEMS[selectedItem]?.wearable){
+    operate('wear',{target:id,item:selectedItem});scene.react(id);selectedItem=null;render();sounds.play('gift');return;
   }
+  if(ACTORS.includes(id)){
+    const n=scene.react(id);
+    operate('poke',{target:id});
+    sounds.play(n>3?'pop':'tap');
+    // Pestered enough times in a row and they simply go somewhere else.
+    if(n>=5){
+      const a=store.state.actors[id];
+      operate('move',{target:id,x:clamp(a.x+(Math.random()<.5?-95:95),40,360),y:clamp(a.y+(Math.random()-.5)*44,175,310),room});
+      sounds.play('throw');
+    }
+    render();return;
+  }
+  const object=store.state.objects.find(o=>o.id===id);
+  if(!object)return;
+  if(object.type==='radio'){sounds.toggle();updateSound();scene.react(id,'radio');render();return;}
+  scene.react(id,object.type);sounds.play('tap');render();
+}
+
+/** Holding something is how you ask for its options. */
+function hold(id,point){
+  if(!store.state||!id)return;
+  if(store.actor&&id===other(store.actor)){personSheet();return;}
+  if(ACTORS.includes(id)){residentSheet(id);return;}
+  const object=store.state.objects.find(o=>o.id===id);
+  if(object){scene.selected=id;tip('hold + drag');}
 }
 
 function welcome(){
   showSheet('welcome','Who’s here?','A SMALL PLACE FOR FIVE');
   const canvas=document.createElement('canvas');canvas.width=220;canvas.height=82;canvas.className='welcome-scene';const c=canvas.getContext('2d');ACTORS.forEach((id,i)=>character(c,id,25+i*43,68,{scale:1.25,mood:id==='galgan'?'sleep':'idle'}));body.append(canvas);
-  paragraph('Tap things. Move things. See what happens.');
+  paragraph('Monki has a small balloon problem. Choose yourself. He could use a hand.');
   const choices=document.createElement('div');choices.className='choice-people';
   for(const actor of ['david','julia']){const b=button('','person-choice',async()=>{
-    b.disabled=true;try{if(store.server)await store.create(actor);else store.solo(actor);closeSheet();render();}catch(e){toast(e.message);b.disabled=false;}
+    b.disabled=true;try{if(store.server)await store.create(actor);else store.solo(actor);closeSheet();render();startIncident();}catch(e){toast(e.message);b.disabled=false;}
   });b.append(pict(actor));const label=document.createElement('span');label.textContent=NAMES[actor];b.append(label);choices.append(b);}body.append(choices);
   paragraph(store.server?'Your place saves itself. Invite your person whenever.':'Playing on this device. Start the included server for a shared world.','onboarding-note');
-  const instructions=document.createElement('div');instructions.className='instructions';instructions.innerHTML=`<span>${icon('hand')}tap</span><span>${icon('move')}drag</span><span>${icon('gift')}leave things</span>`;body.append(instructions);
 }
 /** Everything to do with the other person lives on the other person. */
 function personSheet(){
   if(!store.state||!store.actor)return;
   const them=other(store.actor);
-  showSheet('person','');
+  showSheet('person',`For ${NAMES[them]}.`);
   const header=document.createElement('div');header.className='result-picks';
   header.append(pict(store.actor));const arrow=document.createElement('span');arrow.textContent='→';
   header.append(arrow,pict(them,{hat:store.state.actors[them].hat}));body.append(header);
   const row=document.createElement('div');row.className='surprise-row';
-  for(const[glyph,label,go]of[['gift','Wrap something up for them',collectionSheet],['draw','Draw them something',drawSheet],['shuffle','Interfere with them',surpriseSheet],['eye','What they have been doing',historySheet]]){
+  for(const[glyph,label,go]of[['gift','Leave a present',collectionSheet],['draw','Leave a drawing',drawSheet],['hat','Choose their look',()=>residentSheet(them)],['eye','See what happened',historySheet]]){
     const b=button('','surprise-card',go);const strong=document.createElement('strong');strong.innerHTML=icon(glyph);
-    b.append(strong);b.setAttribute('aria-label',label);row.append(b);
+    const text=document.createElement('span');text.textContent=label;b.append(strong,text);b.setAttribute('aria-label',label);row.append(b);
   }
   body.append(row);
+  body.append(button('Pick a frog together','secondary-button full',togetherSheet));
+  if(store.local.invite&&!store.paired)body.append(button(`Invite ${NAMES[them]}`,'primary-button full',shareSheet));
 }
 function collectionSheet(){
   if(!store.state)return;showSheet('collection','Little things.');paragraph('For heads. For the floor. For each other.');
@@ -151,15 +222,24 @@ function residentSheet(id){
   row.append(button('Poke','secondary-button',()=>{operate('poke',{target:id});scene.react(id);sounds.play('tap');closeSheet();}));
   if(a.room!==room)row.append(button('Come here','secondary-button',()=>{operate('move',{target:id,x:200,y:252,room});closeSheet();}));
   if(a.hat)row.append(button('Hat off','secondary-button',()=>{operate('wear',{target:id,item:null});closeSheet();}));
-  if(store.state.incident?.actor===id)row.append(button('What is that?','primary-button',()=>{closeSheet();startIncident();}));body.append(row);
-  const grid=document.createElement('div');grid.className='item-grid';for(const hat of store.state.inventory.filter(i=>ITEMS[i].wearable)){const b=button('','collection-item',()=>{operate('wear',{target:id,item:hat});closeSheet();sounds.play('gift');});b.append(pict(hat));b.title=ITEMS[hat].name;b.setAttribute('aria-label',`Wear ${ITEMS[hat].name}`);grid.append(b);}body.append(grid);
+  if(adventureFor(store.state,store.actor).actor===id)row.append(button('Play adventure','primary-button',()=>{closeSheet();startIncident();}));body.append(row);
+  const people=document.createElement('div');people.className='wear-options';for(const who of ACTORS){const b=button('','',()=>residentSheet(who));b.append(pict(who));const name=document.createElement('small');name.textContent=NAMES[who];b.append(name);people.append(b);}body.append(people);
+  const grid=document.createElement('div');grid.className='item-grid';for(const hat of store.state.inventory.filter(i=>ITEMS[i].wearable)){const b=button('','collection-item',()=>{operate('wear',{target:id,item:hat});closeSheet();sounds.play('gift');});b.append(pict(hat));const name=document.createElement('span');name.textContent=ITEMS[hat].name;b.append(name);b.title=ITEMS[hat].name;b.setAttribute('aria-label',`Wear ${ITEMS[hat].name}`);grid.append(b);}body.append(grid);
 }
 
 function historySheet(){
-  if(!store.state)return;showSheet('history','Left behind.','A FEW TRACES');
-  if(!store.state.log.length){paragraph('Five residents. No explanation yet.');return;}
-  const symbols=SYMBOLS;
-  for(const entry of store.state.log.slice(0,18)){const row=document.createElement('div');row.className='activity-row';row.append(pict(entry.who in NAMES?entry.who:'monki'));const verb=document.createElement('span');verb.className='verb';verb.textContent=symbols[entry.action]||'→';row.append(verb);if(entry.item)row.append(pict(entry.item));row.append(pict(entry.target));if(entry.count){const count=document.createElement('span');count.textContent=`× ${entry.count}`;row.append(count);}const time=document.createElement('time');time.textContent=relative(entry.at);row.append(time);row.setAttribute('aria-label',`${NAMES[entry.who]||entry.who}: ${entry.action} ${NAMES[entry.target]||ITEMS[entry.target]?.name||entry.target}`);body.append(row);}
+  if(!store.state)return;showSheet('history','While you were out.');
+  if(!store.state.log.length){paragraph('Nothing yet. Leave a present or move something.');return;}
+  for(const entry of store.state.log.slice(0,18)){const row=document.createElement('div');row.className='activity-row';row.append(pict(entry.who in NAMES?entry.who:'monki'));const copy=document.createElement('span');copy.className='activity-copy';copy.textContent=describe(entry);row.append(copy);const time=document.createElement('time');time.textContent=relative(entry.at);row.append(time);body.append(row);}
+}
+function memoryArt(chapter){
+  const canvas=document.createElement('canvas');canvas.width=300;canvas.height=190;const c=canvas.getContext('2d');rect(c,0,0,300,190,chapter.color);rect(c,0,145,300,45,'#acb88e');character(c,chapter.actor,174,157,{scale:2.8,hat:chapter.reward,mood:'happy'});character(c,chapter.id==='up'?'sernik':'monki',67,166,{scale:1.5,hat:chapter.id==='up'?'icecream':null});item(c,chapter.souvenir,265,167,{scale:1.6});return canvas;
+}
+function albumSheet(){
+  if(!store.state)return;showSheet('album','That happened.','MOMENTS');
+  if(!store.state.moments?.length){paragraph('Little pictures of the things you get up to. Monki can start the collection.');body.append(button('Help Monki','primary-button full',startIncident));return;}
+  const grid=document.createElement('div');grid.className='album-grid';
+  for(const m of store.state.moments){const chapter=ADVENTURES.find(c=>c.id===m.chapter);if(!chapter)continue;const card=document.createElement('div');card.className='memory-card';card.append(memoryArt(chapter));const title=document.createElement('strong');title.textContent=chapter.ending;const who=document.createElement('small');who.textContent=`${NAMES[m.who]} · ${relative(m.at)}`;card.append(title,who);grid.append(card);}body.append(grid);
 }
 
 function togetherSheet(){
@@ -251,21 +331,23 @@ function surpriseSheet(){
 function fridgeSheet(){if(!store.state)return;showSheet('fridge','The fridge.');const canvas=pict(store.state.fridgeAt?'potato':'fridge');canvas.className='big-item';body.append(canvas);if(store.state.fridgeAt)paragraph('…');else body.append(button('Put the potato in','secondary-button full',()=>{operate('fridge');closeSheet();sounds.play('tap');}));}
 
 function startIncident(){
-  if(!store.state?.incident||game)return;
-  const e=store.state.incident;room=e.room;closeSheet();hideMenu();render();
-  const surprise=store.state.chaos[store.actor];const event={...e,modifier:surprise?.modifier||e.modifier};
-  $('game-modifier').textContent=surprise?'~':event.modifier==='plain'?'':{bouncy:'~',tiny:'·',giant:'●',windy:'≈',sleepy:'z'}[event.modifier];
-  const quiet=CONTRACTS[e.contract]?.silent;
-  const pips=n=>quiet?'':'·'.repeat(Math.min(16,Math.max(0,n)));
-  $('game-progress').textContent=pips(e.goal);$('resume-game').hidden=true;$('microgame').showModal();
-  game=new Microgame($('micro'),event,{sound:k=>sounds.play(k),reduced:scene.reduced,onProgress:(score,goal)=>$('game-progress').textContent=pips(goal-score),onFinish:finishIncident});
+  if(!store.state){welcome();return;}if(game)return;
+  const chapter=adventureFor(store.state,store.actor);closeSheet();hideMenu();scene.stopReplay();
+  $('game-chapter').textContent=chapter.title;$('resume-game').hidden=true;$('microgame').showModal();
+  game=new AdventurePlayer($('micro'),chapter,{startStep:readDraft(chapter),sound:k=>sounds.play(k),reduced:scene.reduced,onDone:finishIncident,onStep:({step,spec,hits,goal})=>{
+    $('game-title').textContent=spec.title;$('game-hint').textContent=spec.hint;$('game-progress').textContent=`${hits} / ${goal}`;
+    $('game-steps').replaceChildren();for(let i=0;i<3;i++){const p=document.createElement('span');p.className=i<step?'done':i===step?'current':'';$('game-steps').append(p);}
+    try{localStorage.setItem(draftKey(),JSON.stringify({index:chapter.index,step}));}catch{}
+  }});
 }
-/** No score, no prize screen. The game ends and you are simply back in the room,
- * where whatever just happened has left something behind. */
-function finishIncident({score,event}){
+function finishIncident(chapter){
   game=null;$('microgame').close();
-  operate('resolve',{target:event.uid,score});
-  room=event.room;closeSheet();hideMenu();render();sounds.play('gift');
+  const op=operate('adventureComplete',{chapter:chapter.id,index:chapter.index});if(!op)return;
+  try{localStorage.removeItem(draftKey());}catch{}
+  if(store.state.unlocked.includes(chapter.room))room=chapter.room;
+  hideMenu();render();sounds.play('gift');showSheet('ending',chapter.ending,'ADDED TO YOUR MOMENTS');
+  const photo=memoryArt(chapter);photo.className='ending-photo';body.append(photo);paragraph(chapter.detail);
+  const row=document.createElement('div');row.className='button-row';row.append(button('Back home','primary-button',()=>{closeSheet();room='house';render();}));row.append(button(`Leave ${NAMES[other(store.actor)]} a gift`,'secondary-button',()=>itemSheet(chapter.reward)));body.append(row);
 }
 function leaveGame(){if(game){game.stop();game=null;}$('microgame').close();render();}
 function updateSound(){$('sound').innerHTML=icon(sounds.enabled?'sound':'mute');$('sound').setAttribute('aria-label',sounds.enabled?'Turn sound off':'Turn sound on');$('sound').title=sounds.enabled?'Turn sound off':'Turn sound on';}
@@ -283,14 +365,18 @@ function settingsSheet(){
   if(store.saveError)paragraph('This browser’s storage is full. Export a copy before leaving.','error-line');
 }
 
-// The server's answer to our first visit arrives after boot, so catching up is
-// retried on every update; it costs nothing once the marker has moved.
-store.addEventListener('change',()=>{render();playCatchUp();});store.addEventListener('rejected',e=>toast(e.detail));
-$('draw').innerHTML=icon('draw');$('history').innerHTML=icon('eye');$('surprise').innerHTML=icon('shuffle');
+// Updates never rewind a drag. Partner activity is an explicit, labelled card.
+// The world arrives from the server after boot, so the opening moment is retried
+// on every update; once it has been taken, it costs nothing.
+store.addEventListener('change',()=>{render();openingMoment();});store.addEventListener('rejected',e=>toast(e.detail));
+for(const[id,glyph,label]of[['wardrobe','hat','Dress up'],['draw','draw','Draw'],['surprise','gift','Leave a gift'],['history','eye','Moments']])$(id).innerHTML=icon(glyph)+`<span>${label}</span>`;
 $('settings').innerHTML=icon('settings');$('close-sheet').innerHTML=icon('close');$('together-icon').innerHTML=icon('users');$('leave-game').innerHTML=icon('close');$('pause-game').innerHTML=icon('pause');
 $('close-sheet').addEventListener('click',closeSheet);sheet.addEventListener('close',()=>sheetKind=null);sheet.addEventListener('click',e=>{if(e.target===sheet){const r=sheet.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeSheet();}});
-$('sound').addEventListener('click',()=>{sounds.toggle();updateSound();});$('settings').addEventListener('click',settingsSheet);$('history').addEventListener('click',historySheet);$('last-trace').addEventListener('click',historySheet);$('draw').addEventListener('click',drawSheet);$('surprise').addEventListener('click',surpriseSheet);$('together').addEventListener('click',togetherSheet);
-$('leave-game').addEventListener('click',leaveGame);$('microgame').addEventListener('cancel',e=>{e.preventDefault();leaveGame();});$('pause-game').addEventListener('click',()=>{if(game)game.setPaused(!game.paused);});$('resume-game').addEventListener('click',()=>game?.setPaused(false));
+$('sound').addEventListener('click',()=>{sounds.toggle();updateSound();});$('settings').addEventListener('click',settingsSheet);$('history').addEventListener('click',albumSheet);$('last-trace').addEventListener('click',()=>{const gift=store.state?.gifts.find(g=>g.to===store.actor&&!g.opened);if(gift)giftSheet(gift.id);else if(store.state?.log.length)historySheet();else personSheet();});$('draw').addEventListener('click',drawSheet);$('surprise').addEventListener('click',collectionSheet);$('together').addEventListener('click',personSheet);$('wardrobe').addEventListener('click',()=>residentSheet('monki'));$('start-adventure').addEventListener('click',startIncident);
+for(const[id,toy]of[['play-ball','ball'],['play-bubbles','bubbles']])$(id).addEventListener('click',()=>{if(!store.state){welcome();return;}if(!operate('toy',{toy}))return;scene.playWith(toy);sounds.play('throw');tip(toy==='ball'?'Sernik has it.':'Tap the bubbles.',4500);});
+$('tidy-room').addEventListener('click',()=>{if(operate('tidy')){sounds.play('tap');tip('Put away. Still in your little things.');}});
+item($('ball-art').getContext('2d'),'ball',20,33,{scale:1.4});item($('bubble-art').getContext('2d'),'bubbles',20,36,{scale:1.15});$('tidy-icon').innerHTML=icon('gift');
+$('leave-game').addEventListener('click',leaveGame);$('microgame').addEventListener('cancel',e=>{e.preventDefault();leaveGame();});$('pause-game').addEventListener('click',()=>{if(game)game.pause(!game.paused);});$('resume-game').addEventListener('click',()=>game?.pause(false));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')hideMenu();});
 const brand=$('brand-monki').getContext('2d');character(brand,'monki',24,43,{scale:1.1,shadow:false});updateSound();render();clock();setInterval(clock,10000);setInterval(()=>store.visit(),15000);
 
@@ -298,15 +384,14 @@ async function boot(){
   await store.probe();
   const invitation=location.hash.match(/^#join=([a-f0-9]{24})\.([a-f0-9]{48})$/);
   const seat=location.hash.match(/^#seat=([a-f0-9]{24})\.([a-f0-9]{48})$/);
-  if(seat){showSheet('device-join','Your place is here.');paragraph('Continue your existing character on this device.');body.append(button('Continue here','primary-button full',async()=>{try{await store.restore(seat[1],seat[2]);history.replaceState(null,'',location.pathname);closeSheet();render();tip('welcome back.');}catch(error){toast(error.message);}}));}
+  if(seat){showSheet('device-join','Your place is here.');paragraph('Continue your existing character on this device.');body.append(button('Continue here','primary-button full',async()=>{try{await store.restore(seat[1],seat[2]);history.replaceState(null,'',location.pathname);closeSheet();render();tip('welcome back.');setTimeout(openingMoment,400);}catch(error){toast(error.message);}}));}
   else if(invitation){
     if(store.local?.room===invitation[1]&&store.local?.invite===invitation[2]){shareSheet();return;}
     showSheet('join','Come in.');paragraph('This link opens your person’s world.');
     if(store.state&&store.local.room!==invitation[1])paragraph('Your current world stays on its server. Save a copy in Settings if you also want a local backup.','settings-small');
-    body.append(button('Enter the world','primary-button full',async()=>{try{await store.join(invitation[1],invitation[2]);history.replaceState(null,'',location.pathname);closeSheet();render();tip('you’re here.');}catch(error){toast(error.message);}}));
-  }else if(!store.actor)welcome();else{await store.sync();store.visit();setTimeout(playCatchUp,700);}
-  // Coming back to the tab after a while is also an opening.
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&store.actor)setTimeout(playCatchUp,500);});
+    body.append(button('Enter the world','primary-button full',async()=>{try{await store.join(invitation[1],invitation[2]);history.replaceState(null,'',location.pathname);closeSheet();render();tip('you’re here.');setTimeout(openingMoment,400);}catch(error){toast(error.message);}}));
+  }else if(!store.actor)welcome();else{await store.sync();store.visit();setTimeout(openingMoment,600);}
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&store.actor)setTimeout(openingMoment,500);});
   if(store.loadError)toast('Couldn’t read the local save. Your server world is still available through its invitation.');
   if('serviceWorker'in navigator&&window.isSecureContext)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }

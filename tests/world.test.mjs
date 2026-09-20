@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,applyOperation,visibleWorld,INCIDENTS,makeIncident,TENDENCIES,GESTURES,CONTRACTS} from '../shared/world.js';
+import {createWorld,applyOperation,visibleWorld,INCIDENTS,makeIncident,TENDENCIES,GESTURES,CONTRACTS,favourite,waitingFor} from '../shared/world.js';
 
 const NOW=Date.parse('2026-09-20T12:00:00Z');
 let sequence=0;
@@ -110,22 +110,21 @@ test('time away changes the house without removing belongings or imposing care',
   const first=createWorld('test',NOW),next=op(first,'visit',{},NOW+8*86400000);
   // Nothing is taken away and nothing is owed; the place simply moved on without you.
   assert.ok(next.inventory.length>=first.inventory.length);
-  assert.ok(Object.values(next.actors).some(a=>a.hat));assert.ok(next.log.length>0);
+  assert.ok(next.log.length>0);assert.ok(next.log.length<=3);
   assert.ok(first.unlocked.every(place=>next.unlocked.includes(place)));
 });
 
-test('an afternoon away is a few events; a week away is a great many more',()=>{
+test('a week away leaves a few readable changes, not an avalanche',()=>{
   const counts=[20*60000,8*3600000,6*86400000].map(ms=>op(createWorld('away',NOW),'visit',{},NOW+ms).log.length);
   assert.ok(counts[0]<counts[1],`${counts[0]} not fewer than ${counts[1]}`);
-  assert.ok(counts[1]<counts[2],`${counts[1]} not fewer than ${counts[2]}`);
-  assert.ok(counts[2]>=20,`a week produced only ${counts[2]} events`);
+  assert.ok(counts[1]<=3);assert.ok(counts[2]<=3);
 });
 
-test('a long absence leaves a structure nobody asked for',()=>{
+test('a long absence does not manufacture floor clutter',()=>{
   const before=createWorld('build',NOW);
   const after=op(before,'visit',{},NOW+5*86400000);
-  assert.ok(after.objects.length>before.objects.length,'nothing was built');
-  assert.ok(after.traces.some(v=>v.type==='tower'));
+  assert.ok(after.objects.length<=before.objects.length,'objects multiplied');
+  assert.ok(!after.traces.some(v=>v.type==='tower'));
 });
 
 test('each resident behaves like itself rather than at random',()=>{
@@ -176,7 +175,7 @@ test('every content definition can be constructed and resolved',()=>{
 
 test('what happened while you were away is recorded in a replayable form',()=>{
   const state=op(createWorld('replay',NOW),'visit',{},NOW+3*86400000);
-  assert.ok(state.changes.length>5,`only ${state.changes.length} change records`);
+  assert.ok(state.changes.length>0&&state.changes.length<=3,`${state.changes.length} change records`);
   const moves=state.changes.flatMap(c=>c.moves);
   assert.ok(moves.length,'nothing moved');
   // Every move knows where it started, so the room can rewind to how she left it.
@@ -234,4 +233,31 @@ test('a ghost game is played against their own previous best',()=>{
   let found=null;
   for(let i=0;i<80&&!found;i++){const e=makeIncident({...state,serial:i},NOW);if(e.contract==='ghost'&&e.kind==='tap')found=e;}
   if(found)assert.ok(found.goal>=20,`ghost goal ${found.goal} ignored the previous best`);
+});
+
+test('petting builds a bond that belongs to one person only',()=>{
+  let state=createWorld('bond',NOW);
+  for(let i=0;i<4;i++)state=op(state,'poke',{target:'sernik'},NOW+i*1000,'julia');
+  state=op(state,'poke',{target:'galgan'},NOW+9000,'david');
+  assert.equal(favourite(state,'julia'),'sernik');
+  // His petting does not become hers, and one pat is not a bond.
+  assert.equal(favourite(state,'david'),null);
+  assert.equal(state.bond.david.sernik,undefined);
+});
+
+test('what your person left you is handed over, once',()=>{
+  let state=op(createWorld('hand',NOW),'draw',{lines:[[[.2,.3],[.5,.6]]]},NOW+60000,'david');
+  // Addressed to her, so she is the one who gets handed it.
+  assert.equal(waitingFor(state,'julia').length,1);
+  assert.equal(waitingFor(state,'david').length,0);
+  state=op(state,'received',{},NOW+61000,'julia');
+  assert.equal(waitingFor(state,'julia').length,0);
+});
+
+test('an unopened present is waiting for its recipient and nobody else',()=>{
+  let state=op(createWorld('present',NOW),'gift',{item:'potato'},NOW,'david');
+  assert.equal(waitingFor(state,'julia')[0].kind,'gift');
+  assert.equal(waitingFor(state,'david').length,0);
+  state=op(state,'openGift',{target:state.gifts[0].id},NOW+1000,'julia');
+  assert.equal(waitingFor(state,'julia').length,0);
 });

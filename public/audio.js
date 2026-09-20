@@ -1,5 +1,6 @@
 export class Sounds{
-  constructor(){this.enabled=localStorage.getItem('monki-sound')==='true';this.context=null;}
+  constructor(){// On by default: she plays Pou, which is noisy, and silence made it feel dead.
+    this.enabled=localStorage.getItem('monki-sound')!=='false';this.context=null;}
   toggle(){this.enabled=!this.enabled;localStorage.setItem('monki-sound',String(this.enabled));if(this.enabled)this.play('pop');return this.enabled;}
   play(kind='pop'){
     if(!this.enabled)return;

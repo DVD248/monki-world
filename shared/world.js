@@ -1,4 +1,5 @@
-export const VERSION = 2;
+import {adventureFor,journeyFields} from './adventures.js';
+export const VERSION = 3;
 export const PEOPLE = ['david', 'julia'];
 export const ACTORS = ['david', 'julia', 'monki', 'sernik', 'galgan'];
 export const RESIDENTS = ['monki', 'sernik', 'galgan'];
@@ -13,6 +14,8 @@ export const ITEMS = {
   star: { name: 'Star', wearable: true }, key: { name: 'Key' }, plant: { name: 'Plant' },
   lamp: { name: 'Lamp' }, couch: { name: 'Sofa' }, bowl: { name: 'Bowl' }, present: { name: 'Present' },
   frame: { name: 'Drawing' }, radio: { name: 'Radio' }, fridge: { name: 'Fridge' },
+  ball:{name:'Ball'},bubbles:{name:'Bubbles'},boat:{name:'Tiny boat'},kite:{name:'Kite'},
+  telescope:{name:'Telescope'},lily:{name:'Lily pad'},rainbow:{name:'Rainbow'},cloud:{name:'Cloud'},drop:{name:'Drop'},
 };
 const FOOD = ['icecream', 'fish', 'mushroom', 'potato'];
 const HEAVY = ['couch', 'lamp', 'plant', 'bowl', 'radio', 'fridge'];
@@ -66,7 +69,6 @@ export const INCIDENTS = [
 ];
 export const MODIFIERS = ['plain', 'bouncy', 'tiny', 'windy', 'sleepy', 'giant'];
 const TICK = 22 * 60000;   // the unit of unsupervised time
-const MAX_TICKS = 30;      // a week away is eventful, not infinite
 
 const clone = value => structuredClone(value);
 export function hash(str) { let h = 2166136261; for (const c of String(str)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -79,7 +81,7 @@ function weighted(map, rng) { const total = Object.values(map).reduce((a, b) => 
 export function createWorld(seed = 'monki', now = Date.now()) {
   const state = {
     version: VERSION, seed, revision: 0, created: now, updated: now, lastVisit: now,
-    completed: 0, serial: 0, recent: [], unlocked: ['house'], inventory: ['potato', 'cone', 'bow', 'glasses', 'flower'],
+    completed: 0, serial: 0, recent: [], unlocked: ['house'], inventory: ['cone', 'bow', 'glasses', 'flower', 'potato'],
     actors: {
       david: { x: 106, y: 244, room: 'house', hat: null, mood: 'idle', pokes: 0 },
       julia: { x: 292, y: 234, room: 'house', hat: null, mood: 'idle', pokes: 0 },
@@ -92,7 +94,6 @@ export function createWorld(seed = 'monki', now = Date.now()) {
       { id: 'plant', type: 'plant', room: 'house', x: 56, y: 199 },
       { id: 'lamp', type: 'lamp', room: 'house', x: 197, y: 181 },
       { id: 'bowl', type: 'bowl', room: 'house', x: 326, y: 297 },
-      { id: 'potato', type: 'potato', room: 'house', x: 261, y: 287 },
       { id: 'radio', type: 'radio', room: 'house', x: 336, y: 194 },
     ],
     traces: [], log: [], gifts: [], drawing: [], chaos: {}, choices: { round: 0, picks: {}, revealed: [] },
@@ -100,16 +101,33 @@ export function createWorld(seed = 'monki', now = Date.now()) {
     digs: 0, stacks: 0, hidden: {}, stuck: {},
     // Per person, so each of you is shown only what you personally missed.
     changes: [], chains: [], seen: { david: now, julia: now }, best: {},
+    bond: { david: {}, julia: {} }, received: { david: now, julia: now },
   };
+  journeyFields(state);
   state.incident = makeIncident(state, now, 'balloons');
   return state;
 }
 
 /** Older saves predate the resident behaviour fields; fill them in rather than crash. */
 function normalize(state) {
+  journeyFields(state);
+  state.traces??=[];state.objects??=[];
+  if(state.version<3){
+    // Keep old generated objects recoverable, but retire the automatic clutter.
+    state.storedObjects??=[];
+    const generated=state.objects.filter(o=>/^(many-|monument-)/.test(o.id));
+    state.storedObjects.push(...generated);
+    state.objects=state.objects.filter(o=>!generated.includes(o));
+    state.traces=state.traces.filter(t=>!['tower','mess','crumbs','hole'].includes(t.type));
+    state.chains=state.chains?.filter(c=>c.kind!=='multiply')||[];
+    state.version=3;
+  }
   state.digs ??= 0; state.stacks ??= 0; state.hidden ??= {}; state.stuck ??= {};
   state.recent ??= []; state.secrets ??= []; state.traces ??= []; state.log ??= [];
   state.changes ??= []; state.chains ??= []; state.best ??= {};
+  state.bond ??= { david: {}, julia: {} };
+  for (const p of PEOPLE) state.bond[p] ??= {};
+  state.received ??= { david: state.updated || 0, julia: state.updated || 0 };
   state.seen ??= { david: state.updated || 0, julia: state.updated || 0 };
   return state;
 }
@@ -195,8 +213,9 @@ function log(state, who, action, target, now, extra = {}) {
 }
 function discover(state, item) { if (ITEMS[item] && !state.inventory.includes(item)) state.inventory.push(item); }
 function trace(state, type, room, x, y, now) {
+  state.traces=state.traces.filter(t=>!(t.type===type&&t.room===room));
   state.traces.push({ type, room, x, y, at: now });
-  state.traces = state.traces.slice(-28);
+  state.traces = state.traces.slice(-8);
 }
 
 /** What each resident actually does when nobody is watching. Every behaviour leaves
@@ -232,7 +251,9 @@ const BEHAVIOUR = {
   stack(state, actor, rng, now) {
     const a = state.actors[actor];
     state.stacks++;
-    trace(state, 'tower', a.room, a.x, a.y, now);
+    // An existing object gets moved; no unexplained potato towers are produced.
+    const object=state.objects.find(o=>o.room===a.room&&o.type==='bowl');
+    if(object){object.x=clamp(a.x+24,40,360);object.y=a.y;object.lastBy=actor;}
     if (a.room === 'garden' && state.stacks >= 3 && !state.unlocked.includes('roof')) state.unlocked.push('roof');
     return ['move', 'potato'];
   },
@@ -312,8 +333,8 @@ const BEHAVIOUR = {
 function ambient(state, now) {
   const away = now - state.lastVisit;
   if (away < 60_000) return;
-  // Sub-linear, so an afternoon is a few things and a week is a great many more.
-  const ticks = clamp(Math.round(3.2 * Math.log2(1 + away / TICK)), 1, MAX_TICKS);
+  // A few readable changes, whether away for an afternoon or a month.
+  const ticks = clamp(Math.floor(away / TICK), 0, 3);
   const rng = random(`${state.seed}:away:${Math.floor(state.lastVisit / 60000)}`);
   for (let i = 0; i < ticks; i++) {
     const actor = pick(RESIDENTS, rng);
@@ -322,12 +343,6 @@ function ambient(state, now) {
     const before = snapshot(state);
     const done = BEHAVIOUR[verb]?.(state, actor, rng, now);
     if (done) { log(state, actor, done[0], done[1], at, done[2]); record(state, actor, before, at); }
-  }
-  // Left completely alone for days, somebody starts a project. Nobody explains it.
-  if (away > 2 * 86400000) {
-    const before = snapshot(state);
-    const done = BEHAVIOUR.monument(state, pick(RESIDENTS, rng), rng, now);
-    if (done) { log(state, done[3], done[0], done[1], now - TICK, done[2]); record(state, done[3], before, now - TICK); }
   }
   fireChains(state, rng, now);
   if (!state.incident && now >= state.nextAt) state.incident = makeIncident(state, now);
@@ -389,9 +404,42 @@ export function applyOperation(input, operation, now = Date.now()) {
   switch (op.type) {
     case 'visit': ambient(state, now); break;
     case 'seen': state.seen[actor] = now; break;
+    // Acknowledging what your person left you, separately from the room's own news.
+    case 'received': state.received[actor] = now; break;
+    case 'adventureComplete': {
+      const chapter=adventureFor(state,actor);
+      if(op.index!==chapter.index)break;
+      if(op.chapter!==chapter.id)throw new Error('Unknown adventure');
+      state.journeys[actor].index++;
+      discover(state,chapter.reward);
+      const a=state.actors[chapter.actor];a.hat=chapter.reward;a.mood='happy';
+      if(chapter.id==='up'){state.actors.sernik.hat='icecream';state.actors.sernik.mood='happy';}
+      if(chapter.index===0&&!state.unlocked.includes('garden'))state.unlocked.push('garden');
+      if(chapter.id==='moon-trip'&&!state.unlocked.includes('roof'))state.unlocked.push('roof');
+      if(!state.decor.includes(chapter.souvenir))state.decor.push(chapter.souvenir);
+      state.moments.unshift({id:op.id,chapter:chapter.id,who:actor,at:now,actor:chapter.actor,hat:chapter.reward,title:chapter.ending});
+      state.moments=state.moments.slice(0,36);
+      state.completed++;state.incident=null;
+      log(state,actor,'adventure',chapter.actor,now,{item:chapter.reward});
+      break;
+    }
+    case 'toy': {
+      if(!['ball','bubbles'].includes(op.toy))throw new Error('Unknown toy');
+      state.actors[op.toy==='ball'?'sernik':'monki'].mood='happy';
+      log(state,actor,'toy',op.toy==='ball'?'sernik':'monki',now,{item:op.toy});break;
+    }
+    case 'tidy': {
+      state.storedObjects??=[];
+      const loose=state.objects.filter(o=>!HEAVY.includes(o.type));
+      for(const o of loose)discover(state,o.type);
+      state.storedObjects.push(...loose);state.storedObjects=state.storedObjects.slice(-80);
+      state.objects=state.objects.filter(o=>HEAVY.includes(o.type));state.traces=[];
+      log(state,actor,'tidy','house',now);break;
+    }
     case 'poke': {
       const a = ACTORS.includes(op.target) ? state.actors[op.target] : null; if (!a) throw new Error('Unknown character');
       a.pokes++; a.mood = a.pokes % 5 === 0 ? 'annoyed' : a.pokes % 3 === 0 ? 'sleep' : 'happy'; a.lastBy = actor;
+      if (RESIDENTS.includes(op.target)) state.bond[actor][op.target] = (state.bond[actor][op.target] || 0) + 1;
       if (op.target === 'monki' && a.pokes === 20) { a.hat = 'crown'; discover(state, 'crown'); state.secrets.push('monki-king'); }
       if (op.target === 'galgan' && a.pokes === 40 && !state.secrets.includes('galgan-awake')) { state.secrets.push('galgan-awake'); a.mood = 'annoyed'; discover(state, 'sock'); }
       if (a.pokes % 3 === 0) log(state, actor, 'poke', op.target, now, { count: a.pokes });
@@ -427,7 +475,7 @@ export function applyOperation(input, operation, now = Date.now()) {
       const gift = state.gifts.find(g => g.id === op.target && g.to === actor && !g.opened);
       if (!gift) throw new Error('This gift is for your partner');
       gift.opened = true; discover(state, gift.item);
-      if (gift.item) schedule(state, 'multiply', now, 4 + Math.random() * 6, { item: gift.item });
+      // One gift stays one gift. Opening a present never seeds unexplained copies.
       const id = `gift-${gift.item}`; const obj = state.objects.find(o => o.id === id);
       // The recipient's optimistic view has a sealed gift; the server reveals it.
       if (!obj && gift.item) state.objects.push({ id, type: gift.item, room: 'house', x: 227, y: 278, lastBy: gift.from });
@@ -435,7 +483,7 @@ export function applyOperation(input, operation, now = Date.now()) {
     }
     case 'draw':
       if (!Array.isArray(op.lines) || op.lines.length > 120 || op.lines.reduce((n,l)=>n+(Array.isArray(l)?l.length:0),0)>4000 || op.lines.some(l => !Array.isArray(l) || l.length > 300 || l.some(p => !Array.isArray(p) || p.length !== 2 || p.some(n => !Number.isFinite(n) || n < 0 || n > 1)))) throw new Error('Invalid drawing');
-      state.drawing = clone(op.lines); state.drawingBy = actor; log(state, actor, 'draw', 'frame', now); break;
+      state.drawing = clone(op.lines); state.drawingBy = actor; state.drawingAt = now; log(state, actor, 'draw', 'frame', now); break;
     case 'chaos':
       if (!['bouncy', 'tiny', 'windy', 'giant'].includes(op.modifier)) throw new Error('Invalid surprise');
       state.chaos[other(actor)] = { modifier: op.modifier, from: actor };
@@ -509,6 +557,23 @@ export function applyOperation(input, operation, now = Date.now()) {
 }
 
 // Do not reveal the partner's choice until both have chosen, even in API responses.
+/** Whoever this person has petted most. Never shown as a number - it just changes
+ * who is waiting by the door. */
+export function favourite(state, actor) {
+  const bonds = state.bond?.[actor] || {};
+  let best = null, top = 0;
+  for (const id of RESIDENTS) if ((bonds[id] || 0) > top) { top = bonds[id]; best = id; }
+  return top >= 3 ? best : null;
+}
+
+/** What your person has left you that you have not been handed yet. */
+export function waitingFor(state, actor) {
+  const from = other(actor), out = [];
+  for (const gift of state.gifts || []) if (gift.to === actor && !gift.opened) out.push({ kind: 'gift', id: gift.id, from });
+  if (state.drawing?.length && state.drawingBy === from && (state.drawingAt || 0) > (state.received?.[actor] || 0)) out.push({ kind: 'drawing', from });
+  return out;
+}
+
 export function visibleWorld(state, actor) {
   const result = normalize(clone(state));
   if (!PEOPLE.every(p => result.choices.picks[p] !== undefined)) {
