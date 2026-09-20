@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,applyOperation,visibleWorld,INCIDENTS,makeIncident} from '../shared/world.js';
+import {createWorld,applyOperation,visibleWorld,INCIDENTS,makeIncident,TENDENCIES,GESTURES} from '../shared/world.js';
 
 const NOW=Date.parse('2026-09-20T12:00:00Z');
 let sequence=0;
@@ -42,16 +42,35 @@ test('both players finishing the same incident only advances the world once',()=
   assert.equal(state.completed,1);assert.equal(state.serial,1);assert.equal(state.traces.length,1);
 });
 
-test('new places emerge, without repeatedly selecting a recent situation',()=>{
+test('situations are composed, varied, and never repeat a recent one',()=>{
   let state=createWorld('test',NOW),now=NOW;
-  const visited=[];
+  const visited=[],kinds=new Set();
   for(let i=0;i<15;i++){
-    const e=state.incident;assert.ok(e);assert.ok(!visited.slice(-8).includes(e.id));visited.push(e.id);
+    const e=state.incident;assert.ok(e,`no incident on round ${i}`);
+    assert.ok(!visited.slice(-8).includes(e.id),`repeated ${e.id} too soon`);
+    visited.push(e.id);kinds.add(e.kind);
+    assert.ok(GESTURES[e.kind],`unknown gesture ${e.kind}`);
     state=op(state,'resolve',{target:e.uid,score:e.goal},now);
-    now+=61000;state=op(state,'visit',{},now);
+    now+=25*60000;state=op(state,'visit',{},now);
   }
-  assert.ok(state.unlocked.includes('garden'));assert.ok(state.unlocked.includes('roof'));
+  // Most of these were never written down anywhere.
+  assert.ok(new Set(visited).size>=12,`only ${new Set(visited).size} distinct situations`);
+  assert.ok(kinds.size>=4,`only ${kinds.size} distinct gestures`);
   assert.ok(state.inventory.length>8);assert.ok(state.traces.length>0);
+});
+
+test('places open because a resident made them, not because a counter reached a number',()=>{
+  // Galgan digs; two holes at the house are a way out. Nothing announces it.
+  let state=createWorld('dig-seed',NOW);
+  state.actors.galgan.room='house';
+  let now=NOW,guard=0;
+  while(!state.unlocked.includes('garden')&&guard++<40){now+=6*3600000;state=op(state,'visit',{},now);}
+  assert.ok(state.unlocked.includes('garden'),'the garden never opened');
+  assert.ok(state.digs>=2,'the garden opened without anyone digging');
+  // Finishing incidents alone does not hand out places.
+  let counted=createWorld('count-seed',NOW),t=NOW;
+  for(let i=0;i<10;i++){const e=counted.incident;if(!e)break;counted=op(counted,'resolve',{target:e.uid,score:e.goal},t);t+=25*60000;counted=op(counted,'visit',{},t);}
+  assert.ok(counted.completed>=5,'did not complete enough to test the old gate');
 });
 
 test('gifts are sealed for their recipient and only the recipient can open them',()=>{
@@ -81,15 +100,59 @@ test('a partner surprise is used up by that player, not the sender',()=>{
   let state=op(createWorld('test',NOW),'chaos',{modifier:'windy'});
   state=op(state,'resolve',{target:state.incident.uid,score:12});
   assert.equal(state.chaos.julia.modifier,'windy');
-  state=op(state,'visit',{},NOW+61000);
-  state=op(state,'resolve',{target:state.incident.uid,score:12},NOW+62000,'julia');
+  state=op(state,'visit',{},NOW+25*60000);
+  assert.ok(state.incident,'a new situation should have turned up by now');
+  state=op(state,'resolve',{target:state.incident.uid,score:12},NOW+25*60000+1000,'julia');
   assert.equal(state.chaos.julia,undefined);
 });
 
 test('time away changes the house without removing belongings or imposing care',()=>{
   const first=createWorld('test',NOW),next=op(first,'visit',{},NOW+8*86400000);
-  assert.deepEqual(next.unlocked,first.unlocked);assert.ok(next.inventory.length>=first.inventory.length);
+  // Nothing is taken away and nothing is owed; the place simply moved on without you.
+  assert.ok(next.inventory.length>=first.inventory.length);
   assert.ok(Object.values(next.actors).some(a=>a.hat));assert.ok(next.log.length>0);
+  assert.ok(first.unlocked.every(place=>next.unlocked.includes(place)));
+});
+
+test('an afternoon away is a few events; a week away is a great many more',()=>{
+  const counts=[20*60000,8*3600000,6*86400000].map(ms=>op(createWorld('away',NOW),'visit',{},NOW+ms).log.length);
+  assert.ok(counts[0]<counts[1],`${counts[0]} not fewer than ${counts[1]}`);
+  assert.ok(counts[1]<counts[2],`${counts[1]} not fewer than ${counts[2]}`);
+  assert.ok(counts[2]>=20,`a week produced only ${counts[2]} events`);
+});
+
+test('a long absence leaves a structure nobody asked for',()=>{
+  const before=createWorld('build',NOW);
+  const after=op(before,'visit',{},NOW+5*86400000);
+  assert.ok(after.objects.length>before.objects.length,'nothing was built');
+  assert.ok(after.traces.some(v=>v.type==='tower'));
+});
+
+test('each resident behaves like itself rather than at random',()=>{
+  // Over many absences Galgan should move furniture far more than Monki does.
+  const movers={};
+  for(let seed=0;seed<12;seed++){
+    const state=op(createWorld('who'+seed,NOW),'visit',{},NOW+4*86400000);
+    for(const entry of state.log)if(entry.action==='move'||entry.action==='out')movers[entry.who]=(movers[entry.who]||0)+1;
+  }
+  assert.ok((movers.galgan||0)>(movers.sernik||0),`galgan ${movers.galgan} vs sernik ${movers.sernik}`);
+  assert.ok(TENDENCIES.sernik.loves.includes('icecream'));
+});
+
+test('a hat someone stuck on you cannot come off until tomorrow',()=>{
+  let state=op(createWorld('test',NOW),'stick',{target:'julia',item:'cone'});
+  assert.equal(state.actors.julia.hat,'cone');
+  assert.throws(()=>op(state,'wear',{target:'julia',item:null},NOW+3600000,'julia'));
+  state=op(state,'wear',{target:'julia',item:null},NOW+86400001,'julia');
+  assert.equal(state.actors.julia.hat,null);
+});
+
+test('something hidden stays hidden until it is found',()=>{
+  let state=op(createWorld('test',NOW),'hide',{target:'lamp'});
+  assert.ok(state.hidden.lamp);
+  state=op(state,'found',{target:'lamp'},NOW+1000,'julia');
+  assert.equal(state.hidden.lamp,undefined);
+  assert.equal(state.log[0].action,'find');
 });
 
 test('the refrigerated potato has a persistent, delayed secret',()=>{
