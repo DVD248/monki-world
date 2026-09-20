@@ -1,0 +1,14 @@
+{
+  "name": "monki-world",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A small, persistent world for David, Julia, Monki, Sernik and Galgan.",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "engines": { "node": ">=20" }
+}
