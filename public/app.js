@@ -6,7 +6,9 @@ import {icon,spriteCanvas,character,item,rect,fillSprite} from './art.js';
 import {ACTORS,NAMES,ITEMS,other,createWorld,CONTRACTS} from './shared/world.js';
 
 const $=id=>document.getElementById(id);
-const SYMBOLS={poke:'☞',wear:'↑',move:'↔',out:'↗',take:'←',eat:'○',sleep:'z',dig:'▾',build:'▲',guard:'◉',hide:'?',find:'!',gift:'→',open:'↗',draw:'✎',chaos:'↝',play:'→',match:'=',mismatch:'≠',place:'↓',grow:'→'};
+// Restricted to glyphs that exist in the default font on a phone, or they render
+// as empty boxes, which reads as broken images rather than as a quiet symbol.
+const SYMBOLS={poke:'!',wear:'↑',move:'→',out:'→',take:'←',eat:'×',sleep:'z',dig:'↓',build:'↑',guard:'·',hide:'?',find:'!',gift:'→',open:'→',draw:'~',chaos:'~',play:'→',match:'=',mismatch:'≠',place:'↓',grow:'→'};
 const store=new Store(),sounds=new Sounds();
 let room='house',selectedItem=null,game=null,sheetKind=null,toastTimer,tipTimer,nightMode='auto',lastRevision=-1,lastCompleted=0;
 const sheet=$('sheet'),body=$('sheet-body'),menu=$('interaction-menu');
@@ -59,7 +61,9 @@ function playCatchUp(){
   const st=store.state;
   if(!st||!store.actor||scene.replaying||game)return;
   const since=st.seen?.[store.actor]??0;
-  const unseen=(st.changes||[]).filter(c=>c.at>since);
+  // Only what someone else did. Replaying your own drag back at you rewinds it to
+  // where it started and slides it in again, which reads as the game glitching.
+  const unseen=(st.changes||[]).filter(c=>c.at>since&&c.who!==store.actor);
   if(!unseen.length)return;
   const items=unseen.flatMap(c=>[
     ...c.moves.map(m=>({...m,who:c.who})),
@@ -120,8 +124,8 @@ function personSheet(){
   header.append(pict(store.actor));const arrow=document.createElement('span');arrow.textContent='→';
   header.append(arrow,pict(them,{hat:store.state.actors[them].hat}));body.append(header);
   const row=document.createElement('div');row.className='surprise-row';
-  for(const[glyph,label,go]of[['◻','Wrap something up for them',collectionSheet],['✎','Draw them something',drawSheet],['↝','Interfere with them',surpriseSheet],['◷','What they have been doing',historySheet]]){
-    const b=button('','surprise-card',go);const strong=document.createElement('strong');strong.textContent=glyph;
+  for(const[glyph,label,go]of[['gift','Wrap something up for them',collectionSheet],['draw','Draw them something',drawSheet],['shuffle','Interfere with them',surpriseSheet],['eye','What they have been doing',historySheet]]){
+    const b=button('','surprise-card',go);const strong=document.createElement('strong');strong.innerHTML=icon(glyph);
     b.append(strong);b.setAttribute('aria-label',label);row.append(b);
   }
   body.append(row);
@@ -155,7 +159,7 @@ function historySheet(){
   if(!store.state)return;showSheet('history','Left behind.','A FEW TRACES');
   if(!store.state.log.length){paragraph('Five residents. No explanation yet.');return;}
   const symbols=SYMBOLS;
-  for(const entry of store.state.log.slice(0,18)){const row=document.createElement('div');row.className='activity-row';row.append(pict(entry.who));const verb=document.createElement('span');verb.className='verb';verb.textContent=symbols[entry.action]||'→';row.append(verb);if(entry.item)row.append(pict(entry.item));row.append(pict(entry.target));if(entry.count){const count=document.createElement('span');count.textContent=`× ${entry.count}`;row.append(count);}const time=document.createElement('time');time.textContent=relative(entry.at);row.append(time);row.setAttribute('aria-label',`${NAMES[entry.who]||entry.who}: ${entry.action} ${NAMES[entry.target]||ITEMS[entry.target]?.name||entry.target}`);body.append(row);}
+  for(const entry of store.state.log.slice(0,18)){const row=document.createElement('div');row.className='activity-row';row.append(pict(entry.who in NAMES?entry.who:'monki'));const verb=document.createElement('span');verb.className='verb';verb.textContent=symbols[entry.action]||'→';row.append(verb);if(entry.item)row.append(pict(entry.item));row.append(pict(entry.target));if(entry.count){const count=document.createElement('span');count.textContent=`× ${entry.count}`;row.append(count);}const time=document.createElement('time');time.textContent=relative(entry.at);row.append(time);row.setAttribute('aria-label',`${NAMES[entry.who]||entry.who}: ${entry.action} ${NAMES[entry.target]||ITEMS[entry.target]?.name||entry.target}`);body.append(row);}
 }
 
 function togetherSheet(){
@@ -221,7 +225,7 @@ function surpriseSheet(){
   const header=document.createElement('div');header.className='result-picks';header.append(pict(store.actor));const arrow=document.createElement('span');arrow.textContent='↝';header.append(arrow,pict(them));body.append(header);
 
   const row=document.createElement('div');row.className='surprise-row';
-  for(const[modifier,glyph]of[['bouncy','↝'],['tiny','·'],['windy','≋'],['giant','●']]){
+  for(const[modifier,glyph]of[['bouncy','~'],['tiny','·'],['windy','≈'],['giant','●']]){
     const b=button('','surprise-card',()=>{operate('chaos',{modifier});closeSheet();sounds.play('gift');});
     const strong=document.createElement('strong');strong.textContent=glyph;b.append(strong);
     b.setAttribute('aria-label',{bouncy:'A passing dog',tiny:'Smaller',windy:'Windy',giant:'Larger'}[modifier]);row.append(b);
@@ -250,7 +254,7 @@ function startIncident(){
   if(!store.state?.incident||game)return;
   const e=store.state.incident;room=e.room;closeSheet();hideMenu();render();
   const surprise=store.state.chaos[store.actor];const event={...e,modifier:surprise?.modifier||e.modifier};
-  $('game-modifier').textContent=surprise?'↝':event.modifier==='plain'?'':{bouncy:'↝',tiny:'·',giant:'●',windy:'≋',sleepy:'z'}[event.modifier];
+  $('game-modifier').textContent=surprise?'~':event.modifier==='plain'?'':{bouncy:'~',tiny:'·',giant:'●',windy:'≈',sleepy:'z'}[event.modifier];
   const quiet=CONTRACTS[e.contract]?.silent;
   const pips=n=>quiet?'':'·'.repeat(Math.min(16,Math.max(0,n)));
   $('game-progress').textContent=pips(e.goal);$('resume-game').hidden=true;$('microgame').showModal();
@@ -282,6 +286,7 @@ function settingsSheet(){
 // The server's answer to our first visit arrives after boot, so catching up is
 // retried on every update; it costs nothing once the marker has moved.
 store.addEventListener('change',()=>{render();playCatchUp();});store.addEventListener('rejected',e=>toast(e.detail));
+$('draw').innerHTML=icon('draw');$('history').innerHTML=icon('eye');$('surprise').innerHTML=icon('shuffle');
 $('settings').innerHTML=icon('settings');$('close-sheet').innerHTML=icon('close');$('together-icon').innerHTML=icon('users');$('leave-game').innerHTML=icon('close');$('pause-game').innerHTML=icon('pause');
 $('close-sheet').addEventListener('click',closeSheet);sheet.addEventListener('close',()=>sheetKind=null);sheet.addEventListener('click',e=>{if(e.target===sheet){const r=sheet.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeSheet();}});
 $('sound').addEventListener('click',()=>{sounds.toggle();updateSound();});$('settings').addEventListener('click',settingsSheet);$('history').addEventListener('click',historySheet);$('last-trace').addEventListener('click',historySheet);$('draw').addEventListener('click',drawSheet);$('surprise').addEventListener('click',surpriseSheet);$('together').addEventListener('click',togetherSheet);

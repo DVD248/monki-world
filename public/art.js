@@ -97,6 +97,8 @@ export function item(c,type,x,y,options={}){
     case 'frame':rect(c,-15,-25,30,25,'#b28c61');rect(c,-12,-22,24,19,'#f0e4bc');rect(c,-8,-13,4,7,'#8fa96b');rect(c,-4,-16,5,5,'#a4b984');rect(c,5,-19,4,4,'#d5b575');break;
     case 'radio':pixelBox(c,-14,-20,28,20,'#9a8761','#776e4c');rect(c,-11,-16,14,12,'#6b765e');for(let i=0;i<5;i++)rect(c,-10+i*3,-15,1,10,'#99a185');rect(c,7,-14,4,4,'#dcd0a2');rect(c,7,-7,4,2,'#dcd0a2');rect(c,8,-30,1,11,'#8b9273');break;
     case 'fridge':rect(c,-17,-53,34,53,'#d9ddc7');rect(c,-15,-51,29,48,'#e9ead7');rect(c,-15,-35,29,2,'#b4bea3');rect(c,9,-45,2,7,'#9aaa8b');rect(c,9,-29,2,10,'#9aaa8b');rect(c,-17,-3,34,3,'#a6b297');break;
+    case 'hole':ellipse(c,0,-2,11,5,'#7d6a4e');ellipse(c,0,-3,8,3,'#5f5340');rect(c,-10,2,3,2,'#9c8865');rect(c,6,1,3,2,'#9c8865');break;
+    case 'tower':rect(c,-7,-6,14,6,'#c2a577');rect(c,-6,-12,12,6,'#cbb083');rect(c,-4,-17,9,5,'#c2a577');rect(c,-3,-20,6,3,'#d5bb8c');break;
     default:rect(c,-5,-8,10,8,'#d9c790');
   }
   c.restore();
@@ -112,6 +114,10 @@ export function spriteCanvas(id,size=48,options={}){
 export function fillSprite(element,id,options={}){element.replaceChildren(spriteCanvas(id,48,options));}
 
 const paths={
+  house:'M3.5 11.5 12 4.5l8.5 7M6 10.2V19h12v-8.8M10 19v-4.5h4V19',
+  cellar:'M12 3.5v8m0 0-2.8-2.8M12 11.5l2.8-2.8M4 15h16M7 19h10',
+  pause:'M9.5 5.5v13M14.5 5.5v13',
+  star:'M12 4.2l2.2 5.1 5.5.5-4.2 3.7 1.3 5.4L12 16l-4.8 2.9 1.3-5.4-4.2-3.7 5.5-.5z',
   sound:'M11 5 6 9H3v6h3l5 4V5Zm4 3a7 7 0 0 1 0 8m3-11a11 11 0 0 1 0 14',
   mute:'M11 5 6 9H3v6h3l5 4V5Zm5 4 5 6m0-6-5 6',
   settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4',

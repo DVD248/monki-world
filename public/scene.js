@@ -83,7 +83,9 @@ export class Scene {
     const event=this.state.incident;
     for(const entity of entities){const{x,y,id}=entity;
       if(this.selected===id){ellipse(c,x,y+1,17,5,'#e9e3a5');rect(c,x-1,y+6,2,2,'#a6ad70');}
-      const lift=this.animations[id]>time?Math.abs(Math.sin((time-this.animations[id])/150))*5:0;
+      const held=this.moving?.id===id||(this.down?.hit?.id===id&&this.down.hit.movable&&!this.replaying);
+      const lift=(this.animations[id]>time?Math.abs(Math.sin((time-this.animations[id])/150))*5:0)+(held?7:0);
+      if(held)shadow(c,x,y+2,entity.type==='couch'?30:13);
       if(entity.kind==='actor'){
         const frame=Math.floor(t+(ACTORS.indexOf(id)*.7));
         character(c,id,x,y-lift,{hat:entity.hat,mood:entity.mood,frame});
@@ -91,7 +93,7 @@ export class Scene {
         if(entity.mood==='annoyed'){rect(c,x-2,y-47,11,7,'#a8b295');rect(c,x+1,y-48,5,1,'#a8b295');c.fillStyle='#627152';c.font='6px monospace';c.fillText('...',x,y-42);}
         this.hit(id,x-20,y-42,40,46,{movable:true,offsetY:y-(this.down?.y||y)});
       }else{
-        item(c,entity.type,x,y,{shadow:true});
+        item(c,entity.type,x,y-lift,{shadow:true});
         const dimensions=entity.type==='couch'?[72,46]:entity.type==='plant'?[36,53]:entity.type==='lamp'?[37,60]:[29,31];
         this.hit(id,x-dimensions[0]/2,y-dimensions[1],...dimensions,{movable:true,offsetY:y-(this.down?.y||y)});
       }
@@ -107,6 +109,17 @@ export class Scene {
     if(event?.room===this.room&&!this.replaying)this.incident(c,event,t);
     const gifts=this.state.gifts.filter(g=>!g.opened);
     if(this.room==='house')gifts.slice(0,3).forEach((g,i)=>{const x=208+i*31,y=282;item(c,'present',x,y,{shadow:true});if(g.to===this.actor){this.sparkle(c,x,y-34,t);this.hit(g.id,x-17,y-35,34,39,{action:'onGift'});}});
+    c.restore();
+    if(this.replaying)this.replayFrame(c,w,h);
+  }
+  /** A border and a row of dots: enough to say "this already happened" without words. */
+  replayFrame(c,w,h){
+    const total=this.replayQueue?.length||0,done=clamp(this.replayIndex+1,0,total);
+    c.save();
+    c.globalAlpha=.5;rect(c,0,0,w,3,'#8b9d6c');rect(c,0,h-3,w,3,'#8b9d6c');rect(c,0,0,3,h,'#8b9d6c');rect(c,w-3,0,3,h,'#8b9d6c');
+    c.globalAlpha=1;
+    const gap=9,startX=Math.round(w/2-(total-1)*gap/2);
+    for(let i=0;i<total;i++)rect(c,startX+i*gap-2,h-13,4,4,i<done?'#6f8455':'#b9c7a2');
     c.restore();
   }
   house(c,t){
@@ -186,6 +199,7 @@ export class Scene {
       this.hit(e.uid,x-31,y-85,73,87,{action:'onIncident'});
     }
     this.sparkle(c,x+40,y-64,t);
+    if(this.state.completed===0){rect(c,x+37,y-47,7,8,'#f7edcf');rect(c,x+36,y-54,3,11,'#f7edcf');rect(c,x+40,y-51,3,7,'#f7edcf');}
   }
   trace(c,v,t){const{x,y,type}=v;
     if(['crumbs','mess'].includes(type)){for(let i=0;i<6;i++)rect(c,x-19+i*7,y+5+((i*7)%9),2+(i%2),2,'#a58c61');if(type==='mess')item(c,'sock',x-27,y+6,{scale:.5});}
