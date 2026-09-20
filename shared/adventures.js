@@ -38,10 +38,19 @@ export const ADVENTURES = [
       {kind:'dress',title:'Something grew',hint:'Drag the flower onto Sernik',goal:1,item:'flower'},
     ],ending:'Local weather.',detail:'The flower is staying. So is the rainbow.' },
 ];
-export function adventureFor(state,actor){const index=state.journeys?.[actor]?.index||0;return {...ADVENTURES[index%ADVENTURES.length],index,edition:Math.floor(index/ADVENTURES.length)};}
+/** A chapter a day. Twenty hours rather than twenty-four so playing a little
+ * earlier each evening never pushes tomorrow's out of reach. */
+export const CHAPTER_GAP = 20 * 3600000;
+export function adventureFor(state,actor,now=Date.now()){
+  const journey=state.journeys?.[actor]||{index:0};
+  const index=journey.index,done=index>=ADVENTURES.length;
+  const chapter=ADVENTURES[Math.min(index,ADVENTURES.length-1)];
+  const nextAt=(journey.lastAt||0)+CHAPTER_GAP;
+  return {...chapter,index,done,nextAt,ready:!done&&now>=nextAt};
+}
 export function journeyFields(state){
   state.journeys??={david:{index:0},julia:{index:0}};
   for(const actor of ['david','julia'])state.journeys[actor]??={index:0};
-  state.moments??=[];state.toys??=['ball','bubbles'];state.decor??=[];
+  state.moments??=[];state.toys??=['paper','bubbles'];state.decor??=[];
   return state;
 }

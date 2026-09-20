@@ -13,7 +13,7 @@ const REACTIONS={
 };
 const THING_REACTIONS={couch:'squash',lamp:'shake',plant:'shake',bowl:'hop',radio:'shake',fridge:'shake',potato:'hop'};
 const rng=random('a-house-for-five');
-const plants=Array.from({length:115},()=>({x:rng()*600,y:rng()*400,s:rng()}));
+const plants=[];
 export class Scene {
   constructor(canvas,{onTap,onMove,onDoor,onFrame,onFridge,onIncident,onGift,onHold,onPop}){
     this.canvas=canvas;this.c=canvas.getContext('2d');this.callbacks={onTap,onMove,onDoor,onFrame,onFridge,onIncident,onGift,onHold,onPop};this.room='house';this.state=null;this.animations={};this.hitboxes=[];this.down=null;this.moving=null;this.time=0;this.selected=null;this.night=false;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -50,7 +50,11 @@ export class Scene {
   }
   playWith(kind){
     const now=performance.now();
-    if(kind==='bubbles'){this.bubbles=Array.from({length:7},(_,i)=>({id:`bubble-${i}`,x:61+i*45,y:285-(i%3)*30,born:now,room:this.room,phase:i}));this.react('monki');return;}
+    if(kind==='bubbles'){
+      // Scattered, and arriving one after another rather than all at once in a row.
+      this.bubbles=Array.from({length:8},(_,i)=>({id:`bubble-${i}-${now}`,x:55+Math.random()*290,y:250+Math.random()*60,born:now+i*170,room:this.room,phase:Math.random()*6}));
+      this.react('monki');return;
+    }
     const dog=this.state.actors.sernik;
     this.toy={kind,room:this.room,born:now,from:{x:dog.room===this.room?dog.x:335,y:dog.room===this.room?dog.y:275},to:{x:82+Math.random()*225,y:269}};
   }
@@ -62,10 +66,29 @@ export class Scene {
   }
   drawToys(c,time){
     const toy=this.toy;
-    if(toy?.room===this.room){const p=clamp((time-toy.born)/1100,0,1);item(c,'ball',210+(toy.to.x-210)*p,309+(toy.to.y-309)*p-Math.sin(p*Math.PI)*83,{scale:.8,shadow:true});}
+    if(toy?.room===this.room){
+      const p=clamp((time-toy.born)/1100,0,1);
+      const rx=210+(toy.to.x-210)*p,ry=309+(toy.to.y-309)*p-Math.sin(p*Math.PI)*83;
+      // It unrolls on the way, and the trail stays until the toy is over.
+      const at=q=>[210+(toy.to.x-210)*q+Math.sin(q*10)*9,309+(toy.to.y-309)*q-Math.sin(q*Math.PI)*83];
+      c.save();c.lineCap='round';c.lineJoin='round';
+      c.strokeStyle='#ded6c6';c.lineWidth=7;c.beginPath();c.moveTo(210,311);
+      for(let i=1;i<=16;i++){const[x,y]=at(p*i/16);c.lineTo(x,y+2);}c.stroke();
+      c.strokeStyle='#f7f3ea';c.lineWidth=5;c.beginPath();c.moveTo(210,309);
+      for(let i=1;i<=16;i++){const[x,y]=at(p*i/16);c.lineTo(x,y);}c.stroke();
+      c.restore();
+      item(c,'paper',rx,ry,{scale:.85,shadow:true});
+    }
     this.bubbles=this.bubbles.filter(b=>time-b.born<16000);
-    for(const b of this.bubbles.filter(b=>b.room===this.room)){
+    for(const b of this.bubbles.filter(b=>b.room===this.room&&time>=b.born)){
       const age=(time-b.born)/1000,x=b.x+Math.sin(age+b.phase)*10,y=b.y-age*9;
+      // Anyone standing where a bubble drifts will have a go at it themselves.
+      for(const id of ACTORS){
+        const a=this.state.actors[id];
+        if(a.room!==this.room||Math.hypot(a.x-x,a.y-28-y)>24)continue;
+        b.born=-Infinity;this.react(id);this.callbacks.onPop?.(id);break;
+      }
+      if(b.born===-Infinity)continue;
       c.strokeStyle='#fff6d7';c.lineWidth=2;c.fillStyle='#d7e8e350';c.beginPath();c.arc(x,y,14,0,7);c.fill();c.stroke();rect(c,x-6,y-7,4,3,'#fffdf0');this.hit(b.id,x-22,y-22,44,44,{action:'popBubble'});
     }
   }
@@ -234,7 +257,6 @@ export class Scene {
     for(let y=226;y<260;y+=8)for(let x=148;x<248;x+=10)rect(c,x,y,3,2,'#cbd0a6');
     for(let x=128;x<272;x+=5)rect(c,x,271,2,4,'#b9bb93');
     for(let i=0;i<3;i++)pixelStone(c,194+i*3,325+i*12,14);
-    bush(c,21,124,1.0);bush(c,372,103,.8);bush(c,380,268,.8);
   }
   garden(c,t){
     rect(c,18,152,365,149,'#c0d29f');

@@ -46,7 +46,7 @@ export class AdventurePlayer{
     }
     if(k==='wipe'&&this.pointer.down)for(const e of this.entities)if(e.alive&&Math.hypot(e.x-x,e.y-y)<57){e.alive=false;this.winPoint(e.x,e.y);}
     if(k==='dress'){
-      if(type==='down'&&Math.hypot(x-80,y-343)<62){this.dragging=true;this.selected=true;this.sound('tap');}
+      if(type==='down'&&Math.hypot(x-80,y-343)<62){this.dragging=true;this.selected=true;this.sound('pick');}
       else if(type==='down'&&this.selected&&Math.hypot(x-225,y-188)<90)this.winPoint(225,178);
       if(type==='up'&&this.dragging){this.dragging=false;if(Math.hypot(x-225,y-188)<90)this.winPoint(225,178);}
     }
@@ -69,7 +69,7 @@ export class AdventurePlayer{
     this.hits++;this.sound('pop');this.bump=.18;
     for(let i=0;i<8;i++)this.particles.push({x,y,vx:(this.rng()-.5)*110,vy:-30-this.rng()*90,life:.7});
     this.onStep({step:this.step,spec:this.spec,hits:this.hits,goal:this.spec.goal});
-    if(this.hits>=this.spec.goal){this.phase='payoff';this.phaseAt=this.time;this.pointer.down=false;this.dragging=false;this.sound('gift');}
+    if(this.hits>=this.spec.goal){this.phase='payoff';this.phaseAt=this.time;this.pointer.down=false;this.dragging=false;this.sound('win');}
   }
   pause(value){this.paused=value;this.pointer.down=false;this.keys.clear();document.getElementById('resume-game').hidden=!value;}
   loop(ts){if(this.closed)return;this.frame=requestAnimationFrame(t=>this.loop(t));const dt=Math.min(.045,(ts-(this.last||ts))/1000);this.last=ts;if(!this.paused)this.update(dt);this.draw();}

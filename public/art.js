@@ -106,6 +106,7 @@ export function item(c,type,x,y,options={}){
     case 'frame':rect(c,-15,-25,30,25,'#b28c61');rect(c,-12,-22,24,19,'#f0e4bc');rect(c,-8,-13,4,7,'#8fa96b');rect(c,-4,-16,5,5,'#a4b984');rect(c,5,-19,4,4,'#d5b575');break;
     case 'radio':pixelBox(c,-14,-20,28,20,'#9a8761','#776e4c');rect(c,-11,-16,14,12,'#6b765e');for(let i=0;i<5;i++)rect(c,-10+i*3,-15,1,10,'#99a185');rect(c,7,-14,4,4,'#dcd0a2');rect(c,7,-7,4,2,'#dcd0a2');rect(c,8,-30,1,11,'#8b9273');break;
     case 'fridge':rect(c,-17,-53,34,53,'#d9ddc7');rect(c,-15,-51,29,48,'#e9ead7');rect(c,-15,-35,29,2,'#b4bea3');rect(c,9,-45,2,7,'#9aaa8b');rect(c,9,-29,2,10,'#9aaa8b');rect(c,-17,-3,34,3,'#a6b297');break;
+    case 'paper':rect(c,-8,-15,15,15,'#f4efe4');rect(c,-8,-15,15,2,'#e6ded0');rect(c,-3,-12,5,10,'#cbc1b0');rect(c,6,-13,7,18,'#f8f4ec');rect(c,6,3,7,3,'#ece6da');rect(c,6,-13,7,1,'#ddd5c6');break;
     case 'hole':ellipse(c,0,-2,11,5,'#7d6a4e');ellipse(c,0,-3,8,3,'#5f5340');rect(c,-10,2,3,2,'#9c8865');rect(c,6,1,3,2,'#9c8865');break;
     case 'tower':rect(c,-7,-6,14,6,'#c2a577');rect(c,-6,-12,12,6,'#cbb083');rect(c,-4,-17,9,5,'#c2a577');rect(c,-3,-20,6,3,'#d5bb8c');break;
     default:rect(c,-5,-8,10,8,'#d9c790');

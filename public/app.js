@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);
 const store=new Store(),sounds=new Sounds();
 let room='house',selectedItem=null,game=null,sheetKind=null,toastTimer,tipTimer,nightMode='auto',lastRevision=-1,lastCompleted=0;
 const sheet=$('sheet'),body=$('sheet-body'),menu=$('interaction-menu');
-const scene=new Scene($('world'),{onTap:tap,onMove:(point,place)=>{operate('move',{target:point.id,x:point.x,y:point.y,room:place});sounds.play('tap');hideMenu();},onDoor:goTo,onFrame:drawSheet,onFridge:fridgeSheet,onIncident:startIncident,onGift:giftSheet,onHold:hold,onPop:()=>sounds.play('pop')});
+const scene=new Scene($('world'),{onTap:tap,onMove:(point,place)=>{operate('move',{target:point.id,x:point.x,y:point.y,room:place});sounds.play('drop');hideMenu();},onDoor:goTo,onFrame:drawSheet,onFridge:fridgeSheet,onIncident:startIncident,onGift:giftSheet,onHold:hold,onPop:who=>{sounds.play('pop');if(who)setTimeout(()=>sounds.play(who),90);}});
 
 function button(label,className,fn){const b=document.createElement('button');b.className=className;b.textContent=label;b.addEventListener('click',fn);return b;}
 function pict(id,options){return spriteCanvas(id,48,options);}
@@ -27,7 +27,7 @@ function operate(type,fields={}){try{return store.op(type,fields);}catch(error){
 function relative(at){const mins=Math.max(0,Math.floor((Date.now()-at)/60000));return mins<1?'just now':mins<60?`${mins}m ago`:mins<1440?`${Math.floor(mins/60)}h ago`:`${Math.floor(mins/1440)}d ago`;}
 function describe(entry){
   const who=NAMES[entry.who]||'Someone',target=NAMES[entry.target]||ITEMS[entry.target]?.name||'something',thing=ITEMS[entry.item]?.name||'something';
-  const actions={wear:`put ${thing} on ${target}`,move:`moved ${target}`,out:`took ${target} outside`,take:`borrowed ${target}`,eat:'found a snack',sleep:'fell asleep',dig:'dug a little hole',build:'moved things around',guard:`is watching ${target}`,hide:`hid ${target}`,find:`found ${target}`,gift:`left a present for ${target}`,open:'opened a present',draw:'left a drawing on the wall',play:'made a small mess',match:'picked the same frog',mismatch:'picked different frogs',place:`put down ${thing}`,grow:'found somewhere new',toy:entry.item==='ball'?'played ball with Sernik':'blew some bubbles',tidy:'put the loose things away',adventure:'added a picture to Moments',poke:`poked ${target}${entry.count>1?` ×${entry.count}`:''}`};
+  const actions={wear:`put ${thing} on ${target}`,move:`moved ${target}`,out:`took ${target} outside`,take:`borrowed ${target}`,eat:'found a snack',sleep:'fell asleep',dig:'dug a little hole',build:'moved things around',guard:`is watching ${target}`,hide:`hid ${target}`,find:`found ${target}`,gift:`left a present for ${target}`,open:'opened a present',draw:'left a drawing on the wall',play:'made a small mess',match:'picked the same frog',mismatch:'picked different frogs',place:`put down ${thing}`,grow:'found somewhere new',toy:entry.item==='bubbles'?'blew some bubbles':'gave Sernik the toilet paper',tidy:'put the loose things away',adventure:'added a picture to Moments',poke:`poked ${target}${entry.count>1?` ×${entry.count}`:''}`};
   return `${who} ${actions[entry.action]||'was here'}.`;
 }
 function draftKey(){return `monki-adventure:${store.local.room||'solo'}:${store.actor}`;}
@@ -36,12 +36,19 @@ function readDraft(chapter){try{const d=JSON.parse(localStorage.getItem(draftKey
 function render(){
   const state=store.state||createWorld('preview');
   const chapter=adventureFor(state,store.actor||'david');
-  const preview={id:chapter.id==='up'?'balloons':chapter.id,uid:'adventure',actor:chapter.actor,room:state.unlocked.includes(chapter.room)?chapter.room:'house',kind:'tap',item:chapter.item,aftermath:chapter.id==='up'?'balloons':null};
+  // Nothing beckons in the room on a day with no chapter in it.
+  const preview=chapter.ready?{id:chapter.id==='up'?'balloons':chapter.id,uid:'adventure',actor:chapter.actor,room:state.unlocked.includes(chapter.room)?chapter.room:'house',kind:'tap',item:chapter.item,aftermath:chapter.id==='up'?'balloons':null}:null;
   scene.update({...state,incident:preview},room,store.actor||'david');
-  $('story-kicker').textContent=chapter.index===0?'SOMETHING IS HAPPENING':'A SMALL ADVENTURE';
-  $('story-title').textContent=chapter.title;$('story-subtitle').textContent=chapter.subtitle;
-  $('start-adventure').textContent=readDraft(chapter)>0?'Resume':'Play';
-  const art=$('story-art').getContext('2d');art.clearRect(0,0,105,90);character(art,chapter.actor,51,83,{scale:1.6});item(art,chapter.item,78,34,{scale:1.15});
+  const resting=!chapter.ready;
+  $('story-kicker').textContent=chapter.done?'THAT IS ALL OF THEM':resting?'NOT TODAY':chapter.index===0?'SOMETHING IS HAPPENING':'A SMALL ADVENTURE';
+  // Tomorrow's title is not given away today.
+  $('story-title').textContent=chapter.done?'Everyone is having a lie down.':resting?'Nothing is happening.':chapter.title;
+  $('story-subtitle').textContent=chapter.done?'The house is yours to mess about with.':resting?'Something else tomorrow. The house is still here.':chapter.subtitle;
+  $('start-adventure').disabled=resting;
+  $('start-adventure').textContent=resting?(chapter.done?'Done':'Tomorrow'):readDraft(chapter)>0?'Resume':'Play';
+  const art=$('story-art').getContext('2d');art.clearRect(0,0,105,90);
+  if(resting){character(art,'galgan',51,83,{scale:1.6,mood:'sleep'});}
+  else{character(art,chapter.actor,51,83,{scale:1.6});item(art,chapter.item,78,34,{scale:1.15});}
   $('connection').textContent=!store.actor?'a little world':store.saveError?'storage is full':store.connected?(store.online?(store.paired?'our world · saved':'saved · invite your person'):'saved on this device'):'on this device';
   $('status-dot').classList.toggle('offline',!!store.actor&&(!store.online||store.saveError));
   const titles={house:'Home',garden:'Garden',roof:'Roof',cellar:'?'};
@@ -150,7 +157,7 @@ function tap(id,point){
   if(ACTORS.includes(id)){
     const n=scene.react(id);
     operate('poke',{target:id});
-    sounds.play(n>3?'pop':'tap');
+    sounds.play(id);
     // Pestered enough times in a row and they simply go somewhere else.
     if(n>=5){
       const a=store.state.actors[id];
@@ -162,7 +169,7 @@ function tap(id,point){
   const object=store.state.objects.find(o=>o.id===id);
   if(!object)return;
   if(object.type==='radio'){sounds.toggle();updateSound();scene.react(id,'radio');render();return;}
-  scene.react(id,object.type);sounds.play('tap');render();
+  scene.react(id,object.type);sounds.play(object.type==='couch'||object.type==='plant'?'wood':'tap');render();
 }
 
 /** Holding something is how you ask for its options. */
@@ -171,7 +178,28 @@ function hold(id,point){
   if(store.actor&&id===other(store.actor)){personSheet();return;}
   if(ACTORS.includes(id)){residentSheet(id);return;}
   const object=store.state.objects.find(o=>o.id===id);
-  if(object){scene.selected=id;tip('hold + drag');}
+  if(object)furnitureSheet(object);
+}
+
+/** Anything that has wandered into another room can be sent back from here. */
+function furnitureSheet(object){
+  showSheet('furniture','');
+  const picture=pict(object.type);picture.className='big-item';body.append(picture);
+  const titles={house:'Home',garden:'Garden',roof:'Roof',cellar:'Down there'};
+  const elsewhere=store.state.unlocked.filter(r=>r!==object.room);
+  if(!elsewhere.length){paragraph('Hold and drag to move it around.');return;}
+  const row=document.createElement('div');row.className='surprise-row';
+  for(const place of elsewhere){
+    const b=button('','surprise-card',()=>{
+      operate('sendTo',{target:object.id,room:place});
+      closeSheet();sounds.play('drop');render();
+    });
+    const glyph=document.createElement('strong');glyph.innerHTML=icon(place);
+    b.append(glyph);b.setAttribute('aria-label',`Send the ${ITEMS[object.type]?.name||'thing'} to ${titles[place]||place}`);
+    row.append(b);
+  }
+  body.append(row);
+  paragraph('Or hold and drag it around this room.');
 }
 
 function welcome(){
@@ -222,7 +250,8 @@ function residentSheet(id){
   row.append(button('Poke','secondary-button',()=>{operate('poke',{target:id});scene.react(id);sounds.play('tap');closeSheet();}));
   if(a.room!==room)row.append(button('Come here','secondary-button',()=>{operate('move',{target:id,x:200,y:252,room});closeSheet();}));
   if(a.hat)row.append(button('Hat off','secondary-button',()=>{operate('wear',{target:id,item:null});closeSheet();}));
-  if(adventureFor(store.state,store.actor).actor===id)row.append(button('Play adventure','primary-button',()=>{closeSheet();startIncident();}));body.append(row);
+  const ready=adventureFor(store.state,store.actor);
+  if(ready.ready&&ready.actor===id)row.append(button('Play adventure','primary-button',()=>{closeSheet();startIncident();}));body.append(row);
   const people=document.createElement('div');people.className='wear-options';for(const who of ACTORS){const b=button('','',()=>residentSheet(who));b.append(pict(who));const name=document.createElement('small');name.textContent=NAMES[who];b.append(name);people.append(b);}body.append(people);
   const grid=document.createElement('div');grid.className='item-grid';for(const hat of store.state.inventory.filter(i=>ITEMS[i].wearable)){const b=button('','collection-item',()=>{operate('wear',{target:id,item:hat});closeSheet();sounds.play('gift');});b.append(pict(hat));const name=document.createElement('span');name.textContent=ITEMS[hat].name;b.append(name);b.title=ITEMS[hat].name;b.setAttribute('aria-label',`Wear ${ITEMS[hat].name}`);grid.append(b);}body.append(grid);
 }
@@ -332,7 +361,9 @@ function fridgeSheet(){if(!store.state)return;showSheet('fridge','The fridge.');
 
 function startIncident(){
   if(!store.state){welcome();return;}if(game)return;
-  const chapter=adventureFor(store.state,store.actor);closeSheet();hideMenu();scene.stopReplay();
+  const chapter=adventureFor(store.state,store.actor);
+  if(!chapter.ready){sounds.play('boop');tip(chapter.done?'That is all of them.':'Something else tomorrow.',4000);return;}
+  closeSheet();hideMenu();scene.stopReplay();
   $('game-chapter').textContent=chapter.title;$('resume-game').hidden=true;$('microgame').showModal();
   game=new AdventurePlayer($('micro'),chapter,{startStep:readDraft(chapter),sound:k=>sounds.play(k),reduced:scene.reduced,onDone:finishIncident,onStep:({step,spec,hits,goal})=>{
     $('game-title').textContent=spec.title;$('game-hint').textContent=spec.hint;$('game-progress').textContent=`${hits} / ${goal}`;
@@ -373,9 +404,9 @@ for(const[id,glyph,label]of[['wardrobe','hat','Dress up'],['draw','draw','Draw']
 $('settings').innerHTML=icon('settings');$('close-sheet').innerHTML=icon('close');$('together-icon').innerHTML=icon('users');$('leave-game').innerHTML=icon('close');$('pause-game').innerHTML=icon('pause');
 $('close-sheet').addEventListener('click',closeSheet);sheet.addEventListener('close',()=>sheetKind=null);sheet.addEventListener('click',e=>{if(e.target===sheet){const r=sheet.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeSheet();}});
 $('sound').addEventListener('click',()=>{sounds.toggle();updateSound();});$('settings').addEventListener('click',settingsSheet);$('history').addEventListener('click',albumSheet);$('last-trace').addEventListener('click',()=>{const gift=store.state?.gifts.find(g=>g.to===store.actor&&!g.opened);if(gift)giftSheet(gift.id);else if(store.state?.log.length)historySheet();else personSheet();});$('draw').addEventListener('click',drawSheet);$('surprise').addEventListener('click',collectionSheet);$('together').addEventListener('click',personSheet);$('wardrobe').addEventListener('click',()=>residentSheet('monki'));$('start-adventure').addEventListener('click',startIncident);
-for(const[id,toy]of[['play-ball','ball'],['play-bubbles','bubbles']])$(id).addEventListener('click',()=>{if(!store.state){welcome();return;}if(!operate('toy',{toy}))return;scene.playWith(toy);sounds.play('throw');tip(toy==='ball'?'Sernik has it.':'Tap the bubbles.',4500);});
+for(const[id,toy]of[['play-ball','paper'],['play-bubbles','bubbles']])$(id).addEventListener('click',()=>{if(!store.state){welcome();return;}if(!operate('toy',{toy}))return;scene.playWith(toy);sounds.play(toy==='paper'?'paper':'throw');tip(toy==='paper'?'Sernik has it.':'Tap the bubbles.',4500);});
 $('tidy-room').addEventListener('click',()=>{if(operate('tidy')){sounds.play('tap');tip('Put away. Still in your little things.');}});
-item($('ball-art').getContext('2d'),'ball',20,33,{scale:1.4});item($('bubble-art').getContext('2d'),'bubbles',20,36,{scale:1.15});$('tidy-icon').innerHTML=icon('gift');
+item($('ball-art').getContext('2d'),'paper',20,33,{scale:1.4});item($('bubble-art').getContext('2d'),'bubbles',20,36,{scale:1.15});$('tidy-icon').innerHTML=icon('gift');
 $('leave-game').addEventListener('click',leaveGame);$('microgame').addEventListener('cancel',e=>{e.preventDefault();leaveGame();});$('pause-game').addEventListener('click',()=>{if(game)game.pause(!game.paused);});$('resume-game').addEventListener('click',()=>game?.pause(false));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')hideMenu();});
 const brand=$('brand-monki').getContext('2d');character(brand,'monki',24,43,{scale:1.1,shadow:false});updateSound();render();clock();setInterval(clock,10000);setInterval(()=>store.visit(),15000);

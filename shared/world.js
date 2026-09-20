@@ -13,7 +13,7 @@ export const ITEMS = {
   duck: { name: 'Duck', wearable: true }, mushroom: { name: 'Mushroom' }, moon: { name: 'Moon', wearable: true },
   star: { name: 'Star', wearable: true }, key: { name: 'Key' }, plant: { name: 'Plant' },
   lamp: { name: 'Lamp' }, couch: { name: 'Sofa' }, bowl: { name: 'Bowl' }, present: { name: 'Present' },
-  frame: { name: 'Drawing' }, radio: { name: 'Radio' }, fridge: { name: 'Fridge' },
+  frame: { name: 'Drawing' }, radio: { name: 'Radio' }, fridge: { name: 'Fridge' }, paper: { name: 'Toilet paper' },
   ball:{name:'Ball'},bubbles:{name:'Bubbles'},boat:{name:'Tiny boat'},kite:{name:'Kite'},
   telescope:{name:'Telescope'},lily:{name:'Lily pad'},rainbow:{name:'Rainbow'},cloud:{name:'Cloud'},drop:{name:'Drop'},
 };
@@ -407,10 +407,12 @@ export function applyOperation(input, operation, now = Date.now()) {
     // Acknowledging what your person left you, separately from the room's own news.
     case 'received': state.received[actor] = now; break;
     case 'adventureComplete': {
-      const chapter=adventureFor(state,actor);
+      const chapter=adventureFor(state,actor,now);
       if(op.index!==chapter.index)break;
       if(op.chapter!==chapter.id)throw new Error('Unknown adventure');
-      state.journeys[actor].index++;
+      // A chapter a day: a second one today is simply not accepted.
+      if(!chapter.ready)break;
+      state.journeys[actor].index++;state.journeys[actor].lastAt=now;
       discover(state,chapter.reward);
       const a=state.actors[chapter.actor];a.hat=chapter.reward;a.mood='happy';
       if(chapter.id==='up'){state.actors.sernik.hat='icecream';state.actors.sernik.mood='happy';}
@@ -424,9 +426,13 @@ export function applyOperation(input, operation, now = Date.now()) {
       break;
     }
     case 'toy': {
-      if(!['ball','bubbles'].includes(op.toy))throw new Error('Unknown toy');
-      state.actors[op.toy==='ball'?'sernik':'monki'].mood='happy';
-      log(state,actor,'toy',op.toy==='ball'?'sernik':'monki',now,{item:op.toy});break;
+      // Sernik has never once chased a ball. Older saves may still say 'ball'.
+      const toy = op.toy === 'ball' ? 'paper' : op.toy;
+      if (!['paper', 'bubbles'].includes(toy)) throw new Error('Unknown toy');
+      const who = toy === 'paper' ? 'sernik' : 'monki';
+      state.actors[who].mood = 'happy';
+      state.bond[actor][who] = (state.bond[actor][who] || 0) + 1;
+      log(state, actor, 'toy', who, now, { item: toy }); break;
     }
     case 'tidy': {
       state.storedObjects??=[];
@@ -434,7 +440,16 @@ export function applyOperation(input, operation, now = Date.now()) {
       for(const o of loose)discover(state,o.type);
       state.storedObjects.push(...loose);state.storedObjects=state.storedObjects.slice(-80);
       state.objects=state.objects.filter(o=>HEAVY.includes(o.type));state.traces=[];
+      // Anything heavy that got dragged somewhere else comes home too.
+      for(const o of state.objects)if(o.room!=='house'){o.room='house';o.x=clamp(o.x,50,350);o.lastBy=actor;o.movedAt=now;}
       log(state,actor,'tidy','house',now);break;
+    }
+    case 'sendTo': {
+      const o=state.objects.find(o=>o.id===op.target);
+      if(!o)throw new Error('Nothing to send');
+      if(!state.unlocked.includes(op.room))throw new Error('Nowhere to send it');
+      o.room=op.room;o.x=clamp(op.x??200,35,365);o.y=clamp(op.y??268,171,314);o.lastBy=actor;o.movedAt=now;
+      log(state,actor,'move',o.type,now);break;
     }
     case 'poke': {
       const a = ACTORS.includes(op.target) ? state.actors[op.target] : null; if (!a) throw new Error('Unknown character');
