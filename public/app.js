@@ -6,6 +6,7 @@ import {icon,spriteCanvas,character,item,rect,fillSprite} from './art.js';
 import {ACTORS,NAMES,ITEMS,other,createWorld} from './shared/world.js';
 
 const $=id=>document.getElementById(id);
+const SYMBOLS={poke:'☞',wear:'↑',move:'↔',out:'↗',take:'←',eat:'○',sleep:'z',dig:'▾',build:'▲',guard:'◉',hide:'?',find:'!',gift:'→',open:'↗',draw:'✎',chaos:'↝',play:'→',match:'=',mismatch:'≠',place:'↓',grow:'→'};
 const store=new Store(),sounds=new Sounds();
 let room='house',selectedItem=null,game=null,sheetKind=null,toastTimer,tipTimer,nightMode='auto',lastRevision=-1,lastCompleted=0;
 const sheet=$('sheet'),body=$('sheet-body'),menu=$('interaction-menu');
@@ -30,13 +31,12 @@ function render(){
   scene.update(state,room,store.actor||'david');
   $('connection').textContent=!store.actor?'a little world':store.saveError?'storage is full':store.connected?(store.online?(store.paired?'our world · saved':'saved · invite your person'):'saved on this device'):'on this device';
   $('status-dot').classList.toggle('offline',!!store.actor&&(!store.online||store.saveError));
-  $('room-title').textContent={house:'At home.',garden:'Outside, apparently.',roof:'Up here.',cellar:'Oh.'}[room];
-  $('scene-corner').lastChild.textContent=state.incident?.room===room?'something is happening':'just existing';
   const titles={house:'Home',garden:'Garden',roof:'Roof',cellar:'?'};
   $('locations').replaceChildren();
-  for(const place of ['house','garden','roof',...(state.unlocked.includes('cellar')?['cellar']:[])]){
-    const unlocked=state.unlocked.includes(place),b=button('','place-tab'+(room===place?' active':'')+(!unlocked?' locked':'')+(state.incident?.room===place?' incident':''),()=>goTo(place));
-    b.innerHTML=icon(unlocked?place:'lock')+(unlocked?`<span>${titles[place]}</span>`:'');b.setAttribute('aria-label',unlocked?titles[place]:`${titles[place]} is not open yet`);b.setAttribute('aria-current',room===place?'location':'false');$('locations').append(b);
+  // Somewhere you cannot go yet is not shown at all. Nothing counts down to it.
+  for(const place of ['house','garden','roof','cellar'].filter(p=>state.unlocked.includes(p))){
+    const b=button('','place-tab'+(room===place?' active':'')+(state.incident?.room===place?' incident':''),()=>goTo(place));
+    b.innerHTML=icon(place);b.setAttribute('aria-label',titles[place]);b.setAttribute('aria-current',room===place?'location':'false');$('locations').append(b);
   }
   $('residents').replaceChildren();
   for(const id of ACTORS){const b=button('','resident'+(store.actor===id?' you':''),()=>residentSheet(id));b.title=NAMES[id];b.setAttribute('aria-label',NAMES[id]);b.append(pict(id,{hat:state.actors[id].hat}));$('residents').append(b);}
@@ -44,16 +44,16 @@ function render(){
   for(const id of state.inventory.slice(0,5)){const b=button('','pocket-item'+(selectedItem===id?' selected':''),()=>itemSheet(id));b.title=ITEMS[id].name;b.setAttribute('aria-label',ITEMS[id].name);b.append(pict(id));$('pocket').append(b);}
   const plus=button('+','pocket-item plus',collectionSheet);plus.setAttribute('aria-label','All little things');$('pocket').append(plus);
   const last=state.log[0];
-  if(last){const img=$('trace-image');img.replaceChildren(pict(last.who in NAMES?last.who:'monki'));img.append(pict(last.item||last.target));const descriptions={poke:'Someone was here.',move:'A little rearranging.',wear:'A new look.',gift:'Something for you.',open:'Something appeared.',draw:'The wall has changed.',chaos:'A small surprise.',play:'Something happened.',match:'Same frog.',mismatch:'Different frogs.',place:'A new little thing.',grow:'Something grew.'};$('trace-label').replaceChildren(document.createTextNode(descriptions[last.action]||'A little change.'));const small=document.createElement('small');small.textContent=relative(last.at);$('trace-label').append(small);}
-  else{$('trace-image').replaceChildren(pict('monki'),pict('potato'));}
-  $('version-label').textContent=`est. ${new Date(state.created).toLocaleDateString(undefined,{day:'numeric',month:'short'})}`;
-  if(state.completed>lastCompleted&&lastRevision>=0){if(state.completed===3)tip('↗ a door opened',6500);if(state.completed===8)tip('↑ there is a ladder outside',6500);}
+  const img=$('trace-image');
+  if(last){img.replaceChildren(pict(last.who in NAMES?last.who:'monki'));const verb=document.createElement('span');verb.className='verb';verb.textContent=SYMBOLS[last.action]||'→';img.append(verb,pict(last.item||last.target));
+    $('trace-label').replaceChildren(document.createTextNode(relative(last.at)));}
+  else{img.replaceChildren(pict('monki'),pict('potato'));$('trace-label').textContent='';}
   lastCompleted=state.completed;lastRevision=state.revision;
   if(sheetKind==='together')togetherSheet();
   if(sheetKind==='history')historySheet();
 }
 
-function clock(){const date=new Date();$('clock').textContent=date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});const night=nightMode==='night'||nightMode==='auto'&&(date.getHours()<7||date.getHours()>=20);scene.night=night;$('weather-icon').innerHTML=icon(night?'moon':'sun');$('weather-label').textContent=night?'still here':'a perfectly normal day';}
+function clock(){const date=new Date();scene.night=nightMode==='night'||nightMode==='auto'&&(date.getHours()<7||date.getHours()>=20);}
 function goTo(place){
   if(!store.state)return;
   if(!store.state.unlocked.includes(place)){sounds.play('boop');tip(place==='garden'?'locked. for now.':'not quite yet.');return;}
@@ -82,7 +82,7 @@ function welcome(){
   paragraph('Tap things. Move things. See what happens.');
   const choices=document.createElement('div');choices.className='choice-people';
   for(const actor of ['david','julia']){const b=button('','person-choice',async()=>{
-    b.disabled=true;try{if(store.server)await store.create(actor);else store.solo(actor);closeSheet();render();tip('Monki has balloons. tap one.',6500);}catch(e){toast(e.message);b.disabled=false;}
+    b.disabled=true;try{if(store.server)await store.create(actor);else store.solo(actor);closeSheet();render();}catch(e){toast(e.message);b.disabled=false;}
   });b.append(pict(actor));const label=document.createElement('span');label.textContent=NAMES[actor];b.append(label);choices.append(b);}body.append(choices);
   paragraph(store.server?'Your place saves itself. Invite your person whenever.':'Playing on this device. Start the included server for a shared world.','onboarding-note');
   const instructions=document.createElement('div');instructions.className='instructions';instructions.innerHTML=`<span>${icon('hand')}tap</span><span>${icon('move')}drag</span><span>${icon('gift')}leave things</span>`;body.append(instructions);
@@ -115,7 +115,7 @@ function residentSheet(id){
 function historySheet(){
   if(!store.state)return;showSheet('history','Left behind.','A FEW TRACES');
   if(!store.state.log.length){paragraph('Five residents. No explanation yet.');return;}
-  const symbols={poke:'☞',wear:'↑',move:'↔',gift:'→',open:'↗',draw:'✎',chaos:'↝',play:'→',match:'=',mismatch:'≠',place:'↓',grow:'→'};
+  const symbols=SYMBOLS;
   for(const entry of store.state.log.slice(0,18)){const row=document.createElement('div');row.className='activity-row';row.append(pict(entry.who));const verb=document.createElement('span');verb.className='verb';verb.textContent=symbols[entry.action]||'→';row.append(verb);if(entry.item)row.append(pict(entry.item));row.append(pict(entry.target));if(entry.count){const count=document.createElement('span');count.textContent=`× ${entry.count}`;row.append(count);}const time=document.createElement('time');time.textContent=relative(entry.at);row.append(time);row.setAttribute('aria-label',`${NAMES[entry.who]||entry.who}: ${entry.action} ${NAMES[entry.target]||ITEMS[entry.target]?.name||entry.target}`);body.append(row);}
 }
 
@@ -184,20 +184,17 @@ function startIncident(){
   if(!store.state?.incident||game)return;
   const e=store.state.incident;room=e.room;closeSheet();hideMenu();render();
   const surprise=store.state.chaos[store.actor];const event={...e,modifier:surprise?.modifier||e.modifier};
-  $('game-hint').textContent=e.hint;
-  $('game-modifier').textContent=surprise?`${NAMES[surprise.from]} ↝`:event.modifier==='plain'?'':{bouncy:'↝',tiny:'·',giant:'●',windy:'≋',sleepy:'z'}[event.modifier];
-  $('game-progress').textContent=`0 / ${e.goal}`;$('resume-game').hidden=true;$('microgame').showModal();
-  game=new Microgame($('micro'),event,{sound:k=>sounds.play(k),reduced:scene.reduced,onProgress:(score,goal)=>$('game-progress').textContent=`${score} / ${goal}`,onFinish:finishIncident});
+  $('game-modifier').textContent=surprise?'↝':event.modifier==='plain'?'':{bouncy:'↝',tiny:'·',giant:'●',windy:'≋',sleepy:'z'}[event.modifier];
+  const pips=n=>'·'.repeat(Math.min(16,Math.max(0,n)));
+  $('game-progress').textContent=pips(e.goal);$('resume-game').hidden=true;$('microgame').showModal();
+  game=new Microgame($('micro'),event,{sound:k=>sounds.play(k),reduced:scene.reduced,onProgress:(score,goal)=>$('game-progress').textContent=pips(goal-score),onFinish:finishIncident});
 }
+/** No score, no prize screen. The game ends and you are simply back in the room,
+ * where whatever just happened has left something behind. */
 function finishIncident({score,event}){
   game=null;$('microgame').close();
-  const prior=store.state.completed,oldLocations=[...store.state.unlocked];operate('resolve',{target:event.uid,score});
-  showSheet('result','');
-  const result=pict(event.reward);result.className='big-item';body.append(result);
-  const row=document.createElement('div');row.className='result-picks';row.append(pict(event.actor));const arrow=document.createElement('span');arrow.textContent='→';row.append(arrow,pict(event.item));const count=document.createElement('span');count.textContent=`× ${score}`;row.append(count);body.append(row);
-  paragraph(ITEMS[event.reward].name+'. It’s here now.');
-  const newLocation=store.state.unlocked.find(r=>!oldLocations.includes(r));if(newLocation)paragraph(newLocation==='garden'?'The door is open.':'A ladder appeared in the garden.');
-  body.append(button('← back to the world','primary-button full',()=>{closeSheet();if(newLocation)goTo(newLocation);}));sounds.play('gift');render();
+  operate('resolve',{target:event.uid,score});
+  room=event.room;closeSheet();hideMenu();render();sounds.play('gift');
 }
 function leaveGame(){if(game){game.stop();game=null;}$('microgame').close();render();}
 function updateSound(){$('sound').innerHTML=icon(sounds.enabled?'sound':'mute');$('sound').setAttribute('aria-label',sounds.enabled?'Turn sound off':'Turn sound on');$('sound').title=sounds.enabled?'Turn sound off':'Turn sound on';}
@@ -210,15 +207,15 @@ function settingsSheet(){
   const row=document.createElement('div');row.className='button-row';if(store.local.invite)row.append(button('Invite your person','primary-button',shareSheet));row.append(button('Save a copy','secondary-button',()=>{const blob=new Blob([store.export()],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='monki-world-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('World exported.');}));body.append(row);
   if(store.connected)body.append(button('Continue on my phone ↗','quiet-action',deviceSheet));
   paragraph('Touch a resident or an unusual object. Hold and drag to move things. The little things below can go on heads, on the floor, or inside a present.');
-  paragraph('The garden opens after three incidents. Keep poking around. There are no streaks, chores, or penalties for leaving.','settings-small');
+  paragraph('Nothing here is owed to anyone. Nobody starves, nothing expires, and leaving for a week is not punished — the residents simply get on with it.','settings-small');
   paragraph(store.connected?'Both phones share this world while this server is available. Offline changes wait on your device and sync when you return.':'This is a local-only world. Run Start Monki World.command for shared play.','settings-small');
   if(store.saveError)paragraph('This browser’s storage is full. Export a copy before leaving.','error-line');
 }
 
 store.addEventListener('change',render);store.addEventListener('rejected',e=>toast(e.detail));
-$('settings').innerHTML=icon('settings');$('close-sheet').innerHTML=icon('close');$('together-icon').innerHTML=icon('users');$('gesture-icon').innerHTML=icon('hand');$('leave-game').innerHTML=icon('close');$('pause-game').innerHTML=icon('pause');
+$('settings').innerHTML=icon('settings');$('close-sheet').innerHTML=icon('close');$('together-icon').innerHTML=icon('users');$('leave-game').innerHTML=icon('close');$('pause-game').innerHTML=icon('pause');
 $('close-sheet').addEventListener('click',closeSheet);sheet.addEventListener('close',()=>sheetKind=null);sheet.addEventListener('click',e=>{if(e.target===sheet){const r=sheet.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeSheet();}});
-$('sound').addEventListener('click',()=>{sounds.toggle();updateSound();});$('settings').addEventListener('click',settingsSheet);$('collection').addEventListener('click',collectionSheet);$('history').addEventListener('click',historySheet);$('last-trace').addEventListener('click',historySheet);$('draw').addEventListener('click',drawSheet);$('surprise').addEventListener('click',surpriseSheet);$('together').addEventListener('click',togetherSheet);
+$('sound').addEventListener('click',()=>{sounds.toggle();updateSound();});$('settings').addEventListener('click',settingsSheet);$('history').addEventListener('click',historySheet);$('last-trace').addEventListener('click',historySheet);$('draw').addEventListener('click',drawSheet);$('surprise').addEventListener('click',surpriseSheet);$('together').addEventListener('click',togetherSheet);
 $('leave-game').addEventListener('click',leaveGame);$('microgame').addEventListener('cancel',e=>{e.preventDefault();leaveGame();});$('pause-game').addEventListener('click',()=>{if(game)game.setPaused(!game.paused);});$('resume-game').addEventListener('click',()=>game?.setPaused(false));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')hideMenu();});
 const brand=$('brand-monki').getContext('2d');character(brand,'monki',24,43,{scale:1.1,shadow:false});updateSound();render();clock();setInterval(clock,10000);setInterval(()=>store.visit(),15000);

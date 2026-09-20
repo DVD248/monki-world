@@ -132,8 +132,6 @@ export class Scene {
       this.hit(e.uid,x-31,y-85,73,87,{action:'onIncident'});
     }
     this.sparkle(c,x+40,y-64,t);
-    // The little hand is a visual invitation; it fades after the first encounter.
-    if(this.state.completed===0){rect(c,x+37,y-47,7,8,'#f7edcf');rect(c,x+36,y-54,3,11,'#f7edcf');rect(c,x+40,y-51,3,7,'#f7edcf');}
   }
   trace(c,v,t){const{x,y,type}=v;
     if(['crumbs','mess'].includes(type)){for(let i=0;i<6;i++)rect(c,x-19+i*7,y+5+((i*7)%9),2+(i%2),2,'#a58c61');if(type==='mess')item(c,'sock',x-27,y+6,{scale:.5});}
@@ -145,6 +143,8 @@ export class Scene {
     if(type==='stars')this.sparkle(c,x-22,y-5,t);
     if(type==='tower')for(let i=0;i<3;i++)item(c,'potato',x+38,y-i*7,{scale:.6});
     if(type==='moon')item(c,'moon',239,77,{scale:.75});
+    if(type==='hole'){ellipse(c,x,y+6,15,6,'#7d6a4e');ellipse(c,x,y+5,12,4,'#5f5340');for(let i=0;i<4;i++)rect(c,x-16+i*10,y+11,3,2,'#9c8865');}
+    if(type==='balloons'){for(let i=0;i<3;i++)rect(c,x-14+i*13,y+6,3,3,'#c58f8f');rect(c,x+4,y+2,1,6,'#a5966b');}
   }
 }
 function bush(c,x,y,s=1){c.save();c.translate(x,y);c.scale(s,s);rect(c,-18,-17,36,17,'#95ad76');rect(c,-13,-23,26,23,'#9fb67f');rect(c,-21,-13,42,9,'#95ad76');for(const[a,b]of[[-14,-11],[-3,-18],[11,-10],[-4,-4]])rect(c,a,b,5,3,'#b7c798');c.restore();}

@@ -34,19 +34,28 @@ Close the terminal or press Control-C to stop the server. Start it again to cont
 
 ## What is in this version
 
-- Five original pixel characters, drawn using your Downloads reference photos: David's dark middle-parted hair, Julia's long hair and round glasses, Monki's orange-brown fur and long arms, Sernik's cream coat, and Galgan's dark coat and light eyebrows.
-- A furnished house, a garden, a roof, and a secret extra place.
-- Furniture and characters you can drag, wearable objects, presents, a shared drawing, and a visual history.
+- Five original pixel characters, drawn in code: David, Julia, Monki, Sernik and Galgan.
+- A house, a garden, a roof, and a place under the house.
+- Furniture and residents you can drag, wearable objects, presents, a shared drawing, and a visual history.
 - Independent frog choices, revealed only after both people have chosen.
-- Four small modifiers you can leave in your partner's next game.
-- 28 authored situations built on seven gestures: tapping, catching, aiming, wiping, balancing, holding/releasing, and finding.
-- Situation variants, actor-specific aftermath, time-of-day eligibility, rare events, recent-event avoidance, and small changes after time away.
-- Physical discoveries: the garden after three incidents, the roof after eight, and several hidden interactions.
+- Surprises you can leave in your partner's next situation, a hat that stays on for a day, and things you can hide for them to find.
 - Local persistence, a durable shared server, offline action queues, optional sound, and a web-app manifest.
 
-The opening event is Monki with balloons. Tap one. After a short incident, the house keeps a trace of it and a new object becomes available. The next incident appears after a short quiet interval. There is no daily claim screen or maintenance loop.
+### The residents run themselves
 
-This is a complete first playable version, not an infinite-content generator. New combinations lengthen the novelty; genuinely new situations still need to be added over time. The content catalogue is designed to make that inexpensive.
+Monki, Sernik and Galgan each have weighted tendencies and things they love or hate, in `TENDENCIES`. Time away is simulated in ~22-minute steps and escalates sub-linearly: twenty minutes away is about three small events, an afternoon is fourteen, a week is thirty and leaves a structure behind that nobody asked for.
+
+Because the behaviour is preference-driven rather than random, it accumulates into recognisable nonsense. Galgan drags the nearest heavy thing a few pixels per step, so over days the sofa crosses the room — and if it reaches a wall with the garden open, it goes outside. Galgan also digs; two holes by the house are how the garden opens. Monki stacks things; a tall enough pile in the garden is how the roof opens. Nothing announces any of this.
+
+### Situations are composed, not listed
+
+Seven gestures (`GESTURES`) are combined at runtime with an actor, an item that character actually cares about or that is lying in the room, a modifier and a place. The resulting situation usually does not exist anywhere in the source. `INCIDENTS` holds nine authored set pieces which are deliberately scarce — about a 5% chance — so meeting one is worth a message.
+
+The next situation arrives on a variable 45-second to 20-minute gap rather than a fixed clock, so there is no schedule to learn and no daily claim.
+
+### What it deliberately does not do
+
+No score screen, no prize animation, no streaks, no XP, no level gates, no locked doors shown with a padlock, and no text telling you how relaxing it all is. Finishing a short game simply returns you to the room, where whatever happened has left something behind.
 
 ## Controls
 
@@ -99,6 +108,6 @@ npm run build  # optional static preview
 | `public/store.js` | Saving, joining and offline operation replay |
 | `server.mjs` | Private rooms, serial operation application and durable files |
 
-To add a situation, add an entry in `INCIDENTS`. Use an existing `kind`, choose the actor, item, reward and aftermath, and optionally limit it to night or make it rare. New gameplay mechanics live in `microgames.js`. New aftermath visuals live in `Scene.trace()`.
+To change what the residents do when nobody is watching, edit `TENDENCIES` and `BEHAVIOUR` in `shared/world.js`; a new verb needs one small function that leaves something physical behind. To widen the pool of composed situations, add items to a gesture in `GESTURES`. `INCIDENTS` is only for authored set pieces. New gameplay mechanics live in `microgames.js`. New aftermath and evidence visuals live in `Scene.trace()`.
 
 The tone to preserve: small physical changes, a quiet presentation, and room for both players to make their own nonsense.

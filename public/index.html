@@ -19,27 +19,25 @@
       <div class="header-right"><div class="status"><span id="status-dot"></span><span id="connection">a little world</span></div><button id="sound" class="icon-button" title="Turn sound on" aria-label="Turn sound on"></button><button id="settings" class="icon-button" title="Settings" aria-label="Settings"></button></div>
     </header>
     <main>
-      <div class="world-heading"><div><span class="eyebrow">DAVID + JULIA</span><h1 id="room-title">At home.</h1></div><div class="weather"><span id="weather-icon"></span><div><span id="clock">14:32</span><small id="weather-label">a perfectly normal day</small></div></div></div>
       <section class="game-card" aria-label="Your shared world">
         <div class="scene-bar"><div class="place-tabs" id="locations"></div><button class="small-action" id="together"><span id="together-icon"></span><span>Us two</span></button></div>
         <div class="scene-wrap" id="scene-wrap">
           <canvas id="world" width="400" height="336" tabindex="0" aria-label="House with David, Julia, Monki, Sernik and Galgan. Tap to interact, drag to move. Use the resident buttons below for keyboard access."></canvas>
-          <div class="scene-corner" id="scene-corner"><span class="live-pixel"></span>just existing</div>
           <div class="scene-tip" id="scene-tip"></div>
           <div class="interaction-menu" id="interaction-menu" hidden></div>
         </div>
-        <div class="scene-footer"><div class="residents" id="residents" aria-label="Residents"></div><div class="scene-hint"><span id="gesture-icon"></span><span>tap things. move things.</span></div></div>
+        <div class="scene-footer"><div class="residents" id="residents" aria-label="Residents"></div></div>
       </section>
       <section class="below-world">
-        <div class="pocket-section"><div class="section-label"><h2>Little things</h2><button id="collection" class="text-button">everything <span aria-hidden="true">↗</span></button></div><div class="pocket" id="pocket"></div><p class="quiet" id="pocket-hint">A hat? A gift? A potato.</p></div>
-        <div class="left-behind"><div class="section-label"><h2>Left behind</h2><button id="history" class="text-button">peek <span aria-hidden="true">↗</span></button></div><button id="last-trace" class="trace-card" aria-label="See activity"><span class="trace-image" id="trace-image"></span><span id="trace-label">A few things out of place.<small>That’s home.</small></span><span class="trace-arrow">↗</span></button></div>
+        <div class="pocket-section"><div class="pocket" id="pocket"></div></div>
+        <div class="left-behind"><button id="last-trace" class="trace-card" aria-label="What happened here"><span class="trace-image" id="trace-image"></span><span id="trace-label"></span></button></div>
       </section>
-      <footer class="bottom-note"><span>no chores. no rush.</span><div><button id="draw" class="footer-button">leave a doodle</button><span class="tiny-star">✳</span><button id="surprise" class="footer-button">a small surprise</button></div><span id="version-label">est. just now</span></footer>
+      <footer class="bottom-note"><button id="draw" class="footer-button" aria-label="Draw something">✎</button><button id="history" class="footer-button" aria-label="What happened here">◷</button><button id="surprise" class="footer-button" aria-label="Leave a surprise">✳</button></footer>
     </main>
   </div>
   <div id="toast" role="status" aria-live="polite"></div>
   <dialog id="sheet"><div class="sheet-top"><span class="eyebrow" id="sheet-eyebrow">MONKI WORLD</span><button id="close-sheet" class="icon-button" aria-label="Close"></button></div><div id="sheet-body"></div></dialog>
-  <dialog id="microgame"><div class="microgame-top"><button id="leave-game" class="icon-button" aria-label="Leave this incident"></button><span id="game-hint"></span><button id="pause-game" class="icon-button" aria-label="Pause game"></button></div><div class="game-canvas-wrap"><canvas id="micro" width="400" height="420" tabindex="0" aria-label="Short game"></canvas><button id="resume-game" class="primary-button" hidden>Resume</button></div><div class="microgame-bottom"><span id="game-modifier"></span><span id="game-progress"></span></div></dialog>
+  <dialog id="microgame"><div class="microgame-top"><button id="leave-game" class="icon-button" aria-label="Leave"></button><span id="game-modifier"></span><button id="pause-game" class="icon-button" aria-label="Pause"></button></div><div class="game-canvas-wrap"><canvas id="micro" width="400" height="420" tabindex="0" aria-label="Short game"></canvas><button id="resume-game" class="primary-button" hidden>Resume</button></div><div class="microgame-bottom"><span id="game-progress" class="pips" aria-hidden="true"></span></div></dialog>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
