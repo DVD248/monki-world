@@ -6,12 +6,21 @@ import os from 'node:os';
 import path from 'node:path';
 import {once} from 'node:events';
 import {setTimeout as delay} from 'node:timers/promises';
+import {createWorld} from '../shared/world.js';
 
 let child,dir,base,david,julia;
 const port=22000+Math.floor(Math.random()*10000);
-async function start(){child=spawn(process.execPath,['server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),HOST:'127.0.0.1',MONKI_DATA_DIR:dir},stdio:'pipe'});child.stderr.on('data',()=>{});for(let i=0;i<80;i++){try{if((await fetch(`${base}/api/health`)).ok)return;}catch{}await delay(50);}throw new Error('Test server did not start');}
-async function stop(){if(child&&child.exitCode===null){const closed=once(child,'exit');child.kill();await closed;}}
-async function call(url,{identity,method='GET',body,headers={}}={}){const response=await fetch(base+url,{method,headers:{...(body?{'Content-Type':'application/json'}:{}),...(identity?{Authorization:`Bearer ${identity.token}`,'X-Monki-Room':identity.room}:{}),...headers},...(body?{body:JSON.stringify(body)}:{})});return{status:response.status,data:await response.json()};}
+// MONKI_TEST_WORKER=1 runs the same checks against the online copy (worker/index.mjs) in wrangler dev.
+const worker=Boolean(process.env.MONKI_TEST_WORKER);
+async function start(){
+  const cwd=new URL('..',import.meta.url);
+  // Its own process group, so stop() also ends the workerd processes wrangler starts.
+  child=worker?spawn('npx',['--yes','wrangler','dev','--port',String(port),'--ip','127.0.0.1','--persist-to',dir,'--show-interactive-dev-session=false'],{cwd,stdio:'ignore',detached:true})
+    :spawn(process.execPath,['server.mjs'],{cwd,env:{...process.env,PORT:String(port),HOST:'127.0.0.1',MONKI_DATA_DIR:dir},stdio:'pipe'});
+  child.stderr?.on('data',()=>{});
+  for(let i=0;i<(worker?1200:80);i++){try{if((await fetch(`${base}/api/health`)).ok)return;}catch{}await delay(50);}throw new Error('Test server did not start');}
+async function stop(){if(child&&child.exitCode===null){const closed=once(child,'exit');if(worker)process.kill(-child.pid);else child.kill();await closed;}}
+async function call(url,{identity,method='GET',body,headers={}}={}){const response=await fetch(base+url,{method,headers:{...(body?{'Content-Type':'application/json'}:{}),...(identity?{Authorization:`Bearer ${identity.token}`,'X-Monki-Room':identity.room}:{}),...headers},...(body?{body:JSON.stringify(body)}:{})});const text=await response.text();return{status:response.status,data:text?JSON.parse(text):null};}
 before(async()=>{dir=await mkdtemp(path.join(os.tmpdir(),'monki-test-'));base=`http://127.0.0.1:${port}`;await start();});
 after(async()=>{await stop();if(dir&&path.basename(dir).startsWith('monki-test-'))await rm(dir,{recursive:true,force:true});});
 
@@ -48,6 +57,17 @@ test('bad invitations, missing credentials, and cross-origin writes are rejected
   assert.equal((await call('/api/rooms',{method:'POST',body:{actor:'david'},headers:{Origin:'https://example.invalid'}})).status,403);
   assert.equal((await call('/data/'+david.room+'.json')).status,404);
   assert.equal((await call('/server.mjs')).status,404);
+});
+test('a world file moved from another server keeps both seats and never replaces a world',async()=>{
+  const room={id:'ab'.repeat(12),members:{david:'1'.repeat(48),julia:'2'.repeat(48)},invitation:{token:'3'.repeat(48),actor:'julia',claimed:true},state:createWorld('ab'.repeat(12))};
+  assert.equal((await call('/api/import',{method:'POST',body:{room}})).status,201);
+  const seat=await call('/api/world',{identity:{room:room.id,token:room.members.julia}});
+  assert.equal(seat.status,200);assert.equal(seat.data.actor,'julia');assert.equal(seat.data.paired,true);
+  assert.equal((await call('/api/import',{method:'POST',body:{room:{...room,members:{david:'9'.repeat(48)}}}})).status,409);
+  assert.equal((await call('/api/world',{identity:{room:room.id,token:room.members.david}})).status,200);
+  assert.equal((await call('/api/import',{method:'POST',body:{room:{...room,id:'cd'.repeat(12),members:{david:'short'}}}})).status,400);
+  assert.equal((await call('/api/import',{method:'POST',body:{room:{...room,id:'cd'.repeat(12),state:'nothing'}}})).status,400);
+  assert.equal((await call('/api/import',{method:'POST',body:{room:{...room,id:'../../x'}}})).status,400);
 });
 test('saved state survives a full server restart',async()=>{
   const prior=(await call('/api/world',{identity:david})).data.world;

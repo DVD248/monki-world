@@ -27,3 +27,6 @@ scripts/measure.mjs
 scripts/compare.mjs
 scripts/couple/
 tests/couple.test.mjs
+
+# Cloudflare local state (npx wrangler dev)
+.wrangler/

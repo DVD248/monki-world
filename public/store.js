@@ -2,6 +2,8 @@ import {createWorld,applyOperation,visibleWorld,prepareWorld} from './shared/wor
 import {centralTime} from './shared/ambience.js';
 import {decorProgress} from './shared/decor.js';
 const KEY='monki-world-v1';
+// Served by the Mac on home Wi-Fi, or by the online copy: what to check when it cannot be reached differs.
+const LAN=/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)|\.local$/.test(globalThis.location?.hostname||'localhost');
 const uid=()=>globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const sessionId=()=>globalThis.crypto?.randomUUID?.().replaceAll('-','').slice(0,24)
   ||`${Math.random().toString(16).slice(2).padEnd(12,'0')}${Math.random().toString(16).slice(2).padEnd(12,'0')}`.slice(0,24);
@@ -24,11 +26,11 @@ export class Store extends EventTarget {
   async request(path,options={}){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),5000);try{const response=await fetch(path,{...options,signal:controller.signal,cache:'no-store',headers:{'Content-Type':'application/json',...options.headers}});const data=await response.json();if(!response.ok)throw Object.assign(new Error(data.error||'Connection failed'),{status:response.status});return data;}
     // "signal is aborted without reason" and "Load failed" are what the browser says; on the
     // "Enter the world" and "Continue here" buttons she should read what to do instead.
-    catch(e){if(e.status)throw e;throw Object.assign(new Error(e.name==='AbortError'?'The server took too long to answer. Try again in a moment.':'Can’t reach the server. Is the Mac on, and on the same Wi-Fi?'),{cause:e});}
+    catch(e){if(e.status)throw e;throw Object.assign(new Error(e.name==='AbortError'?'The server took too long to answer. Try again in a moment.':LAN?'Can’t reach the server. Is the Mac on, and on the same Wi-Fi?':'Can’t reach the server. Check the internet connection and try again.'),{cause:e});}
     finally{clearTimeout(timeout);}}
   async probe(){if(this.sandbox)return false;try{const info=await this.request('/api/health');this.server=info.ok===true;this.addresses=info.addresses||[];}catch{this.server=false;}this.emit();return this.server;}
   async create(actor){
-    if(!this.server)throw new Error('Start the local server to create your shared world.');
+    if(!this.server)throw new Error(LAN?'Start the local server to create your shared world.':'Can’t reach the server right now. Try again in a moment.');
     const result=await this.request('/api/rooms',{method:'POST',body:JSON.stringify({actor})});
     this.local={actor,room:result.room,token:result.token,invite:result.invite,world:result.world,pending:[],decorSeen:decorProgress(result.world)};this.online=true;this.attempted=true;this.save();return this.state;
   }
@@ -90,7 +92,7 @@ export class Store extends EventTarget {
     }catch(error){this.online=false;this.lastStatus=error.status||0;
       // A server that answers but does not have this world (started from another folder or
       // data directory) is not the same as no connection, and waiting will not fix it.
-      this.lastError=error.status===401?'The invitation needs to be opened again.':error.status===404?'The server that is running does not have this world. Start it from the monki world folder.':'Saved here · will sync when connected';this.emit();}
+      this.lastError=error.status===401?'The invitation needs to be opened again.':error.status===404?LAN?'The server that is running does not have this world. Start it from the monki world folder.':'This world is not on the online server yet.':'Saved here · will sync when connected';this.emit();}
     finally{this.busy=false;this.attempted=true;}
   }
   shareURL(){if(!this.local?.invite)return null;let origin=location.origin;if(['localhost','127.0.0.1'].includes(location.hostname)&&this.addresses[0])origin=this.addresses[0];return `${origin}/#join=${this.local.room}.${this.local.invite}`;}

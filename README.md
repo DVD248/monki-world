@@ -4,11 +4,9 @@ A shared place for David, Julia, Monki, Sernik and Galgan. No feeding duties, pu
 
 ## Play
 
-Double-click **Start Monki World.command**, or run `npm start` in this folder. Open http://localhost:4173.
+**Online, from anywhere:** open the game's address, `https://monki-world.<your-subdomain>.workers.dev` (see [Hosting](#hosting)), on each phone. Choose yourself, then use **Us two → Invite**. Use **Settings → Continue on my phone** to move your own seat to another device. Invitation and transfer links are private keys: keep them between you two. On an iPhone, **Share → Add to Home Screen** turns it into an app that also reopens offline.
 
-Node.js 20+ is required. There are no production dependencies to install.
-
-For two phones, keep this Mac and server running on the same Wi-Fi. Choose yourself, then use **Us two → Invite**. Use **Settings → Continue on my phone** to move your own seat to another device. Invitation and transfer links are private keys: keep them between you two.
+**On this Mac only:** double-click **Start Monki World.command**, or run `npm start` in this folder, and open http://localhost:4173. Node.js 20+ is required; there are no production dependencies to install. Phones then need the same Wi-Fi as the Mac, which has to keep running. The Mac and the online copy keep separate worlds.
 
 ## This version
 
@@ -83,7 +81,7 @@ Room toys work in the sandbox too. Pause freezes game time. Switching away from 
 
 ## Saves
 
-Shared worlds are JSON files in **data/**. Back up that directory to retain both worlds and access keys. It is ignored by Git and cannot be fetched through the web server.
+On the Mac, shared worlds are JSON files in **data/**. Back up that directory to retain both worlds and access keys. It is ignored by Git and cannot be fetched through the web server. Online, worlds live in Cloudflare's storage for the game (see [Hosting](#hosting)).
 
 Clients queue small operations instead of uploading full-state snapshots, so simultaneous partner changes are merged. Retry IDs prevent duplicate actions. Gifts and unrevealed frog choices stay sealed in recipient API responses. Existing generated clutter is archived during migration; player drawings, placed objects and outfits are retained. Background activity is capped at a few changes, even after a long absence.
 
@@ -93,9 +91,20 @@ Service-worker offline reopening works on localhost and HTTPS after an online vi
 
 ## Hosting
 
-Nothing has been published by this update. GitHub Pages can serve the static preview, but cannot run the shared-world server.
+The online copy runs free on Cloudflare Workers ([`worker/index.mjs`](worker/index.mjs), [`wrangler.jsonc`](wrangler.jsonc)). The game's files are static assets, and the shared-world API runs in one Durable Object, whose storage lasts through restarts and deploys the way **data/** does on the Mac. Both run the same API code, [`lib/api.mjs`](lib/api.mjs). The free plan allows 100,000 API requests a day; two phones open at once use about 2,000 an hour. It needs no card, and the server never sleeps.
 
-For use from different locations, deploy the Node server to an HTTPS host with persistent storage. Configure **MONKI_DATA_DIR**, **PORT** and **HOST** as needed; use one server process per data directory. No paid APIs, trackers or cloud services are required by the code. Original photos are not included in the project.
+One-time setup:
+
+1. Create a free account at [dash.cloudflare.com](https://dash.cloudflare.com).
+2. Go to **Workers & Pages → Create application → Import a repository**, connect GitHub and choose **DVD248/monki-world**.
+3. Set the project name to `monki-world` (it has to match `wrangler.jsonc`), the production branch to `main` and the build command to `npm run build`. Leave the deploy command as `npx wrangler deploy`. Under build variables, add `SKIP_DEPENDENCY_INSTALL` with the value `1`. The build needs no packages, and this skips downloading the copy of Chrome that only the browser tests use.
+4. Deploy. The address appears on the Worker's page: `https://monki-world.<your-subdomain>.workers.dev`.
+
+After that, every push to `main` redeploys. Deploys never touch saved worlds.
+
+**Moving your world from the Mac:** stop the Mac's server, then run `npm run upload-world -- https://monki-world.<your-subdomain>.workers.dev` in this folder. It uploads the most recently saved world in **data/** (name a file after the address to move a different one) and prints a private link for each of you. Open your own link on your phone and choose **Continue here**. From then on, play only online: the Mac's copy stops receiving changes.
+
+`npm run test:worker` runs the server tests against the online version locally, in `wrangler dev`. `npm run deploy` deploys from this computer instead of from GitHub, after asking you to log in to Cloudflare. The Mac server still honours **MONKI_DATA_DIR**, **PORT** and **HOST**. No paid APIs, trackers or paid cloud services are required. Original photos are not included in the project.
 
 ## Development
 
@@ -137,6 +146,7 @@ Mobile audio implementation references: [WebKit's silent-switch guidance](https:
 - **shared/positions.js / public/tidying.js** — deterministic resident spacing and cleanup choreography with return paths.
 - **public/scene.js / art.js** — room rendering, gestures and pixel art.
 - **public/store.js / server.mjs** — local caching, offline queue and durable shared storage.
+- **lib/api.mjs / worker/index.mjs** — the shared-world API both servers run, and the Cloudflare copy that stores worlds online.
 
 The earlier composed-incident reducer and microgame source remain for save compatibility, but the main Play button uses the adventure system. No automatic catch-up animation rewinds furniture while you are playing.
 
