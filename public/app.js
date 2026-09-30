@@ -528,7 +528,8 @@ function togetherSheet(){
 function shareSheet(){
   showSheet('share','A key to this place.');
   const url=store.shareURL();if(!url){paragraph('This is a local-only world. Start the included server to play together.');return;}
-  paragraph('Open this link on the other phone. Same Wi-Fi, with the Mac running.');
+  // Only the Mac's server reports Wi-Fi addresses; the online copy works from anywhere.
+  paragraph(store.addresses.length?'Open this link on the other phone. Same Wi-Fi, with the Mac running.':'Open this link on the other phone.');
   const input=document.createElement('input');input.className='share-link';input.readOnly=true;input.value=url;input.setAttribute('aria-label','Private invitation link');body.append(input);
   const row=document.createElement('div');row.className='button-row';row.append(button('Copy link','primary-button',async()=>{try{await navigator.clipboard.writeText(url);toast('Copied.');}catch{input.select();try{document.execCommand('copy');toast('Copied.');}catch{toast('Select and copy the link.');}}}));
   if(navigator.share)row.append(button('Share','secondary-button',async()=>{try{await navigator.share({title:'monki world',text:'Come here.',url});}catch{}}));body.append(row);

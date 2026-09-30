@@ -1,0 +1,19 @@
+// Cloudflare Workers settings for the online copy of Monki World (see "Hosting" in README.md).
+{
+  "name": "monki-world",
+  "main": "worker/index.mjs",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "WORLDS", "class_name": "Worlds" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Worlds"] }],
+  // Used by `npx wrangler dev` and `npx wrangler deploy` on your own computer. Cloudflare's
+  // GitHub builds ignore this line, so their build command is set to `npm run build` instead.
+  "build": { "command": "node scripts/build.mjs" },
+  "observability": { "enabled": true }
+}
