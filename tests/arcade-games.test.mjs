@@ -4,9 +4,9 @@ import {ARCADE_GAMES,bragLine,zoneAt} from '../shared/arcade.js';
 import {DriveRun,DRIVE,DRIVE_ZONES,Terrain,driveDifficulty,driveSlope,driveCanGap} from '../shared/arcade-drive.js';
 import {JetRun,JET,JET_ZONES,gapY} from '../shared/arcade-jet.js';
 import {CliffRun,CLIFF,CLIFF_ZONES,cliffCharge,cliffHeight} from '../shared/arcade-cliff.js';
-import {HopRun,HOP,HOP_ZONES,padX,padUnder} from '../shared/arcade-hop.js';
+import {HopRun,HOP,HOP_ZONES,padX,padUnder,padSoon} from '../shared/arcade-hop.js';
 import {FallRun,FALL,FALL_ZONES} from '../shared/arcade-fall.js';
-import {MatchRun,MATCH,MATCH_ZONES} from '../shared/arcade-match.js';
+import {MatchRun,MATCH,MATCH_ZONES,matchBonus} from '../shared/arcade-match.js';
 import {seeded} from '../shared/arcade.js';
 import {createWorld,applyOperation} from '../shared/world.js';
 
@@ -31,6 +31,20 @@ function jetBot(g){
 }
 test('Jet Monki: a steady tapper gets through every pair, all the way up the curve',()=>{
   for(const seed of SEEDS.slice(0,6)){const g=run(new JetRun(seed),jetBot,{until:g=>g.score>=300});assert.ok(g.score>=300,`${seed}: ${g.score}`);}
+});
+/** Flies like a person: the middle of the way through, leaning towards the next one near the
+ * end, and every tap a little early or late (`jitter` seconds, one standard deviation). */
+const jetPerson=(jitter,seed)=>{const r=seeded('taps'+seed);let at=null,last=-1;return g=>{
+  if(g.state==='ready')return {taps:[{}]};
+  const mx=g.dist+JET.x,[cur,next]=g.columns.filter(c=>c.x+JET.col/2>mx-JET.hitW),seen=c=>gapY(c,g.time+Math.max(0,(c.x-mx)/g.speed));
+  let target=seen(cur);if(next&&cur.x-JET.col/2-JET.hitW-mx<g.speed*.45)target+=Math.max(-cur.gap*.15,Math.min(cur.gap*.15,(seen(next)-target)*.3));
+  const la=.04,py=g.y+g.vy*la+JET.gravity*la*la/2;
+  if(at===null&&py>target+RISE*.35&&g.time-last>.12){last=g.time;at=g.time+Math.max(0,.04+(r()+r()+r()-1.5)*jitter*2);}
+  if(at!==null&&g.time>=at){at=null;return {taps:[{}]};}return {taps:[]};};};
+test('Jet Monki: taps a few hundredths of a second off still get a long way',()=>{
+  // The ways through used to be sized for a perfect tapper, and a person's runs ended at a
+  // dozen or so. Off by 0.045 s a tap, every run now gets well into the storm.
+  for(const seed of SEEDS){const g=run(new JetRun(seed),jetPerson(.045,seed),{until:g=>g.score>=40});assert.ok(g.score>=40,`${seed}: ${g.score}`);}
 });
 test('Jet Monki: nothing comes at him before the first tap, and the ways through narrow to a floor',()=>{
   const g=new JetRun('wait');for(let i=0;i<600;i++)g.step(STEP,{taps:[]});
@@ -107,6 +121,15 @@ test('Water Hop: a quick player crosses a long way; carried off the side, into t
   const g=new HopRun('carried');run(g,g=>g.row===0?{taps:[{x:g.x,y:HOP.base-(HOP.row-g.cam)}]}:{taps:[]},{seconds:30});
   assert.ok(g.over);assert.ok(['carried','splash','behind','dive'].includes(g.events.find(e=>e.type==='splash').how));
 });
+test('Water Hop: a diving pad shivers for the whole warning before it goes under',()=>{
+  const g=new HopRun('dive',{start:120});for(let n=g.rows.at(-1).n+1;n<400;n++)g.addRow(n);
+  const rows=g.rows.filter(r=>r.kind==='sink');assert.ok(rows.length>10);let dives=0;
+  for(const row of rows)for(const pad of row.pads)for(let t=0;t<12;t+=1/60){
+    if(padUnder(row,pad,t)||!padUnder(row,pad,t+1/60))continue;dives++;
+    for(let k=1/60;k<HOP.warn-1e-6;k+=1/60)assert.ok(padSoon(row,pad,t+1/60-k),`row ${row.n}: still ${k.toFixed(2)} s before it dives`);
+  }
+  assert.ok(dives>20);
+});
 test('Water Hop: the river waits for the first hop, then rises',()=>{
   const g=new HopRun('wait');run(g,()=>({taps:[]}),{seconds:20});assert.ok(!g.over);assert.equal(g.cam,0);
   const bank=g.rowAt(0);assert.equal(bank.kind,'bank');
@@ -124,6 +147,21 @@ test('Match Tap: a settled shelf always has something to tap',()=>{
 test('Match Tap: quick hands keep the clock going; slow ones run out',()=>{
   for(const seed of SEEDS.slice(0,4)){assert.ok(!run(new MatchRun(seed),matchBot(.5),{seconds:300}).over,`${seed} at 0.5 s a move`);}
   for(const seed of SEEDS.slice(0,4)){const g=run(new MatchRun(seed),matchBot(1.5),{seconds:600});assert.ok(g.over,`${seed} at 1.5 s a move`);assert.ok(g.score>150);}
+});
+test('Match Tap: tapping anywhere runs the clock out; a miss costs a second once it runs',()=>{
+  // Five taps a second at random, as a finger mashing the shelf would. It used to keep the
+  // clock going nearly as well as looking did.
+  const mash=seed=>{const r=seeded('mash'+seed);let wait=0;return ()=>{wait-=STEP;if(wait>0)return {taps:[]};wait=.2;return {taps:[{x:MATCH.x0+r()*MATCH.cols*MATCH.cell,y:MATCH.y0+r()*MATCH.rows*MATCH.cell}]};};};
+  for(const seed of SEEDS.slice(0,4)){
+    const random=run(new MatchRun(seed),mash(seed),{seconds:120}),looking=run(new MatchRun(seed),matchBot(1),{seconds:300});
+    assert.ok(random.over&&random.time<30,`${seed}: mashing lasted ${random.time.toFixed(0)} s`);
+    assert.ok(looking.time>random.time*3,`${seed}: ${looking.time.toFixed(0)} s looking, ${random.time.toFixed(0)} s mashing`);
+  }
+  const g=new MatchRun('miss');run(g,()=>({taps:[]}),{seconds:3});
+  g.step(STEP,{taps:[matchPick(g)]});assert.equal(g.state,'play');run(g,()=>({taps:[]}),{seconds:2});
+  let lone=null;for(let c=0;c<MATCH.cols&&!lone;c++)for(let r=0;r<MATCH.rows&&!lone;r++)if(g.grid[c][r].kind!=='star'&&g.group(c,r).length<MATCH.min)lone=MatchRun.centre(c,r);
+  const before=g.clock;g.step(STEP,{taps:[lone]});assert.ok(Math.abs(before-g.clock-MATCH.miss)<.05,`${(before-g.clock).toFixed(2)} s`);
+  assert.ok(matchBonus(3,0)<1&&matchBonus(5,0)>2*matchBonus(4,0)*.8,'three is worth little, five a lot');
 });
 test('Match Tap: two do nothing, seven leave a star, and a star takes its row and column',()=>{
   const g=new MatchRun('rules');run(g,()=>({taps:[]}),{seconds:3});

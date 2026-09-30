@@ -2,18 +2,22 @@ import {ease,seeded,zoneAt,clamp,lerp} from './arcade.js';
 
 // Match Tap: Pou's Match Tap. A shelf of snacks; tap three or more of the same that touch
 // and Sernik has them, the rest drop down and more come in from the top. The clock runs
-// down all the while and every group puts some back, a big group a lot more. Seven or more
+// down all the while and every group puts some back: a three hardly any, a big group a lot
+// more, so it pays to look for the big one. A tap on a snack with no group costs a second,
+// so tapping anywhere fast runs the clock out instead of keeping it going. Seven or more
 // leave a star, which takes its whole row and column. Later on there are more kinds of
-// snack, the clock runs faster and gives back less, all of it levelling off. There is
-// always a group to tap: a shelf with none is shaken up for free.
-export const MATCH={width:400,height:600,cols:8,rows:10,cell:46,x0:16,y0:118,min:3,full:12,start:10,star:7,fall:70};
+// snack, the clock runs faster and gives back less, all of it levelling off where quick,
+// careful hands keep up. There is always a group to tap: a shelf with none is shaken up
+// for free.
+export const MATCH={width:400,height:600,cols:8,rows:10,cell:46,x0:16,y0:118,min:3,full:12,start:10,star:7,fall:70,miss:1};
 export const MATCH_FOODS=['icecream','fish','pizza','donut','carrot','mushroom'];
 export const MATCH_ZONES=[[0,'Snack time'],[80,'Lunch'],[200,'Tea'],[400,'Dinner'],[650,'Midnight feast']];
-export const matchDifficulty=score=>ease(score,350);
-export const matchKinds=score=>score<80?4:score<400?5:6;
-export const matchDrain=d=>lerp(.8,1.7,d);
-/** Seconds back for a group of n: more than a line for bigger groups, less later on. */
-export const matchBonus=(n,d)=>(.3*n+.07*n*n)*lerp(1,.55,d);
+export const matchDifficulty=score=>ease(score,550);
+export const matchKinds=score=>score<150?4:score<550?5:6;
+export const matchDrain=d=>lerp(.75,1.4,d);
+/** Seconds back for a group of n: half a second for three, far more for bigger groups
+ * (1.4 for four, 2.5 for five, 3.7 for six), a little less later on. */
+export const matchBonus=(n,d)=>.5*Math.pow(Math.max(0,n-2),1.45)*lerp(1,.7,d);
 
 export class MatchRun{
   constructor(seed,{start=0}={}){
@@ -50,7 +54,11 @@ export class MatchRun{
     // Only what is sitting still can be picked, so what is tapped is what was seen.
     const t=this.grid[c][r];if(t.y!==r)return;
     const star=t.kind==='star',cells=star?this.cross(c,r):this.group(c,r);
-    if(!star&&cells.length<MATCH.min){this.emit('nope',x,y,{kind:t.kind});return;}
+    if(!star&&cells.length<MATCH.min){
+      // Free before the clock starts; after that, a guess costs time.
+      const lost=this.state==='play'?Math.min(this.clock,MATCH.miss):0;this.clock-=lost;
+      this.emit('nope',x,y,{kind:t.kind,lost});return;
+    }
     if(this.state==='ready')this.state='play';
     const n=cells.length,d=matchDifficulty(this.score);this.moves++;
     this.score+=n;this.clock=Math.min(MATCH.full,this.clock+matchBonus(n,d));

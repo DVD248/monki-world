@@ -7,16 +7,19 @@ import {ease,seeded,zoneAt,clamp,lerp} from './arcade.js';
 // to keep going. Later rows are faster, the pads smaller and further apart, and some dive
 // for a moment now and then. Every gap is narrower than a hop, so from anywhere there is
 // always a pad in reach in the next row.
-export const HOP={width:400,height:600,row:62,base:530,reach:112,near:22,hop:.2,edge:6,margin:110};
+export const HOP={width:400,height:600,row:62,base:530,reach:112,near:22,hop:.2,edge:6,margin:110,warn:.8};
 export const HOP_ZONES=[[0,'The pond'],[20,'The stream'],[50,'The river'],[90,'Evening'],[140,'Night'],[200,'The sea']];
-export const hopDifficulty=n=>ease(n,60);
-export const hopScroll=d=>lerp(14,46,d);
+export const hopDifficulty=n=>ease(n,80);
+export const hopScroll=d=>lerp(14,38,d);
 const RING=HOP.width+HOP.margin*2,wrap=v=>((v%RING)+RING)%RING-HOP.margin;
 
 /** Where a floating thing is at time t. */
 export const padX=(row,pad,t)=>wrap(pad.x0+row.dir*row.speed*t);
 /** Whether a diving pad is under at time t (for a moment in each turn). */
 export const padUnder=(row,pad,t)=>row.kind==='sink'&&Math.sin(pad.omega*t+pad.phase)<-.72;
+/** Whether a diving pad will go under within HOP.warn: it shivers all that time, long enough
+ * to see it and hop off. A pad is under for at least 0.7 s, so tenths of a second catch it. */
+export const padSoon=(row,pad,t)=>row.kind==='sink'&&!padUnder(row,pad,t)&&[1,2,3,4,5,6,7,8].some(i=>padUnder(row,pad,t+i*HOP.warn/8));
 
 export class HopRun{
   constructor(seed,{start=0}={}){
@@ -31,7 +34,7 @@ export class HopRun{
   addRow(n){
     const r=this.rng,d=hopDifficulty(n);
     if(n===this.base||n-this.lastBank>=Math.round(lerp(7,16,d))){this.lastBank=n;this.rows.push({n,kind:'bank',dir:0,speed:0,pads:[]});return;}
-    const roll=r();const kind=d>.2&&roll<lerp(0,.28,d)?'sink':roll>lerp(.62,.7,d)?'log':'lily';
+    const roll=r();const kind=d>.2&&roll<lerp(0,.22,d)?'sink':roll>lerp(.62,.7,d)?'log':'lily';
     const dir=r()<.75?-this.lastDir:this.lastDir;this.lastDir=dir;
     const speed=lerp(28,92,d)*(.75+r()*.5);
     // Pads round the ring the river turns on, never a gap wider than a hop can cross.

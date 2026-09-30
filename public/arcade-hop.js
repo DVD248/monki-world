@@ -1,5 +1,5 @@
 import {character,rect,poly,ellipse} from './art.js';
-import {HopRun,HOP,HOP_ZONES,padX,padUnder} from './shared/arcade-hop.js';
+import {HopRun,HOP,HOP_ZONES,padX,padUnder,padSoon} from './shared/arcade-hop.js';
 import {W,H,along,noise,clamp,mix} from './arcade-kit.js';
 
 // Water Hop: seen from above, a pond at the bottom of the garden that becomes a stream, a
@@ -42,9 +42,11 @@ function log(c,x,y,w,dir){
   ellipse(c,dir>0?l+w-3:l+3,y+1,5,10,'#c9a274');ellipse(c,dir>0?l+w-3:l+3,y+1,2,5,'#a67c57');
 }
 function lilyPad(c,x,y,pad,row,vt,lily,water){
-  const phase=row.kind==='sink'?Math.sin(pad.omega*vt+pad.phase):1,under=padUnder(row,pad,vt);
-  // A diving pad shivers, sinks, and shows through the water while it is down.
-  const shake=row.kind==='sink'&&phase<-.4&&!under?Math.sin(vt*40)*1.5:0,r=pad.w/2;
+  const under=padUnder(row,pad,vt);
+  // A diving pad shivers for the whole warning before it sinks (harder as it gets closer),
+  // and shows through the water while it is down.
+  const soon=padSoon(row,pad,vt),close=soon&&padUnder(row,pad,vt+HOP.warn/2);
+  const shake=soon?Math.sin(vt*40)*(close?2.5:1.5):0,r=pad.w/2;
   if(under){c.globalAlpha=.22;ellipse(c,x,y,r,r*.62,lily);c.globalAlpha=1;for(let i=0;i<2;i++)rect(c,x-6+i*10,y-4-((vt*20+i*7)%10),2,2,mix(water,'#ffffff',.5));return;}
   const col=row.kind==='sink'?mix(lily,'#c9d98a',.35):lily;
   ellipse(c,x+shake,y+2,r,r*.62,mix(col,'#000000',.2));ellipse(c,x+shake,y,r,r*.62,col);

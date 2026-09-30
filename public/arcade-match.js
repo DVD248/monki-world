@@ -57,7 +57,8 @@ function event(g,e){
       if(e.type==='star'){g.shake=4;g.flash=.25;s('whoosh');}
       break;
     }
-    case 'nope':{s('boop');const L=g.logic,c=Math.floor((e.x-MATCH.x0)/MATCH.cell),r=Math.floor((e.y-MATCH.y0)/MATCH.cell);g.nope={id:L.grid[c]?.[r]?.id,at:t};break;}
+    case 'nope':{s('boop');const L=g.logic,c=Math.floor((e.x-MATCH.x0)/MATCH.cell),r=Math.floor((e.y-MATCH.y0)/MATCH.cell);g.nope={id:L.grid[c]?.[r]?.id,at:t};
+      if(e.lost)g.say(`−${e.lost%1?e.lost.toFixed(1):e.lost}s`,e.x,e.y-16,{color:'#e6a092',size:14,life:.7});break;}
     case 'shuffle':s('shuffle');g.say('Shaken up',W/2,MATCH.y0+MATCH.rows*MATCH.cell/2,{size:20,life:1.1});break;
     case 'over':s('fall');g.say('Time!',W/2,MATCH.y0+120,{size:30,life:1.4,color:'#fbe4a4'});break;
   }

@@ -1,4 +1,4 @@
-import {Store} from './store.js';
+import {Store,LAN} from './store.js';
 import {Scene} from './scene.js';
 import {AdventurePlayer} from './adventure-player.js';
 import {Sounds} from './audio.js';
@@ -17,7 +17,8 @@ import {ArcadeGame,VIEWS as ARCADE_VIEWS} from './arcade.js';
 import {ARCADE_GAMES,ARCADE_MAX,amount,scoreText,bragLine} from './shared/arcade.js';
 
 const $=id=>document.getElementById(id);
-const testMode=new URLSearchParams(location.search).get('test')==='1';
+// The online copy has no testing sandbox: ?test=1 is ignored there and Settings does not offer it.
+const testMode=LAN&&new URLSearchParams(location.search).get('test')==='1';
 const store=new Store({sandbox:testMode}),sounds=new Sounds();let previewGame=false;
 let room='house',selectedItem=null,game=null,sheetKind=null,toastTimer,tipTimer,nightMode='auto',lastRevision=-1,lastCompleted=0,featured=null,lastGreeting=0;
 const sheet=$('sheet'),body=$('sheet-body'),menu=$('interaction-menu');
@@ -721,7 +722,7 @@ function labSheet(){
 function updateSound(){$('sound').innerHTML=icon(sounds.enabled?'sound':'mute');$('sound').setAttribute('aria-label',sounds.enabled?'Turn sound off':'Turn sound on');$('sound').title=sounds.enabled?'Turn sound off':'Turn sound on';}
 function settingsSheet(){
   showSheet('settings','Make yourself at home.');
-  body.append(button(testMode?'Open test lab':'Testing mode · separate sandbox','secondary-button full',labSheet));
+  if(LAN)body.append(button(testMode?'Open test lab':'Testing mode · separate sandbox','secondary-button full',labSheet));
   if(!store.actor){body.append(button('Choose your person','primary-button',welcome));return;}
   const info=[['Here as',NAMES[store.actor]],['World',store.connected?(store.online?'Shared · saved':'Saved here · waiting to sync'):'On this device'],['Sound',sounds.enabled?'On':'Off']];
   for(const[label,value]of info){const row=document.createElement('div');row.className='setting-row';const a=document.createElement('span');a.textContent=label;const b=label==='Sound'?button(value,'',()=>{sounds.toggle();updateSound();settingsSheet();}):document.createElement('span');b.textContent=value;row.append(a,b);body.append(row);}
