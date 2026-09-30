@@ -39,11 +39,14 @@ function auth(req, room) {
   return actor;
 }
 async function body(req) {
-  let data = '';
+  // Decoded once at the end: a character split across two chunks otherwise arrives broken.
+  const chunks = []; let size = 0;
   for await (const chunk of req) {
-    data += chunk;
-    if (Buffer.byteLength(data) > 256000) throw Object.assign(new Error('Too large'), { status: 413 });
+    size += chunk.length;
+    if (size > 256000) throw Object.assign(new Error('Too large'), { status: 413 });
+    chunks.push(chunk);
   }
+  const data = Buffer.concat(chunks).toString('utf8');
   try { return JSON.parse(data || '{}'); } catch { throw Object.assign(new Error('Invalid JSON'), { status: 400 }); }
 }
 function send(res, status, data) {
@@ -57,11 +60,13 @@ function rateLimit(req) {
   const key = req.socket.remoteAddress, now = Date.now();
   let entry = limits.get(key);
   if (!entry || now - entry.at > 60000) { entry = { at: now, n: 0 }; limits.set(key, entry); }
-  if (++entry.n > 180) throw Object.assign(new Error('A little too fast. Try again in a minute.'), { status: 429 });
+  // Room for both phones behind one address (a hosted server reached from home), each polling
+  // every few seconds and sending bursts of touches. At 180, one phone poking for a minute was cut off.
+  if (++entry.n > 600) throw Object.assign(new Error('A little too fast. Try again in a minute.'), { status: 429 });
   if (limits.size > 2000) for (const [k, v] of limits) if (now - v.at > 60000) limits.delete(k);
 }
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2' };
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
@@ -105,7 +110,8 @@ const server = http.createServer(async (req, res) => {
             const rejected = [];
             for (const op of data.operations) {
               try { room.state = applyOperation(room.state, { ...op, actor }); }
-              catch (e) { rejected.push({ id: op.id, error: e.message }); }
+              // op?.id: a null in the list is refused on its own, not with the whole batch.
+              catch (e) { rejected.push({ id: op?.id, error: e.message }); }
             }
             await save(room);
             return send(res, 200, { world: visibleWorld(room.state, actor), rejected, paired: room.invitation.claimed });

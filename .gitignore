@@ -4,3 +4,26 @@ node_modules/
 test-results/
 dist/
 .env
+.measure/
+.couple/
+Thumbs.db
+
+# Secrets: never commit keys or credentials (the repo is public)
+.env.*
+*.pem
+*.key
+*.p12
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Private: persona and simulation tooling that describes real people; stays on this Mac
+scripts/julia.mjs
+scripts/audit-julia.mjs
+scripts/probe.mjs
+scripts/measure.mjs
+scripts/compare.mjs
+scripts/couple/
+tests/couple.test.mjs

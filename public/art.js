@@ -8,19 +8,56 @@ export function ellipse(c,x,y,w,h,color){c.fillStyle=color;c.beginPath();c.ellip
 export function pixelBox(c,x,y,w,h,color,border=P.ink){rect(c,x+2,y,w-4,h,color);rect(c,x,y+2,w,h-4,color);rect(c,x+2,y,w-4,1,border);rect(c,x+2,y+h-1,w-4,1,border);rect(c,x,y+2,1,h-4,border);rect(c,x+w-1,y+2,1,h-4,border);}
 export function shadow(c,x,y,w=12){ellipse(c,x,y,w,3,'#4a573224')}
 
+// Attachment points belong to the head, not to the inventory item's baseline.
+// Belly face coordinates live inside that head's upside-down transform.
+export function headProfile(id,pose='standing'){
+  if(pose==='belly-face')return{x:.5,capX:0,eyeY:-2.5,top:-8,upper:-13,half:10,scale:.7};
+  if(pose==='belly')return{x:18,capX:18,eyeY:-9.5,top:-20,upper:-20,half:10,scale:.7};
+  if(pose==='sleep')return{x:15,capX:14,eyeY:-10.5,top:-18,upper:-21,half:10,scale:.7};
+  if(id==='david')return{x:0,capX:0,eyeY:-27,top:-36,upper:-38,half:9,scale:.72};
+  if(id==='julia')return{x:0,capX:0,eyeY:-27,top:-34,upper:-35,half:10,scale:.72};
+  if(id==='monki')return{x:1,capX:0,eyeY:-30,top:-35,upper:-37,half:12,scale:.8};
+  return{x:10,capX:10,eyeY:-23,top:-28,upper:-35,half:10,scale:.7};
+}
+const FACE_ACCESSORIES=new Set(['glasses','headphones','bow','flower']);
+const WORN_SUPPORT={beret:-1,helmet:-5,towel:2,teacup:3,frog:1,duck:-1,moth:-2,bee:-2,magnet:-2,sprout:2};
+const WORN_INSET={beret:1,helmet:2,chefhat:2,rainhat:2,nightcap:2,piratehat:2,towel:3,flowercrown:4};
+export function wearAccessory(c,type,id,pose='standing',layer='all'){
+  if(!type)return;const face=FACE_ACCESSORIES.has(type);
+  if(layer==='face'&&!face||layer==='head'&&face)return;
+  const h=headProfile(id,pose);
+  if(type==='glasses'){
+    const scale=.7;item(c,type,h.x,h.eyeY+6.5*scale,{scale,shadow:false});
+  }else if(type==='headphones'){
+    // An adjustable band hugs the crown; ear cups sit beside the actual face.
+    const left=h.x-h.half-1,right=h.x+h.half+1,top=h.upper-2;
+    c.strokeStyle='#68767b';c.lineWidth=2;c.beginPath();c.moveTo(left,h.eyeY);c.lineTo(left,top+4);c.quadraticCurveTo(left,top,h.x,top);c.quadraticCurveTo(right,top,right,top+4);c.lineTo(right,h.eyeY);c.stroke();
+    for(const x of [left-2,right-2]){rect(c,x,h.eyeY-3,4,9,'#a87c64');rect(c,x+1,h.eyeY-2,2,6,'#c89978');}
+  }else if(type==='bow'){
+    item(c,type,h.x-h.half+2,h.upper+4+7.5*.65,{scale:.65,shadow:false});
+  }else if(type==='flower'){
+    item(c,type,h.x+h.half-1,h.upper+5+18*.5,{scale:.5,shadow:false});
+  }else{
+    const scale=h.scale,y=h.top+(WORN_INSET[type]??0)-(WORN_SUPPORT[type]??0)*scale;
+    item(c,type,h.capX,y,{scale,shadow:false});
+  }
+}
+
 export function character(c,id,x,y,options={}){
-  const {scale=1,frame=0,mood='idle',hat=null,flip=false,shadow:showShadow=true}=options;
+  const {scale=1,frame=0,mood='idle',hat=null,flip=false,shadow:showShadow=true,pet=0,carried=false,running=false}=options;
   c.save();c.translate(Math.round(x),Math.round(y));c.scale(flip?-scale:scale,scale);
+  if(carried){c.translate(0,-20);c.rotate(Math.sin(frame*2)*.09);c.translate(0,20);c.scale(1,1+Math.sin(frame*3)*.025);}
   if(showShadow)shadow(c,0,-1,id==='monki'?13:12);
   const bob=mood==='sleep'?0:Math.floor(frame)%2;
   c.translate(0,-bob);
   if(id==='david'||id==='julia'){
     const julia=id==='julia',skin=julia?P.lightSkin:P.skin,hair=julia?'#947348':'#343b34';
+    const limb=carried?Math.sin(frame*3)*3:0;
     if(julia){rect(c,-10,-33,20,23,hair);rect(c,-11,-29,3,24,'#9f7d50');rect(c,8,-29,3,24,'#7a5f3d');}
-    rect(c,-7,-12,6,10,julia?'#75848c':'#7b8d78');rect(c,2,-12,6,10,julia?'#75848c':'#7b8d78');
-    rect(c,-8,-3,7,3,'#48473c');rect(c,2,-3,8,3,'#48473c');
+    rect(c,-7,-12+limb,6,10,julia?'#75848c':'#7b8d78');rect(c,2,-12-limb,6,10,julia?'#75848c':'#7b8d78');
+    rect(c,-8,-3+limb,7,3,'#48473c');rect(c,2,-3-limb,8,3,'#48473c');
     rect(c,-8,-22,17,12,julia?'#d9d5bb':'#424940');
-    rect(c,-10,-20,3,9,skin);rect(c,9,-20,3,9,skin);
+    rect(c,-10,-20-limb,3,9,skin);rect(c,9,-20+limb,3,9,skin);
     if(julia){rect(c,-8,-21,17,3,'#eae3c9');rect(c,-3,-22,7,2,skin);}
     rect(c,-8,-34,16,15,skin);rect(c,-10,-29,2,6,skin);rect(c,8,-29,2,6,skin);
     rect(c,-7,-35,14,3,hair);rect(c,-9,-32,3,7,hair);rect(c,6,-32,3,7,hair);
@@ -28,14 +65,15 @@ export function character(c,id,x,y,options={}){
     else{rect(c,-8,-37,13,3,hair);rect(c,-5,-38,5,1,hair);rect(c,-10,-32,7,3,hair);rect(c,2,-34,7,4,hair);rect(c,-3,-33,3,2,'#44483e');}
     if(mood==='sleep'){rect(c,-5,-27,3,1,P.ink);rect(c,3,-27,3,1,P.ink);}
     else{rect(c,-5,-28,2,mood==='happy'?1:2,P.ink);rect(c,3,-28,2,mood==='happy'?1:2,P.ink);}
-    if(julia){c.strokeStyle='#535747';c.lineWidth=1;c.strokeRect(-7.5,-29.5,6,5);c.strokeRect(1.5,-29.5,6,5);rect(c,-1,-28,3,1,'#535747');}
+    if(julia&&hat!=='glasses'){c.strokeStyle='#535747';c.lineWidth=1;c.strokeRect(-7.5,-29.5,6,5);c.strokeRect(1.5,-29.5,6,5);rect(c,-1,-28,3,1,'#535747');}
     rect(c,-1,-22,3,1,mood==='happy'?'#ad6c59':'#a67a5c');
     if(mood==='annoyed'){rect(c,-6,-30,4,1,P.ink);rect(c,2,-30,4,1,P.ink);}
-    if(hat)item(c,hat,0,-37,{scale:.72,shadow:false});
+    wearAccessory(c,hat,id);
   }else if(id==='monki'){
     const fur='#a9693b',lit='#bb7a45',face='#d8b27d';
+    const limb=carried?Math.sin(frame*3)*3:0;
     rect(c,-9,-24,18,21,fur);rect(c,-7,-23,14,19,lit);
-    rect(c,-14,-23,6,18,fur);rect(c,9,-23,6,18,fur);rect(c,-15,-8,6,5,'#8c603d');rect(c,10,-8,6,5,'#8c603d');
+    rect(c,-14,-23-limb,6,18,fur);rect(c,9,-23+limb,6,18,fur);rect(c,-15,-8-limb,6,5,'#8c603d');rect(c,10,-8+limb,6,5,'#8c603d');
     rect(c,-8,-7,6,8,fur);rect(c,3,-7,6,8,fur);rect(c,-10,-2,9,4,'#8c603d');rect(c,2,-2,10,4,'#8c603d');
     rect(c,-10,-34,20,17,fur);rect(c,-7,-37,14,5,fur);rect(c,-13,-30,4,7,fur);rect(c,9,-30,4,7,fur);
     rect(c,-8,-31,16,11,face);rect(c,-6,-33,5,7,face);rect(c,2,-33,5,7,face);
@@ -44,25 +82,59 @@ export function character(c,id,x,y,options={}){
     else{rect(c,-4,-31,2,3,P.dark);rect(c,4,-31,2,3,P.dark);}
     rect(c,-1,-27,3,1,'#765137');rect(c,-5,-22,10,1,'#765137');
     if(mood==='happy'){rect(c,-2,-22,4,2,'#765137');}
+    if(mood==='annoyed'){rect(c,-6,-34,5,1,P.ink);rect(c,2,-34,5,1,P.ink);}
     rect(c,-5,-16,2,4,'#ca8a52');rect(c,3,-10,2,3,'#ca8a52');
-    if(hat)item(c,hat,0,-37,{scale:.8,shadow:false});
+    wearAccessory(c,hat,id);
   }else{
     const dark=id==='galgan',fur=dark?'#50554a':'#d9c18d',lit=dark?'#616758':'#ead5a5',cream=dark?'#c9b888':'#f1dfb6';
-    if(mood==='sleep'){
-      rect(c,-16,-12,28,10,fur);rect(c,-11,-14,21,3,lit);rect(c,10,-10,8,8,cream);rect(c,14,-7,3,1,P.ink);rect(c,-14,-3,31,3,cream);rect(c,-18,-10,3,5,fur);
-      if(hat)item(c,hat,9,-13,{scale:.7,shadow:false});
+    if(mood==='sleep'&&pet<=.1&&!carried&&!running){
+      // Sideways loaf: tucked paws, muzzle resting on them, slow breathing.
+      const breath=Math.sin(frame*1.5)>.1?1:0;
+      rect(c,-22,-12-breath,29,12+breath,fur);rect(c,-18,-15-breath,22,10,lit);
+      rect(c,-24,-8,8,6,fur);rect(c,-27,-9,5,4,lit);
+      rect(c,0,-4,19,4,cream);rect(c,4,-18,20,15,fur);rect(c,7,-13,17,10,cream);
+      rect(c,3,-21,6,10,fur);rect(c,18,-19,5,9,fur);
+      rect(c,9,-11,4,1,P.dark);rect(c,18,-10,4,1,P.dark);rect(c,17,-6,6,3,P.dark);
+      if(dark){rect(c,8,-14,5,2,'#d3bc83');rect(c,18,-13,4,2,'#d3bc83');}
+      wearAccessory(c,hat,id,'sleep');
+    }else if(pet>.72&&!carried&&!running){
+      // Belly up. A blocky loaf, four silly little paws, the usual face upside
+      // down. Deliberately only two frames: this is a plush toy, not anatomy.
+      const awake=pet>.1,kick=awake?Math.floor(frame/2)%2:0;
+      rect(c,-29,-8+kick,9,4,fur);rect(c,-30,-10+kick,4,4,lit);
+      // Far paws, then the body and its one flat tummy patch.
+      rect(c,-17,-23+kick,5,12,fur);rect(c,0,-21-kick,5,10,fur);
+      rect(c,-21,-14,31,14,fur);rect(c,-18,-17,25,16,lit);
+      rect(c,-15,-13,19,11,cream);rect(c,-7,-8,2,2,fur);
+      // Near paws flop the other way. No joints, toes or fur shading.
+      rect(c,-22,-20-kick,6,10,cream);rect(c,5,-19+kick,6,9,cream);
+      c.save();c.translate(18,-12);c.rotate(Math.PI);
+      rect(c,-9,-8,18,17,fur);rect(c,-6,-6,12,14,cream);
+      rect(c,-11,-13,5,9,fur);rect(c,7,-13,5,9,fur);
+      if(!dark)rect(c,8,-13,4,7,'#c6aa78');
+      rect(c,-5,-3,3,1,P.dark);rect(c,3,-3,3,1,P.dark);
+      if(dark){rect(c,-6,-6,4,2,'#d3bc83');rect(c,3,-6,4,2,'#d3bc83');}
+      rect(c,-2,2,5,3,P.dark);rect(c,0,5,2,2,P.ink);
+      if(awake)rect(c,1,7,3,3,'#c68776');
+      wearAccessory(c,hat,id,'belly-face','face');
+      c.restore();
+      // Perch on the head's upper edge, even upside down. Tall hats stay above
+      // the dog, rather than piercing the floor or being clipped in pet view.
+      wearAccessory(c,hat,id,'belly','head');
     }else{
       rect(c,-13,-17,25,13,fur);rect(c,-10,-19,19,4,lit);
-      rect(c,-11,-7,5,8,cream);rect(c,5,-7,5,8,cream);rect(c,-3,-5,4,6,lit);
-      rect(c,-17,-20,4,12,fur);rect(c,-20,-22,5,5,fur);rect(c,-19,-24,3,4,lit);
+      const kick=carried||running?Math.sin(frame*3)*3:0;
+      rect(c,-11,-7+kick,5,8,cream);rect(c,5,-7-kick,5,8,cream);rect(c,-3,-5+kick,4,6,lit);
+      c.save();c.translate(-13,-10);if(pet)c.rotate(Math.sin(frame*1.8)*pet*.7);rect(c,-4,-10,4,12,fur);rect(c,-7,-12,5,5,fur);rect(c,-6,-14,3,4,lit);c.restore();
       rect(c,1,-27,17,18,fur);rect(c,4,-24,12,13,cream);
       poly(c,[[0,-25],[0,-35],[7,-27]],fur);poly(c,[[12,-27],[19,-34],[18,-22]],fur);
       if(!dark)rect(c,16,-29,4,9,'#c6aa78');
-      rect(c,4,-24,3,2,P.dark);rect(c,12,-24,3,2,P.dark);
+      rect(c,4,-24,3,pet>.1?1:2,P.dark);rect(c,12,-24,3,pet>.1?1:2,P.dark);
       if(dark){rect(c,3,-27,4,2,'#d3bc83');rect(c,12,-27,4,2,'#d3bc83');}
       rect(c,8,-18,5,3,P.dark);rect(c,10,-15,2,2,P.ink);
       if(mood==='happy'){rect(c,10,-13,3,4,'#c68776');}
-      if(hat)item(c,hat,10,-30,{scale:.7,shadow:false});
+      if(mood==='annoyed'){rect(c,3,-26,5,1,P.ink);rect(c,11,-26,5,1,P.ink);}
+      wearAccessory(c,hat,id);
     }
   }
   c.restore();
@@ -74,6 +146,14 @@ export function item(c,type,x,y,options={}){
   if(showShadow)shadow(c,0,0,type==='couch'?32:10);
   switch(type){
     case 'ball':ellipse(c,0,-12,12,12,'#cf7759');rect(c,-8,-18,6,5,'#f3c982');rect(c,2,-10,6,5,'#f3c982');rect(c,-6,-22,3,2,'#fbe4a4');break;
+    case 'arcade':
+      // A small cabinet in the corner of the house. Monki is on the screen.
+      rect(c,-13,-52,26,52,'#8c4e3a');rect(c,-12,-51,24,50,'#b0654a');
+      rect(c,-12,-51,24,8,'#8c4e3a');rect(c,-10,-49,20,4,'#f3d98c');rect(c,-6,-48,3,2,'#b0654a');rect(c,1,-48,5,2,'#b0654a');
+      rect(c,-10,-41,20,16,'#2c3530');rect(c,-8,-39,16,12,'#9fd0b8');rect(c,-6,-33,5,1,'#f8f6ec');rect(c,1,-36,5,1,'#f8f6ec');rect(c,-2,-38,3,3,'#b77545');
+      rect(c,-13,-25,26,6,'#8c4e3a');rect(c,-7,-29,2,4,'#303932');ellipse(c,-6,-29.5,2.2,2,'#d05a4a');rect(c,2,-24,3,2,'#e4c87a');rect(c,6,-24,3,2,'#9eb67b');
+      rect(c,-3,-13,6,4,'#6f3d2d');rect(c,-1,-12,2,2,'#e4c87a');rect(c,-13,-2,26,2,'#6f3d2d');break;
+    case 'wand':rect(c,-2,-22,4,22,'#b87b61');ellipse(c,0,-29,9,10,'#af775d');ellipse(c,0,-29,6,7,'#d3e6db');rect(c,-4,-34,2,4,'#fbf6dc');break;
     case 'bubbles':for(const[x,y,s]of[[-8,-7,7],[7,-19,9],[-9,-29,5]]){c.strokeStyle='#83b8bd';c.lineWidth=1.5;c.beginPath();c.arc(x,y,s,0,7);c.stroke();rect(c,x-s/2,y-s/2,3,2,'#f1faf2');}break;
     case 'cloud':rect(c,-19,-17,38,14,'#e7ede0');rect(c,-13,-23,23,22,'#f4f5e9');rect(c,-23,-12,46,8,'#e7ede0');break;
     case 'drop':poly(c,[[0,-25],[-9,-8],[-8,-3],[-4,0],[4,0],[8,-3],[9,-8]],'#84b8c1');rect(c,-4,-10,2,5,'#d6e9df');break;
@@ -106,7 +186,35 @@ export function item(c,type,x,y,options={}){
     case 'frame':rect(c,-15,-25,30,25,'#b28c61');rect(c,-12,-22,24,19,'#f0e4bc');rect(c,-8,-13,4,7,'#8fa96b');rect(c,-4,-16,5,5,'#a4b984');rect(c,5,-19,4,4,'#d5b575');break;
     case 'radio':pixelBox(c,-14,-20,28,20,'#9a8761','#776e4c');rect(c,-11,-16,14,12,'#6b765e');for(let i=0;i<5;i++)rect(c,-10+i*3,-15,1,10,'#99a185');rect(c,7,-14,4,4,'#dcd0a2');rect(c,7,-7,4,2,'#dcd0a2');rect(c,8,-30,1,11,'#8b9273');break;
     case 'fridge':rect(c,-17,-53,34,53,'#d9ddc7');rect(c,-15,-51,29,48,'#e9ead7');rect(c,-15,-35,29,2,'#b4bea3');rect(c,9,-45,2,7,'#9aaa8b');rect(c,9,-29,2,10,'#9aaa8b');rect(c,-17,-3,34,3,'#a6b297');break;
-    case 'paper':rect(c,-8,-15,15,15,'#f4efe4');rect(c,-8,-15,15,2,'#e6ded0');rect(c,-3,-12,5,10,'#cbc1b0');rect(c,6,-13,7,18,'#f8f4ec');rect(c,6,3,7,3,'#ece6da');rect(c,6,-13,7,1,'#ddd5c6');break;
+    case 'pizza':poly(c,[[-15,-26],[16,-20],[-6,1]],'#ebcb77');rect(c,-15,-27,31,4,'#b78651');ellipse(c,-4,-17,3,3,'#bc7050');ellipse(c,4,-17,3,3,'#bc7050');ellipse(c,-4,-7,3,3,'#bc7050');break;
+    case 'shell':poly(c,[[-16,-8],[-13,-22],[-6,-29],[6,-29],[14,-22],[17,-8],[3,0]],'#e4b89d');for(let i=-2;i<3;i++)poly(c,[[2,-2],[i*6-2,-23],[i*6,-24]],'#bf8f7e');break;
+    case 'umbrella':poly(c,[[-23,-24],[-17,-35],[-5,-42],[7,-42],[20,-34],[25,-24]],'#bd8582');poly(c,[[-8,-24],[-5,-42],[7,-42],[11,-24]],'#e8c6a2');rect(c,0,-24,2,22,'#816e56');rect(c,-6,-4,7,3,'#816e56');break;
+    case 'skateboard':rect(c,-24,-9,48,6,'#a57b54');rect(c,-21,-11,42,4,'#a5b877');ellipse(c,-14,-1,4,4,'#667463');ellipse(c,15,-1,4,4,'#667463');break;
+    case 'helmet':c.save();c.beginPath();c.rect(-20,-32,45,23);c.clip();ellipse(c,0,-14,16,15,'#9eabae');c.restore();rect(c,-17,-15,33,10,'#9eabae');rect(c,-16,-9,39,4,'#748991');rect(c,-8,-25,7,3,'#c7d0c7');break;
+    case 'magnet':rect(c,-14,-30,8,24,'#c87f71');rect(c,6,-30,8,24,'#c87f71');rect(c,-7,-11,15,9,'#c87f71');rect(c,-14,-30,8,7,'#aebeb5');rect(c,6,-30,8,7,'#aebeb5');break;
+    case 'teacup':ellipse(c,13,-14,7,7,'#b9c4b1');ellipse(c,13,-14,4,4,'#f5e9cc');rect(c,-14,-23,27,20,'#e4dfc6');ellipse(c,0,-23,14,4,'#8d765a');ellipse(c,0,-3,12,3,'#c5c9af');rect(c,-20,0,40,3,'#d1d3b9');break;
+    case 'rocket':rect(c,-10,-32,20,25,'#d8dccc');poly(c,[[-10,-32],[0,-47],[10,-32]],'#bc7e66');ellipse(c,0,-24,6,6,'#829fa5');poly(c,[[-10,-16],[-19,-4],[-10,-7]],'#bc7e66');poly(c,[[10,-16],[19,-4],[10,-7]],'#bc7e66');poly(c,[[-6,-7],[0,6],[6,-7]],'#e7b461');break;
+    case 'camera':rect(c,-19,-25,38,25,'#737f71');rect(c,-14,-30,13,6,'#626e61');ellipse(c,0,-13,10,10,'#b7c1ae');ellipse(c,0,-13,7,7,'#4c6769');rect(c,12,-21,4,4,'#eeddb1');break;
+    case 'donut':ellipse(c,0,-17,17,16,'#b18b60');ellipse(c,0,-19,16,13,'#dbb3a2');ellipse(c,0,-18,6,5,'#83795c');for(let i=0;i<6;i++)rect(c,Math.cos(i)*12-1,-19+Math.sin(i)*9,3,2,i%2?'#e9d997':'#859c79');break;
+    case 'carrot':poly(c,[[-10,-25],[11,-25],[-3,1]],'#cd9253');rect(c,-3,-37,4,13,'#7f9c61');poly(c,[[0,-29],[-10,-37],[-7,-40],[2,-32]],'#93ab6c');rect(c,-7,-19,9,2,'#e2ae66');break;
+    case 'snowflake':for(let i=0;i<6;i++){const a=i*Math.PI/3;c.strokeStyle='#a4c6d0';c.lineWidth=3;c.beginPath();c.moveTo(0,-18);c.lineTo(Math.cos(a)*18,-18+Math.sin(a)*18);c.stroke();}rect(c,-3,-21,6,6,'#ecf3e8');break;
+    case 'clock':ellipse(c,0,-18,18,18,'#b29971');ellipse(c,0,-18,14,14,'#f3e3bd');rect(c,-1,-29,2,12,'#76816b');rect(c,0,-19,9,2,'#76816b');break;
+    case 'paper':
+      // Upright roll: unmistakable hollow top, layered white paper and one short flap.
+      ellipse(c,0,-7,16,6,'#bfb7a7');rect(c,-16,-29,32,22,'#dedbd2');rect(c,-12,-29,19,24,'#fffefa');rect(c,8,-27,6,20,'#efede4');ellipse(c,0,-29,16,7,'#c0b7a6');ellipse(c,0,-30,14,6,'#fffefa');ellipse(c,0,-30,7,3.5,'#b4936c');ellipse(c,0,-31,5,2.5,'#6b5947');
+      poly(c,[[-11,-23],[9,-23],[9,-4],[6,1],[-11,1]],'#fffefa');rect(c,-11,-22,20,1,'#eeeae0');for(let i=0;i<4;i++)rect(c,-9+i*5,-8,2,1,'#beb7a6');rect(c,-11,1,17,1,'#cac3b5');break;
+    case 'beret':ellipse(c,0,-8,17,7,'#a87562');rect(c,-12,-6,25,5,'#825b4d');rect(c,-2,-18,3,5,'#825b4d');break;
+    case 'chefhat':rect(c,-12,-18,24,18,'#f5f2e6');for(const x of [-10,0,10])ellipse(c,x,-23,9,9,'#fffdf3');rect(c,-12,-4,24,3,'#d7d6c5');break;
+    case 'rainhat':ellipse(c,0,-12,13,11,'#d9b158');rect(c,-20,-4,40,5,'#bb954a');rect(c,-8,-16,5,3,'#e9cd87');break;
+    case 'nightcap':poly(c,[[-15,-3],[-4,-28],[16,-14],[10,-7],[3,-19],[10,-2]],'#8eabc0');rect(c,-15,-3,28,5,'#dce1d6');ellipse(c,17,-12,5,5,'#eee9d3');break;
+    case 'headphones':c.strokeStyle='#68767b';c.lineWidth=5;c.beginPath();c.arc(0,-10,16,Math.PI,Math.PI*2);c.stroke();rect(c,-20,-12,8,15,'#a87c64');rect(c,12,-12,8,15,'#a87c64');break;
+    case 'sprout':rect(c,-1,-19,3,21,'#829a5a');ellipse(c,-7,-18,9,4,'#9bb46c');ellipse(c,7,-23,9,5,'#729951');break;
+    case 'moth':ellipse(c,-10,-12,11,8,'#dfd3ae');ellipse(c,10,-12,11,8,'#e5d9b4');rect(c,-2,-20,4,21,'#a99b71');rect(c,-9,-15,3,3,'#b7a87a');rect(c,7,-15,3,3,'#b7a87a');break;
+    case 'partyhat':poly(c,[[-14,0],[0,-32],[14,0]],'#c68c76');rect(c,-5,-17,9,3,'#e8c46f');rect(c,-9,-7,18,3,'#a9bd86');ellipse(c,0,-32,4,4,'#e4c378');break;
+    case 'bee':ellipse(c,-6,-20,7,5,'#e4ede2');ellipse(c,6,-20,7,5,'#e4ede2');ellipse(c,0,-10,12,8,'#d7b663');rect(c,-6,-17,3,14,'#726b52');rect(c,1,-17,3,14,'#726b52');rect(c,9,-12,2,2,'#4e5946');break;
+    case 'towel':ellipse(c,0,-13,15,12,'#cad9ce');rect(c,-16,-12,33,14,'#dbe5d7');rect(c,9,-23,6,23,'#9eb5b1');rect(c,10,-22,2,20,'#dbe5d7');break;
+    case 'flowercrown':ellipse(c,0,-5,19,5,'#83995e');for(let i=0;i<5;i++){ellipse(c,-16+i*8,-7-(i%2)*3,5,5,'#ead7a3');rect(c,-17+i*8,-8-(i%2)*3,3,3,'#c99658');}break;
+    case 'piratehat':poly(c,[[-24,0],[-14,-10],[-11,-23],[0,-17],[11,-23],[14,-10],[24,0]],'#56655e');rect(c,-5,-13,10,7,'#ebe4c8');rect(c,-3,-10,2,2,'#56655e');rect(c,2,-10,2,2,'#56655e');break;
     case 'hole':ellipse(c,0,-2,11,5,'#7d6a4e');ellipse(c,0,-3,8,3,'#5f5340');rect(c,-10,2,3,2,'#9c8865');rect(c,6,1,3,2,'#9c8865');break;
     case 'tower':rect(c,-7,-6,14,6,'#c2a577');rect(c,-6,-12,12,6,'#cbb083');rect(c,-4,-17,9,5,'#c2a577');rect(c,-3,-20,6,3,'#d5bb8c');break;
     default:rect(c,-5,-8,10,8,'#d9c790');
@@ -114,16 +222,24 @@ export function item(c,type,x,y,options={}){
   c.restore();
 }
 
+const previewCache=new Map();
 export function spriteCanvas(id,size=48,options={}){
-  const canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;
-  const c=canvas.getContext('2d');c.imageSmoothingEnabled=false;
-  if(['david','julia','monki','sernik','galgan'].includes(id))character(c,id,size/2,size*.86,{scale:size/48,...options});
-  else item(c,id,size/2,size*.76,{scale:size/39,...options});
-  return canvas;
+  const key=JSON.stringify([id,size,options]);let source=previewCache.get(key);
+  if(!source){
+    const scratch=document.createElement('canvas');scratch.width=192;scratch.height=192;const ctx=scratch.getContext('2d',{willReadFrequently:true});
+    if(['david','julia','monki','sernik','galgan'].includes(id))character(ctx,id,96,145,{...options,scale:1,shadow:false});else item(ctx,id,96,130,{...options,scale:1,shadow:false});
+    const pixels=ctx.getImageData(0,0,192,192).data;let left=192,top=192,right=0,bottom=0;
+    for(let y=0;y<192;y++)for(let x=0;x<192;x++)if(pixels[(y*192+x)*4+3]){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
+    source=document.createElement('canvas');source.width=size;source.height=size;const c=source.getContext('2d');c.imageSmoothingEnabled=false;
+    if(left<=right){const w=right-left+1,h=bottom-top+1,s=Math.min((size-10)/w,(size-10)/h);c.drawImage(scratch,left,top,w,h,(size-w*s)/2,(size-h*s)/2,w*s,h*s);}
+    if(previewCache.size>500)previewCache.clear();previewCache.set(key,source);
+  }
+  const canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;canvas.getContext('2d').drawImage(source,0,0);return canvas;
 }
 export function fillSprite(element,id,options={}){element.replaceChildren(spriteCanvas(id,48,options));}
 
 const paths={
+  broom:'m18 3-7 10m-3-2 7 5-4 6-9-6 6-5Zm-1 4-3 3m6-1-3 3',
   house:'M3.5 11.5 12 4.5l8.5 7M6 10.2V19h12v-8.8M10 19v-4.5h4V19',
   cellar:'M12 3.5v8m0 0-2.8-2.8M12 11.5l2.8-2.8M4 15h16M7 19h10',
   pause:'M9.5 5.5v13M14.5 5.5v13',

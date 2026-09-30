@@ -9,42 +9,65 @@
   <meta name="description" content="Five residents. One small world. A few things out of place.">
   <title>monki world</title>
   <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./playground.css">
+  <link rel="stylesheet" href="./phone.css">
 </head>
 <body>
   <div class="app-shell">
     <header class="masthead">
-      <a class="brand" href="./" aria-label="Monki world home"><canvas id="brand-monki" width="48" height="48" aria-hidden="true"></canvas><span>monki<span class="brand-bottom">world<span class="brand-dot">.</span></span></span></a>
-      <div class="header-right"><div class="status"><span id="status-dot"></span><span id="connection">a little world</span></div><button id="sound" class="icon-button" title="Turn sound on" aria-label="Turn sound on"></button><button id="settings" class="icon-button" title="Settings" aria-label="Settings"></button></div>
+      <a class="brand" href="./" aria-label="Monki world home"><img src="./icon.svg" width="42" height="42" alt="" draggable="false"><span>monki<span class="brand-bottom">world<span class="brand-dot">.</span></span></span></a>
     </header>
     <main>
+      <div class="controls-backdrop" aria-hidden="true"></div>
+      <button id="test-open" class="test-banner" hidden>TEST SANDBOX · Open adventure lab</button>
       <section class="story-card" aria-label="A little adventure">
         <canvas id="story-art" width="105" height="90" aria-hidden="true"></canvas>
         <div class="story-copy"><span class="eyebrow" id="story-kicker">A LITTLE ADVENTURE</span><h1 id="story-title">Monki is leaving.</h1><p id="story-subtitle">The balloons were a bad idea.</p></div>
         <button id="start-adventure" class="play-button">Play <span aria-hidden="true">→</span></button>
       </section>
       <section class="game-card" aria-label="Your shared world">
-        <div class="scene-bar"><div class="place-tabs" id="locations"></div><button class="small-action" id="together"><span id="together-icon"></span><span>Us two</span></button></div>
+        <div class="scene-bar"><div class="place-tabs" id="locations"></div></div>
         <div class="scene-wrap" id="scene-wrap">
           <canvas id="world" width="400" height="336" tabindex="0" aria-label="House with David, Julia, Monki, Sernik and Galgan. Tap to interact, drag to move. Use the resident buttons below for keyboard access."></canvas>
           <div class="scene-tip" id="scene-tip"></div>
           <div class="interaction-menu" id="interaction-menu" hidden></div>
         </div>
-        <div class="scene-footer"><div class="residents" id="residents" aria-label="Residents"></div><span class="room-help">Hold + drag to move</span></div>
       </section>
-      <section class="toy-bar" aria-label="Play in the room"><button id="play-ball"><canvas width="40" height="40" id="ball-art" aria-hidden="true"></canvas><span>Unroll the paper</span></button><button id="play-bubbles"><canvas width="40" height="40" id="bubble-art" aria-hidden="true"></canvas><span>Blow bubbles</span></button><button id="tidy-room"><span id="tidy-icon"></span><span>Put things away</span></button></section>
+      <section id="decor-editor" aria-label="Decorate the place" hidden><div id="decor-editor-body"></div></section>
+      <section id="toy-mode" aria-label="Active toy" hidden><span id="toy-instruction"></span><button id="put-away-toy" aria-label="Put away active toy">×</button></section>
+      <section class="toy-bar" aria-label="Play in the room"><button id="play-ball" aria-pressed="false" aria-label="Throw toilet paper for Sernik" title="Drag to throw toilet paper"><canvas width="40" height="40" id="ball-art" aria-hidden="true"></canvas><span>Paper</span></button><button id="play-bubbles" aria-pressed="false" aria-label="Play with the bubble wand" title="Tap to blow bubbles"><canvas width="40" height="40" id="bubble-art" aria-hidden="true"></canvas><span>Bubbles</span></button><button id="tidy-room" aria-label="Tidy up"><span id="tidy-icon"></span><span>Tidy</span></button><button id="open-tools" popovertarget="room-tools" aria-label="More things to do" aria-expanded="false"><span id="residents-icon" aria-hidden="true"></span><span>Residents</span></button></section>
+      <section id="room-tools" popover="auto" aria-label="More things to do">
+        <div class="tools-heading"><button class="small-action" id="together"><span id="together-icon"></span><span>Us two</span></button><button class="small-action" id="decorate"><span id="decorate-icon"></span><span>Decorate</span></button><button class="icon-button" popovertarget="room-tools" popovertargetaction="hide" aria-label="Close more things">×</button></div>
+        <div class="header-right"><div class="status-stack"><time id="world-clock" aria-label="Central European time"></time><div class="status"><span id="status-dot"></span><span id="connection">a little world</span></div></div><button id="sound" class="icon-button" title="Turn sound on" aria-label="Turn sound on"></button><button id="settings" class="icon-button" title="Settings" aria-label="Settings"></button></div>
+        <div class="scene-footer"><div class="residents" id="residents" aria-label="Residents"></div><span class="room-help">Stroke dogs to pet · pull away to move</span></div>
       <section class="below-world">
-        <div class="pocket-section"><div class="pocket" id="pocket"></div></div>
         <div class="left-behind"><button id="last-trace" class="trace-card" aria-label="See what happened"><span class="trace-image" id="trace-image"></span><span id="trace-label"></span><span class="trace-arrow">→</span></button></div>
       </section>
       <nav class="bottom-note" aria-label="Things to do"><button id="wardrobe" class="footer-button"></button><button id="draw" class="footer-button"></button><button id="surprise" class="footer-button"></button><button id="history" class="footer-button"></button></nav>
+      <div id="place-actions" class="place-actions" aria-label="Things in this place"></div>
+      </section>
     </main>
   </div>
+  <canvas id="toy-layer" aria-hidden="true"></canvas>
   <div id="toast" role="status" aria-live="polite"></div>
   <dialog id="sheet"><div class="sheet-top"><span class="eyebrow" id="sheet-eyebrow">MONKI WORLD</span><button id="close-sheet" class="icon-button" aria-label="Close"></button></div><div id="sheet-body"></div></dialog>
-  <dialog id="microgame"><div class="microgame-top"><button id="leave-game" class="icon-button" aria-label="Back to the house"></button><div><span id="game-chapter"></span><h2 id="game-title"></h2></div><button id="pause-game" class="icon-button" aria-label="Pause"></button></div><div class="game-canvas-wrap"><canvas id="micro" width="400" height="430" tabindex="0" aria-label="Interactive adventure"></canvas><button id="resume-game" class="primary-button" hidden>Resume</button></div><div class="microgame-bottom"><span id="game-hint"></span><span id="game-progress"></span></div><div id="game-steps" class="chapter-steps" aria-label="Adventure progress"></div></dialog>
+  <dialog id="microgame">
+    <div class="microgame-top"><button id="leave-game" class="icon-button" aria-label="Back to the house"></button><div><span id="game-chapter"></span><h2 id="game-title"></h2></div><button id="pause-game" class="icon-button" aria-label="Pause"></button></div>
+    <div id="game-variant"></div>
+    <div class="game-canvas-wrap"><canvas id="micro" width="400" height="430" tabindex="0" aria-label="Interactive adventure"></canvas><button id="resume-game" class="primary-button" hidden>Resume</button></div>
+    <div class="microgame-bottom"><span id="game-hint"></span><span id="game-progress"></span></div><div id="game-steps" class="chapter-steps" aria-label="Adventure progress"></div>
+    <div id="test-controls" hidden><button id="test-restart">Restart segment</button><button id="test-next">Skip to next</button><button id="test-back">Test lab</button></div>
+  </dialog>
+  <dialog id="arcade">
+    <div class="microgame-top"><button id="arcade-leave" class="icon-button" aria-label="Back to the house"></button><div><span class="eyebrow">THE ARCADE</span><h2 id="arcade-title"></h2></div><button id="arcade-pause" class="icon-button" aria-label="Pause"></button></div>
+    <div class="arcade-wrap"><canvas id="arcade-canvas" width="400" height="600" tabindex="0" aria-label="Arcade game. Slide your finger or use the arrow keys."></canvas>
+      <button id="arcade-resume" class="primary-button" hidden>Resume</button>
+      <div id="arcade-over" hidden><strong id="arcade-score"></strong><p id="arcade-line"></p><p id="arcade-sub"></p><button id="arcade-again" class="primary-button">Again</button><button id="arcade-other" class="secondary-button"></button></div>
+    </div>
+  </dialog>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

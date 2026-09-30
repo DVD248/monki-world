@@ -1,0 +1,154 @@
+/* Pixel world, readable controls. One compact header and one useful thumb dock. */
+:root{--dock:#283e36;--dock-ink:#f3f6e8;--selected:#cee5a9;--selected-ink:#283e36;--panel:#f4f6ed}
+html.night{--dock:#342c3b;--dock-ink:#fff0d8;--selected:#edc990;--selected-ink:#362b32;--panel:#f4ece0}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+button,a{touch-action:manipulation}canvas,#play-ball,#play-bubbles{touch-action:none}
+button:focus-visible,a:focus-visible{outline:3px solid #dcaa68;outline-offset:2px}
+.brand img{width:42px;height:42px;image-rendering:pixelated;border-radius:0}.brand-dot{color:inherit}
+.status-stack{display:grid;gap:3px;text-align:left;flex:1}#world-clock{font:14px var(--mono);color:#34422e}.status-stack .status{font-size:12px}
+.pet-pad{display:block;width:100%;height:auto;image-rendering:pixelated;touch-action:none;border-radius:15px;background:#e0e6cd}
+button[aria-busy=true]{opacity:.65}.ending-photo{animation:postcard-in .18s ease-out}
+@keyframes postcard-in{from{transform:translateY(10px) rotate(-4deg);opacity:.3}to{transform:rotate(-2deg);opacity:1}}
+
+/* Sheets need a rhythm even when their full-width buttons are appended directly. */
+#sheet-body>button.full+button.full{margin-top:10px}
+#sheet-body>.surprise-row+button.full{margin-top:14px}
+#sheet-body>button.full+button.quiet-action{margin-top:8px}
+.person-actions{gap:10px;margin-top:14px}
+.person-action{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:88px;padding:11px 8px;text-align:center;line-height:1.25}
+.person-action strong{margin:0;line-height:1}.person-action svg{width:23px;height:23px}
+.person-action span{font-size:14px}
+.person-links{display:grid;margin-top:17px}
+.person-link{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:52px;padding:12px 4px;border-bottom:1px solid #d8dfd2;background:none;color:#425b43;font-size:15px;font-weight:600;line-height:1.3;text-align:left}
+.person-link:first-child{border-top:1px solid #d8dfd2}
+.person-link::after{content:'→';font-size:19px;font-weight:400;color:#71886e;flex:none}
+.person-link:hover{background:#e9eee2}
+.person-invite{margin-top:17px}
+@media(max-width:350px){.person-portraits{margin:8px 0 10px}.person-actions{margin-top:10px}.person-action{min-height:78px;padding:8px 5px}.person-action span{font-size:13px}.person-links{margin-top:12px}.person-link{min-height:48px}.person-invite{margin-top:12px}}
+.item-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:18px 0 10px}
+.item-actions button{width:100%;padding-inline:8px;text-align:center}
+.immersive #sheet-body .button-row>button{flex-grow:1}
+.immersive #sheet-body .button-row>.quiet-action{border:1px solid #d8dfd2;border-radius:9px;background:#eef1e7}
+.immersive .item-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.immersive .collection-item{min-height:94px;padding:8px 4px;overflow-wrap:normal;word-break:normal;line-height:1.2}
+.immersive .collection-item span{min-width:0}
+.immersive .quiet-action{color:#4c644b;font-weight:600}
+@media(max-width:350px){.immersive .item-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.immersive #sheet-body .collection-item{font-size:12px}}
+
+.controls-backdrop{display:none}.toy-bar{justify-content:center;gap:10px}
+.toy-bar>button{flex:1;min-width:48px;min-height:68px;padding:4px;display:flex;flex-direction:column;gap:2px;background:none;border:2px solid transparent;border-radius:13px;font-size:14px}
+.toy-bar>button:hover{background:#9bad8b22}.toy-bar>button[aria-pressed=true]{background:var(--selected);border-color:var(--selected-ink);color:var(--selected-ink)}
+.toy-bar canvas{width:36px;height:36px}.toy-bar #open-tools>span:first-child{font-size:27px;line-height:34px;letter-spacing:2px}
+.toy-bar #open-tools.new-decor{position:relative}.toy-bar #open-tools.new-decor::after{content:'NEW';position:absolute;top:0;right:0;padding:2px 4px;border-radius:4px;background:var(--selected);color:var(--selected-ink);font:700 9px var(--sans);letter-spacing:.3px;pointer-events:none}
+#tidy-icon{display:flex;align-items:center;justify-content:center;height:36px}#tidy-icon svg{width:27px;height:27px}
+#toy-mode{display:flex;align-items:center;justify-content:space-between;min-height:56px;font-size:16px;gap:8px;padding:8px 12px;background:var(--dock);color:var(--dock-ink);border-radius:12px}
+#put-away-toy{width:48px;min-height:48px;border:1px solid currentColor;border-radius:50%;font-size:28px;flex-shrink:0}
+.has-toy .story-card{display:none}
+
+#room-tools{position:fixed;inset:auto 12px 88px;margin:0 auto;width:min(420px,calc(100vw - 24px));padding:12px 16px 15px;border:1px solid #aa947b44;border-radius:20px;background:var(--panel);color:var(--ink);box-shadow:0 10px 45px #241b312f;max-height:calc(100dvh - 110px);overflow:auto;overscroll-behavior:contain}
+#room-tools::backdrop{background:#251d292b}#room-tools.tools-fallback{z-index:8}
+.tools-heading{display:flex;justify-content:space-between;align-items:center}
+#room-tools .header-right{display:flex;gap:4px;padding:6px 0 12px;border-bottom:1px solid #81957733}
+#room-tools .small-action{background:none;padding:8px 4px;font-size:16px;min-height:44px}
+#room-tools .tools-heading{gap:10px}#room-tools #decorate{margin-left:auto}
+#room-tools .icon-button{width:48px;min-width:48px;min-height:48px;font-size:24px}
+#room-tools .scene-footer{display:flex;flex-direction:column;gap:9px;position:static;background:none;padding:12px 0}
+#room-tools .residents{justify-content:space-around;width:100%;gap:4px}
+#room-tools .resident{width:52px;height:56px;padding:3px;background:none;border-radius:50%}
+#room-tools .resident:hover{background:#dbe4d1}#room-tools .resident canvas{width:40px;height:46px}
+#room-tools .room-help{display:block;max-width:none;text-align:center;font-size:14px;line-height:1.5;color:#4d6049}
+#room-tools .below-world{position:static;display:block;margin:0;border-top:1px solid #81957733}
+#room-tools .trace-card{width:100%;height:auto;min-height:68px;padding:8px 0;border:0;border-radius:0;background:none;gap:10px}
+#room-tools .trace-image{width:37px;flex-shrink:0}#room-tools .trace-image canvas{width:34px;height:34px}
+#room-tools #trace-label{font-size:15px;line-height:1.45;font-weight:400}
+#room-tools .bottom-note{position:static;display:grid;grid-template-columns:repeat(4,1fr);background:none;border-top:1px solid #81957733;margin:0;padding:8px 0;gap:4px;backdrop-filter:none;width:auto;border-radius:0}
+#room-tools .footer-button{flex-direction:column;min-height:62px;padding:4px 1px;gap:6px;font-size:14px;text-align:center;line-height:1.2}
+#room-tools .place-actions{display:grid;position:static;background:none;padding:0;gap:4px;border-top:1px solid #81957733}
+#room-tools .place-actions button{font-size:15px;min-height:48px;color:#3c553e}#room-tools .place-actions:empty{display:none}
+#world,#toy-layer{image-rendering:auto}
+#toy-layer{position:fixed;pointer-events:none;z-index:4}
+.toy-bar>button.toy-away{background:transparent;border-color:transparent;box-shadow:none}
+.toy-bar>button.toy-away canvas{visibility:hidden}
+#residents-icon{height:36px;display:flex;align-items:center;justify-content:center}#residents-icon svg{width:28px;height:28px}
+#room-tools .resident{height:75px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:14px;border-radius:10px}#room-tools .resident.you:after{display:none}
+
+html.immersive,html.immersive body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--dock)}
+.immersive .app-shell{height:100dvh;width:100%;max-width:none;padding:0;margin:0}.immersive main,.immersive .game-card{display:contents}
+.immersive .scene-wrap{position:fixed;inset:0;margin:0;border:0;border-radius:0;overflow:hidden;background:var(--dock);z-index:0}
+.immersive .scene-wrap>canvas{display:block;position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;min-height:0;aspect-ratio:auto;object-fit:fill}
+.immersive .masthead{position:fixed;left:10px;top:calc(3px + env(safe-area-inset-top,0px));height:50px;padding:0;border:0;z-index:3}
+.immersive .masthead:before{content:'';position:fixed;inset:0 0 auto;height:calc(58px + env(safe-area-inset-top,0px));background:var(--dock);z-index:-1;pointer-events:none}
+.immersive .brand{min-width:44px;min-height:44px;gap:0}.immersive .brand img{width:36px;height:42px}.immersive .brand>span{display:none}
+.immersive .scene-bar{position:fixed;top:calc(5px + env(safe-area-inset-top,0px));left:62px;right:10px;padding:0;min-height:46px;display:flex;background:none;border:0;z-index:3}
+.immersive .place-tabs{width:100%;min-width:0;display:flex;overflow:auto;scrollbar-width:none;gap:4px;background:none;padding:0}
+.immersive .place-tab{position:relative;min-width:44px;min-height:46px;padding:7px 10px;justify-content:center;flex:1;font-size:16px;border:2px solid transparent;border-radius:12px;background:none;color:var(--dock-ink)}
+.immersive .place-tab>span{display:none}.immersive .place-tab.active{flex:1.8;background:var(--selected);color:var(--selected-ink);border-color:var(--selected-ink)}
+.immersive .place-tab.active>span{display:inline}.immersive .place-tab:after{display:none!important}.immersive .place-tab svg{width:23px;height:23px;flex-shrink:0}
+.immersive .controls-backdrop{display:block;position:fixed;left:0;right:0;bottom:0;height:calc(156px + env(safe-area-inset-bottom,0px));z-index:1;background:var(--dock);border-radius:22px 22px 0 0;box-shadow:0 -5px 22px #202f2620;pointer-events:none}
+.immersive .story-card,.immersive #toy-mode{position:fixed;left:18px;right:18px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:2;min-height:62px;max-height:70px;padding:5px 0;gap:10px;background:none;color:var(--dock-ink);backdrop-filter:none;border:0;border-radius:0;box-shadow:none}
+.immersive .story-card>canvas{display:block;width:38px;height:43px}.immersive .story-copy h1{font-size:17px;font-weight:550;line-height:1.3;letter-spacing:0;margin:0}
+.immersive .story-copy .eyebrow,.immersive .story-copy p{display:none}
+.immersive .play-button{min-width:64px;min-height:48px;padding:10px 12px;font-size:16px;border:2px solid var(--selected);border-radius:12px;background:var(--selected);color:var(--selected-ink);box-shadow:none;white-space:nowrap}
+.immersive .play-button:hover{background:#e7efca;color:#243a2d}.immersive .play-button span{display:none}
+.immersive #toy-instruction{font-size:17px;line-height:1.4}.immersive #put-away-toy{color:var(--dock-ink)}
+.immersive .toy-bar{position:fixed;left:14px;right:14px;bottom:calc(6px + env(safe-area-inset-bottom,0px));z-index:2;margin:0;gap:7px;height:70px;color:var(--dock-ink)}
+.immersive .toy-bar>button{color:var(--dock-ink);font-size:14px}.immersive .toy-bar>button[aria-pressed=true]{color:var(--selected-ink)}
+.immersive .toy-bar>button:hover{background:#f3f6e818}.immersive .toy-bar>button[aria-pressed=true]:hover{background:var(--selected)}
+.immersive #room-tools{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+.immersive #test-open{position:fixed;top:calc(66px + env(safe-area-inset-top,0px));right:12px;z-index:3;width:auto;min-height:44px;padding:7px 12px;margin:0;border:0;border-radius:12px;font-size:0;background:var(--dock);color:var(--dock-ink)}
+.immersive #test-open:after{content:'Test';font:14px var(--sans)}
+.immersive .scene-tip{position:fixed;top:calc(65px + env(safe-area-inset-top,0px));bottom:auto;left:50%;width:max-content;max-width:80%;font-size:15px;transform:translateX(-50%);background:var(--dock);color:var(--dock-ink);padding:9px 12px;border:0;white-space:normal}
+.immersive #toast{bottom:calc(170px + env(safe-area-inset-bottom,0px));font-size:15px;max-width:90%}
+.immersive dialog{max-height:calc(100dvh - 20px);max-width:calc(100vw - 20px);overscroll-behavior:contain;scrollbar-gutter:stable}
+.immersive .sheet-top{position:sticky;top:-20px;z-index:2;background:var(--cream);padding:5px 0}
+.immersive #sheet-body p,.immersive .secondary-button,.immersive .primary-button{font-size:15px}.immersive .quiet-action{font-size:14px}.immersive .collection-item{font-size:14px}.immersive .wear-options small{font-size:13px}
+.immersive #microgame{padding:10px;border-radius:17px;max-height:calc(100dvh - 12px)}.immersive #microgame .icon-button{min-width:44px;width:44px;min-height:44px}
+.immersive .microgame-top h2{font-size:18px}.immersive #game-hint{font-size:14px;line-height:1.3}.immersive #game-progress{font-size:14px}.immersive #test-controls button{min-height:44px}.immersive .wear-options{gap:0}.immersive .wear-options button{min-width:44px;padding:5px}.immersive .wear-options canvas{width:34px;height:40px}
+@media(max-width:350px){.immersive .scene-bar{left:52px;right:6px}.immersive .place-tab{padding:7px 6px;gap:4px;font-size:15px}.immersive .story-card>canvas{display:none}.immersive .story-copy h1{font-size:16px}#room-tools{padding:10px 12px}.immersive .play-button{padding:9px;min-width:60px}}
+@media(orientation:landscape) and (max-height:500px){.immersive .controls-backdrop{left:auto;width:290px;height:150px;border-radius:20px 0 0 0}.immersive .story-card,.immersive #toy-mode{left:auto;right:14px;width:260px;bottom:80px}.immersive .toy-bar{left:auto;width:265px;bottom:5px;gap:3px}.immersive .scene-bar{right:auto;width:300px}.immersive .story-card>canvas{display:none}.immersive #room-tools{left:auto;right:12px;width:320px;bottom:80px;max-height:calc(100dvh - 90px)}.immersive .story-copy h1{font-size:16px}}
+@media(prefers-reduced-motion:reduce){.ending-photo{animation:none}}
+#world,#toy-layer,#micro{image-rendering:auto}
+.decor-finish{width:44px;height:44px;border-radius:50%;background:var(--finish);border:3px solid #f9f6ed;box-shadow:0 0 0 1px #7b8977}.decor-finish.active{box-shadow:0 0 0 3px #253f32}
+.decor-swatch{display:block;border-radius:6px;border:1px solid #6b716544;image-rendering:pixelated}
+
+/* Live decorating keeps the place in view. A short, single-level tray replaces
+   the old full-screen catalog; the same room remains visible while sampling. */
+#decor-editor{position:fixed;z-index:6;right:20px;bottom:20px;width:min(380px,calc(100vw - 30px));height:258px;padding:10px 12px 8px;border:1px solid #b9c8b2;border-radius:19px;background:#f4f6edee;color:#283e36;box-shadow:0 10px 40px #26393032;backdrop-filter:blur(12px);overflow:hidden}
+.night #decor-editor{background:#eee7deef;color:#352f3d;border-color:#ada29e}
+#decor-editor-body{height:100%;display:flex;flex-direction:column;min-width:0}
+.decor-editor-head{display:flex;align-items:center;justify-content:space-between;min-height:35px;font-size:15px;padding:0 2px 5px}
+.decor-editor-head strong{font-weight:650}.decor-done{min-height:36px;padding:6px 15px;border-radius:10px;background:var(--dock);color:var(--dock-ink);font-size:14px;font-weight:650}
+.decor-editor-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:3px;background:#dfe7d9;border-radius:11px;flex:none}
+.decor-editor-tabs button{min-height:37px;border-radius:8px;font-size:12px;color:#49604d;white-space:nowrap}
+.decor-editor-tabs button.active{background:#fcfdf7;color:#263d32;box-shadow:0 1px 4px #1f392021;font-weight:700}
+.decor-editor-finishes{display:flex;align-items:center;gap:8px;padding:7px 3px 3px;flex:none}.decor-editor-label{font-size:12px;color:#526753;margin-right:auto;white-space:nowrap}
+.decor-editor-finishes .decor-finish{width:29px;height:29px;min-width:29px;border-width:2px;box-shadow:0 0 0 1px #738975}.decor-editor-finishes .decor-finish.active{box-shadow:0 0 0 2px #263e32}
+.decor-editor-rail{display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;min-height:85px;max-height:94px;padding:5px 2px 8px;scroll-snap-type:x proximity;flex:none}
+.decor-editor-card{flex:0 0 73px;min-width:73px;height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px;border:1px solid #ced9c9;border-radius:10px;background:#fbfcf6;color:#344a39;scroll-snap-align:start}
+.decor-editor-card.active{border:2px solid #365a3e;background:#e4efdb}.decor-editor-card canvas{width:45px!important;height:45px!important;image-rendering:pixelated}.decor-editor-card span{max-width:100%;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;text-align:center;font-size:10px;line-height:1.06}
+.decor-editor-card.decor-locked{border-style:dashed;background:#e8ece4;color:#657467;opacity:.72;filter:saturate(.55);pointer-events:none}
+.decor-editor-rail.styles .decor-editor-card{flex-basis:98px;min-width:98px}.decor-editor-rail.styles .decor-editor-card canvas{width:82px!important;height:38px!important}
+.decor-editor-surfaces{display:flex;gap:5px;overflow-x:auto;padding:7px 0 2px;scrollbar-width:none;flex:none}.decor-editor-surfaces button{min-height:31px;flex:none;border-radius:8px;background:#e2e8dc;padding:4px 10px;font-size:12px;color:#465b47}.decor-editor-surfaces button.active{background:#365743;color:#fff8e9}
+.decor-editor-hint{margin:3px 2px 0;font-size:12px;line-height:1.25;color:#526753;white-space:normal}
+.decor-editor-footer{display:flex;align-items:center;justify-content:space-between;gap:6px}.decor-editor-footer .decor-editor-hint{flex:1}.decor-quick{min-height:34px;flex:none;padding:5px 9px;border-radius:8px;background:#dce9d5;color:#294b35;font-size:12px;font-weight:650}
+.decor-editor-selected{min-height:47px;display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid #cbd7ca}.decor-editor-selected canvas{width:37px!important;height:37px!important;image-rendering:pixelated}.decor-editor-selected strong{font-size:13px;flex:1;text-transform:capitalize}.decor-editor-selected button{min-height:35px;padding:5px 9px;border-radius:8px;font-size:12px}.decor-action{background:#dce9d5;color:#2f5338}.decor-remove{color:#715a50;background:#eee5dc}
+.decorating .toy-bar,.decorating .story-card,.decorating #toy-mode,.decorating .controls-backdrop{display:none!important}
+.decorating #world{cursor:crosshair}.decorating #toast{bottom:270px}
+@media(max-width:700px){#decor-editor{left:0;right:0;bottom:0;width:100%;height:calc(270px + env(safe-area-inset-bottom,0px));padding:8px 11px calc(8px + env(safe-area-inset-bottom,0px));border-radius:17px 17px 0 0;border-left:0;border-right:0;border-bottom:0}.decor-editor-card{flex-basis:69px;min-width:69px}.decor-editor-tabs button{font-size:12px}}
+@media(orientation:landscape) and (max-height:500px){#decor-editor{left:auto;right:0;bottom:0;width:290px;height:100dvh;border-radius:14px 0 0 14px;overflow-y:auto}.decorating .scene-bar{right:290px}.decorating #toast{right:300px;left:auto;bottom:12px;transform:none}}
+.immersive .toy-bar>button.toy-away,.immersive .toy-bar>button.toy-away:hover{background:transparent;border-color:transparent;color:var(--dock-ink);box-shadow:none}
+.fridge-interior{background:#dde9e5;border:7px solid #b6c9c1;border-radius:18px;padding:14px;display:grid;gap:12px;text-align:center}.freezer-shelf{min-height:106px;border-bottom:6px solid #b6c9c1;display:grid;align-items:center;padding-bottom:10px}.fridge-recipe{display:flex;align-items:center;justify-content:center;gap:12px;font-size:24px}.fridge-recipe canvas{max-width:80px;image-rendering:pixelated}.freezer-slot{width:70px;height:70px;display:grid;place-items:center;background:#eff5f1;border-radius:10px;color:#8ca39b}.fridge-pantry{display:grid;grid-template-columns:1fr 1fr;gap:8px}.fridge-ingredient{min-height:92px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;border-radius:10px;border:2px solid transparent}.fridge-ingredient[aria-pressed=true]{background:#f3f4d6;border-color:#688b76}.fridge-ingredient canvas{width:50px;height:50px;image-rendering:pixelated}.fridge-interior p{margin:0!important;color:#415f52!important}.potato-drawer{border-top:2px solid #b6c9c1;padding-top:8px}.fridge-interior.freezing .freezer-shelf{animation:freezer-rattle .12s linear 5;background:#f1fffd}@keyframes freezer-rattle{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+/* The arcade: a tall canvas that fits the phone, with the score over it when a run ends. */
+#arcade{padding:10px;width:min(452px,calc((100dvh - 96px)*2/3 + 20px));max-width:calc(100vw - 12px);max-height:calc(100dvh - 12px);background:#fcf5e7;border-radius:18px;overflow:hidden}
+#arcade .microgame-top{padding-bottom:8px}#arcade .microgame-top .eyebrow{font-size:9px}#arcade .icon-button{min-width:44px;width:44px;min-height:44px}
+.arcade-wrap{position:relative;line-height:0}
+#arcade-canvas{display:block;width:100%;aspect-ratio:2/3;touch-action:none;border-radius:12px;border:1px solid #c8d5b7;background:#cfe4dc;image-rendering:pixelated;outline:none}
+#arcade-resume{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+#arcade-over{position:absolute;inset:18% 14px auto;padding:18px 16px 14px;line-height:1.3;text-align:center;background:#fcf5e7f2;border:1px solid #e0ddcc;border-radius:14px;box-shadow:0 8px 30px #27352240;display:grid;gap:8px}
+#arcade-over[hidden]{display:none}
+#arcade-score{font:800 40px var(--sans);letter-spacing:-1px;color:var(--ink)}
+#arcade-line{margin:0;font:650 16px var(--sans);color:#4c644b}#arcade-sub{margin:0;font:14px var(--sans);color:#7b8469}#arcade-sub:empty{display:none}
+#arcade-over .primary-button{font-size:16px;min-height:50px;margin-top:4px}#arcade-over .secondary-button{font-size:14px}
+.arcade-card small{display:block;line-height:1.35}
+

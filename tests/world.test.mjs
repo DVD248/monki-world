@@ -35,6 +35,33 @@ test('network retries are idempotent',()=>{
   assert.equal(saved.actors.monki.pokes,1);
 });
 
+test('a delayed phone retry stays idempotent after hundreds of newer actions',()=>{
+  let state=createWorld('delayed',NOW);
+  const client='a'.repeat(24),first={id:`m2:${client}:1`,actor:'david',type:'poke',target:'monki'};
+  state=applyOperation(state,first,NOW);
+  for(let i=2;i<=750;i++)state=applyOperation(state,{id:`m2:${client}:${i}`,actor:'david',type:'seen'},NOW+i);
+  const revision=state.revision;
+  assert.equal(applyOperation(state,first,NOW+900),state);
+  assert.equal(state.actors.monki.pokes,1);
+  assert.equal(state.revision,revision);
+  assert.equal(state.applied.length,0,'new actions must not fill the legacy retry list');
+  assert.equal(state.appliedSeries[client],750);
+  const later=applyOperation(state,{id:`m2:${client}:751`,actor:'david',type:'poke',target:'monki'},NOW+901);
+  assert.equal(later.actors.monki.pokes,2);
+});
+
+test('an older shared save accepts new sequenced actions without losing its retry history',()=>{
+  const old=createWorld('old-client',NOW);
+  delete old.appliedSeries;
+  const legacy={id:'old-pending',actor:'julia',type:'poke',target:'sernik'};
+  const first=applyOperation(old,legacy,NOW);
+  const next=applyOperation(first,{id:`m2:${'b'.repeat(24)}:1`,actor:'david',type:'poke',target:'monki'},NOW+1);
+  assert.equal(next.actors.sernik.pokes,1);
+  assert.equal(next.actors.monki.pokes,1);
+  assert.equal(next.appliedSeries['b'.repeat(24)],1);
+  assert.equal(applyOperation(next,legacy,NOW+2),next);
+});
+
 test('both players finishing the same incident only advances the world once',()=>{
   let state=createWorld('test',NOW);const uid=state.incident.uid;
   state=op(state,'resolve',{target:uid,score:9});
@@ -170,7 +197,16 @@ test('drawings are bounded strokes, not executable or unlimited content',()=>{
 });
 
 test('every content definition can be constructed and resolved',()=>{
-  for(const definition of INCIDENTS){let state=createWorld('test',NOW);state.incident=makeIncident(state,NOW,definition.id);state=op(state,'resolve',{target:state.incident.uid,score:definition.goal});assert.ok(state.inventory.includes(definition.reward));assert.equal(state.traces[0].type,definition.aftermath);}
+  for(const definition of INCIDENTS){
+    let state=createWorld('test',NOW);state.incident=makeIncident(state,NOW,definition.id);
+    state=op(state,'resolve',{target:state.incident.uid,score:definition.goal});
+    assert.ok(state.inventory.includes(definition.reward));
+    // 'hat' and 'sofa' are things you can already see happen. A mark for them would
+    // draw nothing and would still use one of the eight slots a room keeps.
+    if(definition.aftermath==='sofa')assert.equal(state.objects.find(o=>o.id==='couch').x,280);
+    else if(definition.aftermath==='hat')assert.equal(state.actors[definition.actor].hat,definition.reward);
+    else assert.equal(state.traces[0].type,definition.aftermath);
+  }
 });
 
 test('what happened while you were away is recorded in a replayable form',()=>{
@@ -260,4 +296,12 @@ test('an unopened present is waiting for its recipient and nobody else',()=>{
   assert.equal(waitingFor(state,'david').length,0);
   state=op(state,'openGift',{target:state.gifts[0].id},NOW+1000,'julia');
   assert.equal(waitingFor(state,'julia').length,0);
+});
+
+test('a frog pair is news for whoever picked first, whichever of them completes it',()=>{
+  for(const [first,second] of [['david','julia'],['julia','david']]){
+    let state=op(createWorld('frogs',NOW),'pick',{round:0,choice:2},NOW,first);
+    state=op(state,'pick',{round:0,choice:2},NOW+1000,second);
+    assert.equal(state.log[0].action,'match');assert.equal(state.log[0].who,second);assert.equal(state.log[0].target,first);
+  }
 });
