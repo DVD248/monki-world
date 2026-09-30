@@ -1,0 +1,112 @@
+# Publishes the game to GitHub Pages on every push to the default branch.
+#
+# One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+#
+# What gets published:
+#   - package.json with a "build" script → runs the build and publishes dist/, build/ or out/
+#   - otherwise → publishes the folder containing index.html (repo root, or the only
+#     subfolder that has one)
+# Set SITE_DIR below to force a specific folder.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  SITE_DIR: ""
+
+jobs:
+  build:
+    # The github-pages environment only accepts deploys from the default branch.
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - id: pages
+        uses: actions/configure-pages@v6
+
+      - id: detect
+        name: Detect build step
+        run: |
+          if [ -f package.json ] && node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then
+            echo "node=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "node=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.detect.outputs.node == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+
+      - if: steps.detect.outputs.node == 'true'
+        name: Build
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          # Vite defaults to absolute asset URLs, which break under /<repo>/ on Pages.
+          if node -e "const p=require('./package.json');process.exit({...p.dependencies,...p.devDependencies}.vite?0:1)"; then
+            npm run build -- --base "${BASE_PATH}/"
+          else
+            npm run build
+          fi
+
+      - id: site
+        name: Pick folder to publish
+        env:
+          BUILT: ${{ steps.detect.outputs.node }}
+        run: |
+          dir="$SITE_DIR"
+          if [ -z "$dir" ] && [ "$BUILT" = "true" ]; then
+            for d in dist build out; do
+              if [ -f "$d/index.html" ]; then dir="$d"; break; fi
+            done
+          fi
+          if [ -z "$dir" ] && [ -f index.html ]; then
+            dir="."
+          fi
+          if [ -z "$dir" ]; then
+            mapfile -t found < <(find . -maxdepth 3 -name index.html \
+              -not -path './node_modules/*' -not -path './.git/*' | sort)
+            if [ "${#found[@]}" -eq 1 ]; then
+              dir="$(dirname "${found[0]}")"
+            else
+              echo "::error::Could not tell which folder to publish (index.html candidates: ${found[*]:-none}). Set SITE_DIR in this workflow."
+              exit 1
+            fi
+          fi
+          if [ ! -f "$dir/index.html" ]; then
+            echo "::error::$dir/index.html not found."
+            exit 1
+          fi
+          echo "Publishing $dir"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ steps.site.outputs.dir }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
