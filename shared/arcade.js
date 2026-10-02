@@ -15,6 +15,10 @@ export const ARCADE_GAMES={
   hop:{id:'hop',title:'Water Hop',star:'galgan',one:'hop',many:'hops',short:'',news:25,hint:'Tap the lily pad to hop onto it.',did:'got Galgan {n} up the river in Water Hop'},
   fall:{id:'fall',title:'Fall Down',star:'monki',one:'floor',many:'floors',short:'',news:20,hint:'Slide your finger. Find the gaps.',did:'took Monki down {n} in Fall Down'},
   match:{id:'match',title:'Match Tap',star:'sernik',one:'snack',many:'snacks',short:'',news:150,hint:'Tap three or more the same. Misses cost time.',did:'matched {n} in Match Tap'},
+  stack:{id:'stack',title:'Pancake Stack',star:'galgan',one:'pancake',many:'pancakes',short:'',news:30,hint:'Tap to drop the pancake. Line it up.',did:'stacked {n} for Galgan in Pancake Stack'},
+  candles:{id:'candles',title:'Candle Cake',star:'monki',one:'candle',many:'candles',short:'',news:40,hint:'Tap to put a candle in. Miss the others.',did:'put {n} on the cakes in Candle Cake'},
+  snake:{id:'snake',title:'Long Galgan',star:'galgan',one:'treat',many:'treats',short:'',news:25,hint:'Swipe to steer Galgan to the treats.',did:'fed Galgan {n} in Long Galgan'},
+  merge:{id:'merge',title:'Snack Merge',star:'sernik',one:'point',many:'points',short:'',news:2000,hint:'Swipe to slide. Two the same make the next snack.',did:'scored {n} in Snack Merge'},
 };
 export const ARCADE_MAX=99999;
 export const amount=(game,n)=>`${n} ${n===1?ARCADE_GAMES[game].one:ARCADE_GAMES[game].many}`;

@@ -4,6 +4,9 @@ html.night{--dock:#342c3b;--dock-ink:#fff0d8;--selected:#edc990;--selected-ink:#
 body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 button,a{touch-action:manipulation}canvas,#play-ball,#play-bubbles{touch-action:none}
+/* A picture on a card or in a sheet is not something to drag: a swipe that starts on one scrolls the sheet.
+   Only the canvases that are played with (adventure, arcade, petting, drawing) keep every touch to themselves. */
+dialog canvas:not(#micro):not(#arcade-canvas):not(.pet-pad):not([aria-label^="Draw"]){touch-action:manipulation}
 button:focus-visible,a:focus-visible{outline:3px solid #dcaa68;outline-offset:2px}
 .brand img{width:42px;height:42px;image-rendering:pixelated;border-radius:0}.brand-dot{color:inherit}
 .status-stack{display:grid;gap:3px;text-align:left;flex:1}#world-clock{font:14px var(--mono);color:#34422e}.status-stack .status{font-size:12px}

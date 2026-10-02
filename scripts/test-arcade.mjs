@@ -36,7 +36,7 @@ async function clickText(page,text){
 }
 async function openArcade(page){
   await page.click('#open-tools');await page.waitForFunction(()=>document.querySelector('#open-tools').getAttribute('aria-expanded')==='true');
-  await clickText(page,'Play a game');await page.waitForFunction(()=>document.querySelector('#sheet').open&&document.querySelectorAll('.arcade-card').length===8);
+  await clickText(page,'Play a game');await page.waitForFunction(()=>document.querySelector('#sheet').open&&document.querySelectorAll('.arcade-card').length===12);
 }
 async function play(page,title){
   await page.evaluate(title=>[...document.querySelectorAll('.arcade-card')].find(b=>b.textContent.includes(title)).click(),title);
@@ -80,7 +80,7 @@ try{
   await page.waitForFunction(()=>document.querySelector('#sheet').open);await page.click('#close-sheet');
   assert.ok(await page.evaluate(()=>window.__scene.hitboxes.some(h=>h.action==='onArcade')),'the cabinet can be touched');
   await openArcade(page);
-  assert.deepEqual(await page.$$eval('.arcade-card small',s=>s.map(x=>x.textContent)),Array(8).fill('Not played yet'));
+  assert.deepEqual(await page.$$eval('.arcade-card small',s=>s.map(x=>x.textContent)),Array(12).fill('Not played yet'));
 
   // Food Drop with a real finger: the first snack lands where the finger put Sernik.
   await play(page,'Food Drop');
@@ -163,12 +163,28 @@ try{
       return game(page,()=>window.__game.logic.row===1&&!window.__game.logic.over);}],
     ['Fall Down','Match Tap',async()=>{await finger(page,50,300);await delay(700);await page.mouse.up();
       return game(page,()=>window.__game.logic.x<120);}],
-    ['Match Tap','Sky Jump',async()=>{
+    ['Match Tap','Pancake Stack',async()=>{
       await page.waitForFunction(()=>window.__game.logic.resting);
       const cell=await page.evaluate(async()=>{const {MatchRun,MATCH}=await import('/shared/arcade-match.js');const L=window.__game.logic;
         for(let c=0;c<MATCH.cols;c++)for(let r=0;r<MATCH.rows;r++)if(L.group(c,r).length>=MATCH.min)return MatchRun.centre(c,r);});
       await finger(page,cell.x,cell.y);await page.mouse.up();await delay(120);
       return game(page,()=>window.__game.logic.score>=3&&window.__game.logic.state==='play');}],
+    // A tap when the pancake is roughly over the plate drops it there.
+    ['Pancake Stack','Candle Cake',async()=>{
+      await page.waitForFunction(()=>{const L=window.__game.logic;return Math.abs(L.slider.x-L.top.x)<30;},{timeout:10000});
+      await finger(page,200,300);await page.mouse.up();await delay(200);
+      return game(page,()=>window.__game.logic.score===1&&window.__game.logic.top.w>100);}],
+    // The first cake is bare: any tap puts a candle in.
+    ['Candle Cake','Long Galgan',async()=>{await finger(page,200,420);await page.mouse.up();await delay(400);
+      return game(page,()=>window.__game.logic.score===1&&window.__game.logic.items.some(it=>it.kind==='candle'));}],
+    // A drag upwards turns Galgan up and sets him off.
+    ['Long Galgan','Snack Merge',async()=>{await finger(page,200,420);for(let i=1;i<=6;i++){await finger(page,200,420-i*12,false);await delay(16);}await page.mouse.up();await delay(500);
+      return game(page,()=>{const L=window.__game.logic;return L.state==='play'&&L.dir==='up'&&L.head.r<12;});}],
+    // A drag sideways slides the tray (the other way, if everything was already over there).
+    ['Snack Merge','Sky Jump',async()=>{
+      const drag=async dx=>{await finger(page,200,330);for(let i=1;i<=6;i++){await finger(page,200+dx*i/6,330,false);await delay(16);}await page.mouse.up();await delay(300);};
+      await drag(130);if(!await game(page,()=>window.__game.logic.moves>0))await drag(-130);
+      return game(page,()=>window.__game.logic.moves===1);}],
   ];
   for(const [title,next,act] of later){
     await openArcade(page);await play(page,title);
@@ -213,7 +229,7 @@ try{
   assert.equal(await back.$eval('#story-title',e=>e.textContent),'Julia laughed: you got Monki 48 metres up in Sky Jump.');
 
   assert.deepEqual(errors,[]);
-  console.log('PASS: cabinet and menu entry with all eight games, Food Drop by finger, result panel and near misses, bests kept when leaving at any moment, their best read at the end, pause, the house resting under the game, Sky Jump by finger, the sky moving after a fall, Hill Drive, Jet Monki, Cliff Jump, Water Hop, Fall Down and Match Tap each by finger to a result, and a best reaching the other phone with a laugh back.');
+  console.log('PASS: cabinet and menu entry with all twelve games, Food Drop by finger, result panel and near misses, bests kept when leaving at any moment, their best read at the end, pause, the house resting under the game, Sky Jump by finger, the sky moving after a fall, Hill Drive, Jet Monki, Cliff Jump, Water Hop, Fall Down, Match Tap, Pancake Stack, Candle Cake, Long Galgan and Snack Merge each by finger to a result, and a best reaching the other phone with a laugh back.');
 }finally{
   await browser?.close();server.kill();await rm(data,{recursive:true,force:true});
 }

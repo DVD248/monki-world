@@ -7,12 +7,16 @@ import fall from './arcade-fall.js';
 import cliff from './arcade-cliff.js';
 import match from './arcade-match.js';
 import hop from './arcade-hop.js';
+import stack from './arcade-stack.js';
+import candles from './arcade-candles.js';
+import snake from './arcade-snake.js';
+import merge from './arcade-merge.js';
 
 /** Draws and drives one arcade run on the canvas. The rules live in shared/arcade.js;
  * this is the feel: the squash on a bounce, the crumbs, the voice of whoever you just
  * overtook, and a line across the sky where your best and theirs are. Sky Jump and Food
  * Drop are drawn here; each later game brings its rules, picture and card in one file. */
-export const VIEWS={drive,jet,cliff,hop,fall,match};
+export const VIEWS={drive,jet,cliff,hop,fall,match,stack,candles,snake,merge};
 export const ARCADE_ZONES={jump:JUMP_ZONES,drop:DROP_ZONES,...Object.fromEntries(Object.entries(VIEWS).map(([id,view])=>[id,view.zones]))};
 const STEP=1/120;
 // Sky Jump climbs from a garden afternoon, through the evening, into space.
@@ -25,12 +29,15 @@ export class ArcadeGame{
   constructor(canvas,game,{sound=()=>{},reduced=false,best=0,rival=null,hat=null,start=0,onEnd=()=>{},onOver=()=>{},onPause=()=>{}}={}){
     this.canvas=canvas;this.c=canvas.getContext('2d');this.game=game;this.info=ARCADE_GAMES[game];this.view=VIEWS[game]||null;this.start=start;
     this.sound=sound;this.reduced=reduced;this.best=best;this.rival=rival;this.hat=hat;this.onEnd=onEnd;this.onOver=onOver;this.onPause=onPause;
-    this.keys=new Set();this.pointers=new Map();this.taps=[];this.cleanups=[];this.last=0;this.stopped=false;
+    this.keys=new Set();this.pointers=new Map();this.taps=[];this.swipes=[];this.starts=new Map();this.cleanups=[];this.last=0;this.stopped=false;
     const point=e=>{const r=canvas.getBoundingClientRect();return {x:clamp((e.clientX-r.left)*W/r.width,0,W),y:clamp((e.clientY-r.top)*H/r.height,0,H)};};
-    this.listen(canvas,'pointerdown',e=>{e.preventDefault();canvas.setPointerCapture?.(e.pointerId);const p=point(e);this.target=p.x;this.pointers.set(e.pointerId,p);if(!this.paused)this.taps.push(p);this.touched=true;});
-    this.listen(canvas,'pointermove',e=>{const p=point(e);if(e.pointerType==='mouse'||e.buttons||e.pressure>0)this.target=p.x;if(this.pointers.has(e.pointerId))this.pointers.set(e.pointerId,p);});
-    for(const name of ['pointerup','pointercancel','lostpointercapture'])this.listen(canvas,name,e=>this.pointers.delete(e.pointerId));
-    this.listen(canvas,'keydown',e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();this.keys.add(e.key);this.target=null;this.touched=true;}
+    this.listen(canvas,'pointerdown',e=>{e.preventDefault();canvas.setPointerCapture?.(e.pointerId);const p=point(e);this.target=p.x;this.pointers.set(e.pointerId,p);this.starts.set(e.pointerId,p);if(!this.paused)this.taps.push(p);this.touched=true;});
+    this.listen(canvas,'pointermove',e=>{const p=point(e);if(e.pointerType==='mouse'||e.buttons||e.pressure>0)this.target=p.x;if(this.pointers.has(e.pointerId))this.pointers.set(e.pointerId,p);this.swipe(e.pointerId,p);});
+    for(const name of ['pointerup','pointercancel','lostpointercapture'])this.listen(canvas,name,e=>{this.pointers.delete(e.pointerId);this.starts.delete(e.pointerId);});
+    this.listen(canvas,'keydown',e=>{
+      // The arrows are also swipes, for the games steered in four directions.
+      const way={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'}[e.key];if(way&&!e.repeat&&!this.paused)this.swipes.push({dir:way,key:true});
+      if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();this.keys.add(e.key);this.target=null;this.touched=true;}
       else if([' ','ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();if(!e.repeat&&!this.paused)this.taps.push({x:W/2,y:H/2,key:true});this.keys.add(e.key);this.touched=true;}});
     this.listen(canvas,'keyup',e=>this.keys.delete(e.key));
     this.listen(document,'visibilitychange',()=>{if(document.hidden)this.pause(true);});
@@ -38,6 +45,15 @@ export class ArcadeGame{
     this.frame=requestAnimationFrame(t=>this.loop(t));canvas.focus();
   }
   listen(el,name,fn){el.addEventListener(name,fn);this.cleanups.push(()=>el.removeEventListener(name,fn));}
+  /** A finger that has moved far enough from where it went down is a swipe, in whichever of the
+   * four directions it went furthest. One per touch, unless the game steers with a drag ('chain'):
+   * then each further stretch of the same drag is another, so a finger can steer round corners. */
+  swipe(id,p){
+    const from=this.starts.get(id);if(!from||this.paused)return;
+    const dx=p.x-from.x,dy=p.y-from.y;if(Math.hypot(dx,dy)<(this.view?.swipeAt??22))return;
+    this.swipes.push({dir:Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'),x:p.x,y:p.y});
+    if(this.view?.swipe==='chain')this.starts.set(id,p);else this.starts.set(id,null);
+  }
   get score(){return this.game==='jump'?this.logic.metres:this.logic.score;}
   /** The clock the picture runs on. The rules stop at the end of a run; clouds, pigeons and
    * falling food carry on moving underneath the result instead of freezing mid-air. */
@@ -46,13 +62,13 @@ export class ArcadeGame{
     const seed=`${this.game}:${Date.now()}:${Math.random()}`;
     this.logic=this.view?new this.view.Logic(seed,{start:this.start}):this.game==='jump'?new SkyJump(seed,{start:this.start}):new FoodDrop(seed,{start:this.start});
     this.particles=[];this.texts=[];this.banner=null;this.shake=0;this.flash=0;this.time=0;this.acc=0;this.ended=0;this.reported=false;this.overAt=null;
-    this.target=null;this.touched=false;this.lastCam=0;this.lastView=null;this.mood=null;this.moodUntil=0;this.taps=[];this.pointers.clear();this.view?.reset?.(this);
+    this.target=null;this.touched=false;this.lastCam=0;this.lastView=null;this.mood=null;this.moodUntil=0;this.taps=[];this.swipes=[];this.pointers.clear();this.starts.clear();this.view?.reset?.(this);
     // Nothing to overtake on a first go; afterwards, your own best and theirs are lines to cross.
     // A test run started above a line has not crossed it.
     this.passedBest=this.best<=this.start;this.passedRival=!this.rival?.best||this.rival.best<=this.start;
     this.paused=false;this.onPause(false);
   }
-  pause(value){if(this.stopped||this.logic.over&&value)return;this.paused=value;this.keys.clear();this.pointers.clear();this.taps=[];this.onPause(value);if(!value){this.last=0;this.canvas.focus();}}
+  pause(value){if(this.stopped||this.logic.over&&value)return;this.paused=value;this.keys.clear();this.pointers.clear();this.starts.clear();this.taps=[];this.swipes=[];this.onPause(value);if(!value){this.last=0;this.canvas.focus();}}
   stop(){this.stopped=true;cancelAnimationFrame(this.frame);for(const off of this.cleanups)off();this.cleanups=[];}
   loop(ts){
     if(this.stopped)return;this.frame=requestAnimationFrame(t=>this.loop(t));
@@ -64,8 +80,8 @@ export class ArcadeGame{
     // A fixed physics step, so a bounce is the same height at 60 Hz and at 120 Hz. A tap goes
     // to the first step after it, however many steps a frame holds, even none.
     this.acc+=dt;
-    if(this.view){const input=this.input();while(this.acc>=STEP){input.taps=this.taps.splice(0);logic.step(STEP,input);this.acc-=STEP;}}
-    else while(this.acc>=STEP){logic.step(STEP,this.target,dir);this.acc-=STEP;}
+    if(this.view){const input=this.input();while(this.acc>=STEP){input.taps=this.taps.splice(0);input.swipes=this.swipes.splice(0);logic.step(STEP,input);this.acc-=STEP;}}
+    else{this.swipes.length=0;while(this.acc>=STEP){logic.step(STEP,this.target,dir);this.acc-=STEP;}}
     // Crumbs and words stay where they happened while the picture scrolls.
     let sx=0,sy=this.game==='jump'?logic.cam-this.lastCam:0;this.lastCam=logic.cam||0;
     if(this.view?.camera){const cam=this.view.camera(this);if(this.lastView){sx=this.lastView.x-cam.x;sy=this.lastView.y-cam.y;}this.lastView=cam;}
@@ -84,7 +100,7 @@ export class ArcadeGame{
    * taps where they landed, a finger held down, and which half of the screen it is on. */
   input(){
     const held=[...this.pointers.values()],k=this.keys;
-    return {target:this.target,dir:(k.has('ArrowRight')?1:0)-(k.has('ArrowLeft')?1:0),taps:[],fingers:held,
+    return {target:this.target,dir:(k.has('ArrowRight')?1:0)-(k.has('ArrowLeft')?1:0),taps:[],swipes:[],fingers:held,
       held:held.length>0||k.has(' ')||k.has('ArrowUp'),
       left:held.some(p=>p.x<W/2)||k.has('ArrowLeft')||k.has('ArrowDown'),
       right:held.some(p=>p.x>=W/2)||k.has('ArrowRight')||k.has('ArrowUp')};

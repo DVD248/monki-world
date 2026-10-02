@@ -7,6 +7,10 @@ import {CliffRun,CLIFF,CLIFF_ZONES,cliffCharge,cliffHeight} from '../shared/arca
 import {HopRun,HOP,HOP_ZONES,padX,padUnder,padSoon} from '../shared/arcade-hop.js';
 import {FallRun,FALL,FALL_ZONES} from '../shared/arcade-fall.js';
 import {MatchRun,MATCH,MATCH_ZONES,matchBonus} from '../shared/arcade-match.js';
+import {StackRun,STACK,STACK_ZONES} from '../shared/arcade-stack.js';
+import {CandleRun,CANDLES,CANDLES_ZONES,cakeFor,apart} from '../shared/arcade-candles.js';
+import {SnakeRun,SNAKE,SNAKE_ZONES,DIRS} from '../shared/arcade-snake.js';
+import {MergeRun,MERGE,MERGE_ZONES,MERGE_DIRS,mergeKind} from '../shared/arcade-merge.js';
 import {seeded} from '../shared/arcade.js';
 import {createWorld,applyOperation} from '../shared/world.js';
 
@@ -174,6 +178,171 @@ test('Match Tap: two do nothing, seven leave a star, and a star takes its row an
   const before=g.score;g.step(STEP,{taps:[MatchRun.centre(3,9)]});assert.equal(g.score-before,MATCH.cols+MATCH.rows-1);
 });
 
+// ---------------------------------------------------------------- Pancake Stack
+/** Taps when the pancake will be over the one below, off by `sigma` seconds (one standard
+ * deviation), as a person's finger is. */
+const stackBot=(sigma=0,seed='hand')=>{const r=seeded('stack'+seed+sigma);let plan=null;return g=>{
+  const s=g.slider;if(!plan||plan.n!==s.n)plan={n:s.n,at:g.time+Math.abs(s.x-g.top.x)/s.speed+(r()+r()+r()-1.5)*2*sigma};
+  if(g.time>=plan.at){plan.at=Infinity;return {taps:[{}]};}return {taps:[]};};};
+test('Pancake Stack: dead on loses nothing, an overhang is cut off, and off the edge it falls',()=>{
+  const g=new StackRun('rules');const w=g.top.w;assert.equal(g.slider.w,STACK.start);
+  const drop=dx=>{g.slider.x=g.top.x+dx;g.step(STEP,{taps:[{}]});return g.events.splice(0);};
+  let e=drop(3);assert.ok(e.some(x=>x.type==='place'&&x.perfect));assert.equal(g.top.w,STACK.start);assert.equal(g.score,1);
+  e=drop(30);assert.ok(e.some(x=>x.type==='trim'&&x.w===30&&x.side===1));assert.equal(g.top.w,STACK.start-30);assert.equal(g.streak,0);
+  assert.equal(g.slider.w,g.top.w,'the next one is as wide as what was left');assert.notEqual(g.slider.dir,0);
+  e=drop(-g.top.w-2);assert.ok(g.over);assert.ok(e.some(x=>x.type==='miss'));assert.equal(g.score,2);assert.ok(w>0);
+  // Nothing happens until a tap: the pancake waits, sliding.
+  const idle=run(new StackRun('idle'),()=>({taps:[]}),{seconds:60});assert.ok(!idle.over);assert.equal(idle.score,0);
+});
+test('Pancake Stack: Perfects in a row grow it back, never past its first width',()=>{
+  const g=new StackRun('grow');const drop=dx=>{g.slider.x=g.top.x+dx;g.step(STEP,{taps:[{}]});};
+  drop(40);const narrow=g.top.w;drop(0);assert.equal(g.top.w,narrow,'one Perfect keeps it');
+  drop(0);assert.equal(g.top.w,narrow+STACK.grow,'the second in a row grows it');
+  for(let i=0;i<30;i++)drop(0);assert.equal(g.top.w,STACK.start);
+});
+test('Pancake Stack: a steady hand goes on and on; a rough one runs out, but not at once',()=>{
+  for(const seed of SEEDS.slice(0,4)){const g=run(new StackRun(seed),stackBot(.015,seed),{seconds:600});assert.ok(!g.over,`${seed}: a steady hand fell at ${g.score}`);}
+  const rough=SEEDS.map(seed=>run(new StackRun(seed),stackBot(.055,seed),{seconds:600}));
+  assert.ok(rough.every(g=>g.over),'a rough hand ends');
+  assert.ok(rough.every(g=>g.score>=15),`even a rough hand gets a little tower: ${rough.map(g=>g.score).join(' ')}`);
+  // Faster later, but only up to a point.
+  const late=new StackRun('late',{start:400});assert.ok(late.slider.speed<=280&&late.slider.speed>new StackRun('early').slider.speed);
+});
+
+// ---------------------------------------------------------------- Candle Cake
+/** Waits until a candle thrown now would land well clear of the others, judging the spin as a
+ * person does (how fast, and whether it is speeding up or slowing down), then taps up to
+ * `sigma` seconds off. Picky at first, less so the longer it waits. */
+const candlesBot=(sigma=0,seed='hand',{greed=.85,patience=2.5}={})=>{
+  const r=seeded('cake'+seed+sigma),TAU=Math.PI*2,flight=(CANDLES.from-CANDLES.len/2-(CANDLES.cy+CANDLES.r))/CANDLES.speed;let at=null,since=0;
+  return g=>{
+    if(g.state==='play'&&!g.flying&&at===null){
+      const w=g.spin(g.ct),acc=(g.spin(g.ct+.05)-g.spin(g.ct-.05))/.1,h=flight+.02,land=((g.bottom-(w*h+acc*h*h/2))%TAU+TAU)%TAU;
+      const blocks=g.items.filter(it=>it.kind!=='berry'),clear=a=>blocks.length?Math.min(...blocks.map(it=>apart(it.a,a))):Math.PI;
+      let best=0;for(let i=0;i<72;i++)best=Math.max(best,clear(i/72*TAU));
+      since+=STEP;if(clear(land)>=Math.max(CANDLES.gap+.05,Math.min(best*greed,Math.PI/2)*Math.exp(-since/patience))){at=g.time+Math.max(0,(r()+r()+r()-1.5)*2*sigma);since=0;}
+    }
+    if(at!==null&&g.time>=at){at=null;return {taps:[{}]};}return {taps:[]};};};
+test('Candle Cake: a candle goes in where the edge is at the bottom; too close to another, it bounces off',()=>{
+  const g=new CandleRun('rules');assert.equal(g.items.length,0,'the first cake is bare');
+  const throwNow=()=>{g.step(STEP,{taps:[{}]});run(g,()=>({taps:[]}),{until:g=>!g.flying,seconds:1});return g.events.splice(0);};
+  const a=g.bottom;let e=throwNow();const stuck=e.find(x=>x.type==='stick');assert.ok(stuck);assert.equal(g.score,1);
+  assert.ok(apart(stuck.a,a)<.25,'near where the bottom was when it left');assert.equal(g.cake.left,g.cake.need-1);
+  // Line the cake up so the bottom is right on that candle, and throw again.
+  g.rot=Math.PI/2-stuck.a-g.spin(g.ct)*.09;e=throwNow();assert.ok(g.over,'into a candle: the end');assert.ok(e.some(x=>x.type==='clink'));assert.equal(g.score,1);
+  // A cake is done when its last candle is in; the next one comes after a moment.
+  const h=new CandleRun('done');h.cake.left=1;h.step(STEP,{taps:[{}]});run(h,()=>({taps:[]}),{until:g=>g.state!=='play',seconds:1});
+  assert.equal(h.state,'between');assert.ok(h.events.some(x=>x.type==='cake'));run(h,()=>({taps:[]}),{seconds:CANDLES.pause+.1});
+  assert.equal(h.state,'play');assert.equal(h.k,1);assert.ok(h.events.some(x=>x.type==='newcake'));
+});
+test('Candle Cake: every cake leaves room, the trickier spins come one by one, and every fifth is big',()=>{
+  for(let k=0;k<400;k++){const c=cakeFor(k);assert.ok(c.need+c.pre<=CANDLES.crowd,`cake ${k}`);assert.equal(c.big,k%5===4);assert.ok(c.speed<=3.6);}
+  // Spread round the whole edge, so a spot for the last candle is a matter of timing, never of luck.
+  const seen=new Set();for(const seed of SEEDS)for(const start of [0,30,80,200]){const g=new CandleRun(seed,{start});seen.add(g.cake.kind);
+    const pre=g.items.filter(it=>it.kind==='pre');for(let i=0;i<pre.length;i++)for(let j=i+1;j<pre.length;j++)assert.ok(apart(pre[i].a,pre[j].a)>=.8);}
+  assert.ok(seen.has('steady')&&seen.size>=3,[...seen].join(' '));
+  const early=new CandleRun('first');assert.equal(early.cake.kind,'steady');
+  // Swings and flips still go round: no part of the edge is out of reach.
+  for(const kind of ['swing','flip','stopgo','pulse']){const g=new CandleRun('turn');g.cake.kind=kind;let turned=0;for(let t=0;t<20;t+=STEP)turned+=g.spin(t)*STEP;assert.ok(Math.abs(turned)>Math.PI*2,`${kind} turned ${turned.toFixed(1)}`);}
+});
+test('Candle Cake: a steady hand gets through cake after cake; a hurried one is caught, but not at once',()=>{
+  const cakes=g=>g.k;
+  const steady=SEEDS.map(seed=>run(new CandleRun(seed),candlesBot(.018,seed,{greed:.9,patience:3}),{seconds:400}));
+  assert.ok(steady.filter(g=>cakes(g)>=25).length>=6,`cakes reached: ${steady.map(cakes).join(' ')}`);
+  const hurried=SEEDS.map(seed=>run(new CandleRun(seed),candlesBot(.055,seed,{greed:.6,patience:1.2}),{seconds:600}));
+  assert.ok(hurried.filter(g=>g.over).length>=7,'a hurried hand is caught');
+  assert.ok(hurried.every(g=>cakes(g)>=2),`but not on the first cakes: ${hurried.map(cakes).join(' ')}`);
+});
+
+// ---------------------------------------------------------------- Long Galgan
+/** Steers for the treat by the shortest way that still leaves him room to get back to his
+ * tail; failing that, follows his tail. Each swipe lands up to `sigma` seconds off, so a late
+ * one turns a square late, as a thumb does. `careless`: just heads for the treat. */
+const snakeBot=(sigma=0,seed='hand',{careless=false}={})=>{
+  const r=seeded('snake'+seed+sigma),OPP={up:'down',down:'up',left:'right',right:'left'},key=(c,rr)=>c*100+rr;let last=null,pending=[];
+  const blocked=(body,c,rr)=>c<0||rr<0||c>=SNAKE.cols||rr>=SNAKE.rows||body.has(key(c,rr));
+  const room=(body,c,rr)=>{const seen=new Set([key(c,rr)]),q=[[c,rr]];while(q.length&&seen.size<400){const [x,y]=q.pop();for(const [dx,dy] of Object.values(DIRS)){const k=key(x+dx,y+dy);if(!seen.has(k)&&!blocked(body,x+dx,y+dy)){seen.add(k);q.push([x+dx,y+dy]);}}}return seen.size;};
+  const path=(body,from,to)=>{const prev=new Map([[key(from.c,from.r),null]]),q=[[from.c,from.r]];while(q.length){const [x,y]=q.shift();if(x===to.c&&y===to.r){let k=key(x,y),first=null;while(prev.get(k)){first=prev.get(k)[1];k=prev.get(k)[0];}return first;}for(const [d,[dx,dy]] of Object.entries(DIRS)){const k=key(x+dx,y+dy);if(!prev.has(k)&&!blocked(body,x+dx,y+dy)){prev.set(k,[key(x,y),d]);q.push([x+dx,y+dy]);}}}return null;};
+  const choose=g=>{const h=g.head,body=new Set(g.body.slice(0,-1).map(p=>key(p.c,p.r))),at=d=>[h.c+DIRS[d][0],h.r+DIRS[d][1]];
+    const safe=Object.keys(DIRS).filter(d=>d!==OPP[g.dir]&&!blocked(body,...at(d)));if(!safe.length)return g.dir;
+    const goal=g.gold||g.treat,dist=d=>{const [c,rr]=at(d);return Math.abs(c-goal.c)+Math.abs(rr-goal.r);};
+    if(careless)return safe.sort((a,b)=>dist(a)-dist(b))[0];
+    const d=path(body,h,goal);if(d&&safe.includes(d)&&room(body,...at(d))>=g.body.length+2)return d;
+    const t=path(body,h,g.body.at(-1));if(t&&safe.includes(t))return t;
+    return safe.sort((a,b)=>room(body,...at(b))-room(body,...at(a)))[0];};
+  return g=>{
+    if(g.state==='ready')return {swipes:[{dir:'up'}]};
+    if(g.prev!==last){last=g.prev;const d=choose(g);if(d!==(g.queue[0]||g.dir))pending.push({at:g.time+.5/g.speed+(r()+r()+r()-1.5)*2*sigma,dir:d});}
+    const swipes=[];pending=pending.filter(p=>p.at<=g.time?(swipes.push({dir:p.dir}),false):true);return {swipes};};};
+test('Long Galgan: he waits for a swipe; a treat makes him one longer; the fence and his own back end it',()=>{
+  const g=new SnakeRun('rules');assert.equal(g.body.length,SNAKE.start);run(g,()=>({}),{seconds:10});assert.equal(g.state,'ready');assert.equal(g.time>0,true);
+  // Put a treat right in front of him and go.
+  g.treat={c:g.head.c,r:g.head.r-1,kind:'fish'};g.step(STEP,{swipes:[{dir:'up'}]});run(g,()=>({}),{until:g=>g.score>0,seconds:1});
+  assert.equal(g.score,1);run(g,()=>({}),{until:g=>g.body.length>SNAKE.start,seconds:1});assert.equal(g.body.length,SNAKE.start+1);
+  run(g,()=>({}),{seconds:10});assert.ok(g.over);assert.equal(g.events.find(e=>e.type==='bump').what,'fence');
+  // Turning back on himself in a tight square: his own back.
+  const h=new SnakeRun('coil',{start:6});h.treat={c:0,r:0,kind:'fish'};
+  const turn=g=>g.state==='ready'?'up':g.queue.length?null:g.dir==='up'?'left':g.dir==='left'?'down':null;
+  run(h,g=>({swipes:turn(g)?[{dir:turn(g)}]:[]}),{seconds:5});assert.ok(h.over);assert.equal(h.events.find(e=>e.type==='bump').what,'tail');
+});
+test('Long Galgan: a turn straight back is ignored, two quick turns both count, and a late swipe at the fence saves him',()=>{
+  const g=new SnakeRun('turns');g.step(STEP,{swipes:[{dir:'left'}]});assert.equal(g.state,'ready','straight back into himself is not a turn');
+  g.step(STEP,{swipes:[{dir:'up'},{dir:'left'}]});assert.deepEqual(g.queue.slice(0,2),['up','left']);
+  run(g,()=>({}),{until:g=>g.dir==='left',seconds:2});assert.equal(g.dir,'left','both turns were taken, one a step');
+  // Heading for the fence: he holds back for a moment, and a swipe in that moment is in time.
+  const f=new SnakeRun('fence');f.step(STEP,{swipes:[{dir:'up'}]});run(f,()=>({}),{until:g=>g.head.r===0,seconds:5});assert.ok(!f.over);
+  run(f,()=>({}),{seconds:SNAKE.grace*.5});assert.ok(!f.over,'held back at the fence');
+  f.step(STEP,{swipes:[{dir:'right'}]});run(f,()=>({}),{seconds:.5});assert.ok(!f.over,'and the late swipe got him out');assert.equal(f.dir,'right');
+  const late=new SnakeRun('fence');late.step(STEP,{swipes:[{dir:'up'}]});run(late,()=>({}),{until:g=>g.head.r===0,seconds:5});run(late,()=>({}),{seconds:SNAKE.grace+.2});assert.ok(late.over,'but not for ever');
+});
+test('Long Galgan: a careful player goes a long way; a careless one runs into himself, but not at once',()=>{
+  const careful=SEEDS.map(seed=>run(new SnakeRun(seed),snakeBot(.02,seed),{seconds:240}));
+  assert.ok(careful.filter(g=>g.score>=50).length>=6,`treats: ${careful.map(g=>g.score).join(' ')}`);
+  const careless=SEEDS.map(seed=>run(new SnakeRun(seed),snakeBot(.06,seed,{careless:true}),{seconds:600}));
+  assert.ok(careless.every(g=>g.over),'a careless one ends');
+  assert.ok(careless.filter(g=>g.score>=12).length>=6,`but gets a good few first: ${careless.map(g=>g.score).join(' ')}`);
+  assert.ok(careless.filter(g=>g.events.find(e=>e.type==='bump')?.what==='fence').length<=2,'and rarely by the fence');
+});
+
+// ---------------------------------------------------------------- Snack Merge
+/** A tray laid out by hand: rows of steps (0 for empty), top row first. */
+const tray=(rows,seed='tray')=>{const g=new MergeRun(seed);g.tiles=[];rows.forEach((row,r)=>row.forEach((t,c)=>{if(t)g.add(r,c,t);}));return g;};
+const read=g=>[0,1,2,3].map(r=>[0,1,2,3].map(c=>g.at(r,c)?.t??0));
+/** Tries each way on a copy and takes the one that leaves the tidiest tray: room to move, big
+ * snacks in a corner, neighbours that are close. `random`: any way that moves. */
+const mergeBot=(style='careful',seed='hand')=>{const r=seeded('merge'+seed);let last=-9;return g=>{
+  // At a person's pace: a swipe every quarter of a second.
+  if(g.time-last<.25)return {swipes:[]};last=g.time;
+  const ways=Object.keys(MERGE_DIRS),moved=d=>{const h=Object.assign(Object.create(MergeRun.prototype),{tiles:g.tiles.map(t=>({...t})),events:[],ghosts:[],time:g.time,score:g.score,serial:g.serial,moves:0,best:g.best,zone:g.zone,state:'play'});h.spawn=()=>null;return h.move(d)?h:null;};
+  if(style==='random')return {swipes:[{dir:ways[Math.floor(r()*4)]}]};
+  let best=null,top=-1e9;for(const d of ways){const h=moved(d);if(!h)continue;const grid=read(h);let v=16-h.tiles.length;
+    for(let y=0;y<4;y++)for(let x=0;x<4;x++){if(x<3)v-=Math.max(0,grid[y][x+1]-grid[y][x])*1.2;if(y<3)v-=Math.max(0,grid[y][x]-grid[y+1][x])*1.2;}
+    if(grid[3][0]===h.best)v+=3;if(v>top){top=v;best=d;}}
+  return {swipes:best?[{dir:best}]:[]};};};
+test('Snack Merge: everything slides as far as it goes, and two the same become the next snack up, once a swipe',()=>{
+  let g=tray([[1,1,1,1],[0,0,0,0],[0,0,0,0],[0,0,0,0]]);g.spawn=()=>null;g.move('left');assert.deepEqual(read(g)[0],[2,2,0,0]);assert.equal(g.score,8);
+  g=tray([[1,1,2,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]);g.spawn=()=>null;g.move('left');assert.deepEqual(read(g)[0],[2,2,0,0],'a fresh carrot does not merge again in the same swipe');
+  g=tray([[0,0,0,3],[0,0,0,3],[0,0,0,0],[0,0,0,2]]);g.spawn=()=>null;g.move('down');assert.deepEqual(read(g).map(row=>row[3]),[0,0,4,2]);
+  g=tray([[2,1,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]);g.move('left');assert.equal(g.tiles.length,2,'nothing moved: no new snack');assert.ok(g.events.some(e=>e.type==='stuck'));
+  g.move('right');assert.equal(g.tiles.length,3,'a swipe that moves brings one new snack');
+  assert.equal(mergeKind(1),'sprout');assert.equal(mergeKind(11),'crown');
+});
+test('Snack Merge: the tray is full when no swipe can move anything; new snacks are mostly sprouts',()=>{
+  const g=tray([[1,2,1,2],[2,1,2,1],[1,2,1,2],[2,1,2,1]]);assert.ok(!g.canMove());
+  const h=tray([[1,2,1,2],[2,1,2,1],[1,2,1,2],[2,1,2,2]]);assert.ok(h.canMove(),'two the same side by side can still merge');
+  h.spawn=()=>null;h.move('right');assert.ok(!h.over);
+  let sprouts=0,all=0;for(const seed of SEEDS)for(let i=0;i<60;i++){const k=new MergeRun(seed+i);for(const t of k.tiles){all++;if(t.t===1)sprouts++;}}
+  assert.ok(sprouts/all>.84&&sprouts/all<.96,`${(sprouts/all*100).toFixed(0)}% sprouts`);
+});
+test('Snack Merge: swiping any old way fills the tray soon; a tidy player makes far more',()=>{
+  const random=SEEDS.map(seed=>run(new MergeRun(seed),mergeBot('random',seed),{seconds:600}));
+  const careful=SEEDS.map(seed=>run(new MergeRun(seed),mergeBot('careful',seed),{seconds:3600}));
+  assert.ok(random.every(g=>g.over),'random swiping ends');
+  const med=a=>[...a].sort((x,y)=>x-y)[Math.floor(a.length/2)];
+  assert.ok(med(careful.map(g=>g.score))>med(random.map(g=>g.score))*2.5,`careful ${careful.map(g=>g.score).join(' ')}; random ${random.map(g=>g.score).join(' ')}`);
+  assert.ok(careful.filter(g=>g.best>=7).length>=6,'a tidy player reaches pizza');
+});
+
 // ---------------------------------------------------------------- Hill Drive
 /** Pedal down; off when the nose comes up; in the air, lines up with the ground ahead. */
 function driveBot(g){
@@ -207,7 +376,7 @@ test('Hill Drive: the car waits for the pedal; tipped onto his head, Galgan is o
 
 // ---------------------------------------------------------------- all six
 // Each run gets a bot of its own: some remember what they have seen.
-const GAMES={drive:[DriveRun,DRIVE_ZONES,()=>driveBot],jet:[JetRun,JET_ZONES,()=>jetBot],cliff:[CliffRun,CLIFF_ZONES,()=>cliffBot()],hop:[HopRun,HOP_ZONES,()=>hopBot()],fall:[FallRun,FALL_ZONES,()=>fallBot()],match:[MatchRun,MATCH_ZONES,()=>matchBot(.4)]};
+const GAMES={drive:[DriveRun,DRIVE_ZONES,()=>driveBot],jet:[JetRun,JET_ZONES,()=>jetBot],cliff:[CliffRun,CLIFF_ZONES,()=>cliffBot()],hop:[HopRun,HOP_ZONES,()=>hopBot()],fall:[FallRun,FALL_ZONES,()=>fallBot()],match:[MatchRun,MATCH_ZONES,()=>matchBot(.4)],stack:[StackRun,STACK_ZONES,()=>stackBot()],candles:[CandleRun,CANDLES_ZONES,()=>candlesBot()],snake:[SnakeRun,SNAKE_ZONES,()=>snakeBot()],merge:[MergeRun,MERGE_ZONES,()=>mergeBot()]};
 test('every game: the same seed and the same fingers make the same run',()=>{
   for(const [id,[Game,,bot]] of Object.entries(GAMES)){
     const a=run(new Game('same'),bot(),{seconds:40}),b=run(new Game('same'),bot(),{seconds:40});
@@ -222,7 +391,7 @@ test('every game: the test lab can start it at any stage, and it opens there',()
   }
 });
 test('every game: its line on the other phone',()=>{
-  assert.deepEqual(Object.keys(ARCADE_GAMES),['jump','drop','drive','jet','cliff','hop','fall','match']);
+  assert.deepEqual(Object.keys(ARCADE_GAMES),['jump','drop','drive','jet','cliff','hop','fall','match','stack','candles','snake','merge']);
   assert.equal(bragLine('drive',812),'drove Galgan 812 metres in Hill Drive');
   assert.equal(bragLine('jet',1),'flew Monki past 1 chimney in Jet Monki');
   assert.equal(bragLine('hop',40),'got Galgan 40 hops up the river in Water Hop');

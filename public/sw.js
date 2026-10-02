@@ -1,4 +1,4 @@
-const CACHE='monki-world-v29';
+const CACHE='monki-world-v30';
 const FILES=['./','./index.html','./style.css','./playground.css','./phone.css','./app.js','./art.js','./scene.js','./room-toys.js','./life-ui.js','./petting.js','./test-lab.js','./store.js','./adventure-player.js','./audio.js','./icon.svg','./manifest.webmanifest','./shared/world.js','./shared/adventures.js','./shared/extra-adventures.js','./shared/life.js','./shared/places.js','./shared/ambience.js'];
 FILES.push('./tidying.js','./icon-180.png','./icon-192.png','./icon-512.png','./shared/positions.js');
 FILES.push('./shared/fridge.js','./fridge-ui.js');
@@ -8,7 +8,7 @@ FILES.push('./furniture-art.js','./decor-ui.js','./shared/decor.js');
 FILES.push('./ambient-life.js');
 FILES.push('./sounds/pet-short.mp3','./sounds/pet-long.mp3');
 FILES.push('./arcade.js','./shared/arcade.js');
-FILES.push('./arcade-kit.js',...['drive','jet','cliff','hop','fall','match'].flatMap(id=>[`./arcade-${id}.js`,`./shared/arcade-${id}.js`]));
+FILES.push('./arcade-kit.js',...['drive','jet','cliff','hop','fall','match','stack','candles','snake','merge'].flatMap(id=>[`./arcade-${id}.js`,`./shared/arcade-${id}.js`]));
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('monki-world-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==location.origin||url.pathname.startsWith('/api/'))return;event.respondWith(fetch(event.request).then(response=>{if(response.ok){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));}return response;}).catch(()=>caches.match(event.request).then(cached=>cached||new Response('Offline',{status:503}))));});
