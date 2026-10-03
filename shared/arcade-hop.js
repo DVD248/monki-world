@@ -1,25 +1,30 @@
 import {ease,seeded,zoneAt,clamp,lerp} from './arcade.js';
 
-// Water Hop: Pou's Water Hop. Galgan crosses a river going up the screen, hopping from lily
-// pad to lily pad and along floating logs, each row drifting its own way. Tap the pad to
-// hop onto it; tapping his own row hops him along it. The river carries him, and a pad that
-// takes him off the side drops him in. The view rises on its own once he starts, so he has
-// to keep going. Later rows are faster, the pads smaller and further apart, and some dive
-// for a moment now and then. Every gap is narrower than a hop, so from anywhere there is
-// always a pad in reach in the next row.
-export const HOP={width:400,height:600,row:62,base:530,reach:112,near:22,hop:.2,edge:6,margin:110,warn:.8};
+// Water Hop: Pou's Water Hop, with a little Frogger. Galgan crosses a river going up the
+// screen, hopping from lily pad to lily pad and along floating logs, each row drifting the
+// other way from the last. A hop only goes a short way sideways, and the pads are spread out,
+// so most of the game is the wait: for a pad in the next row to drift into reach (the ones he
+// can reach have a ring round them), then the tap, before his own pad carries him off the
+// side. Tap the pad to hop onto it; tapping his own row hops him along it, or back a row if
+// he must. The view rises on its own once he starts, so he has to keep going. Later rows are
+// faster, the pads smaller and further apart, and in some rows a few pads dive now and then,
+// shivering first. No gap is so wide that the next pad takes long to come.
+export const HOP={width:400,height:600,row:62,base:530,reach:72,near:10,hop:.2,edge:6,margin:110,warn:.8};
 export const HOP_ZONES=[[0,'The pond'],[20,'The stream'],[50,'The river'],[90,'Evening'],[140,'Night'],[200,'The sea']];
-export const hopDifficulty=n=>ease(n,80);
-export const hopScroll=d=>lerp(14,38,d);
+export const hopDifficulty=n=>ease(n,50);
+export const hopScroll=d=>lerp(22,48,d);
 const RING=HOP.width+HOP.margin*2,wrap=v=>((v%RING)+RING)%RING-HOP.margin;
 
 /** Where a floating thing is at time t. */
 export const padX=(row,pad,t)=>wrap(pad.x0+row.dir*row.speed*t);
 /** Whether a diving pad is under at time t (for a moment in each turn). */
-export const padUnder=(row,pad,t)=>row.kind==='sink'&&Math.sin(pad.omega*t+pad.phase)<-.72;
+export const padUnder=(row,pad,t)=>pad.omega>0&&Math.sin(pad.omega*t+pad.phase)<-.72;
 /** Whether a diving pad will go under within HOP.warn: it shivers all that time, long enough
  * to see it and hop off. A pad is under for at least 0.7 s, so tenths of a second catch it. */
-export const padSoon=(row,pad,t)=>row.kind==='sink'&&!padUnder(row,pad,t)&&[1,2,3,4,5,6,7,8].some(i=>padUnder(row,pad,t+i*HOP.warn/8));
+export const padSoon=(row,pad,t)=>pad.omega>0&&!padUnder(row,pad,t)&&[1,2,3,4,5,6,7,8].some(i=>padUnder(row,pad,t+i*HOP.warn/8));
+
+/** Whether a hop from x reaches the pad at time t: some of it within a hop, and in sight. */
+export const padReach=(row,pad,x,t)=>{const px=padX(row,pad,t);return Math.max(0,Math.abs(px-x)-pad.w/2)<=HOP.reach+HOP.near&&px+pad.w/2>HOP.edge+8&&px-pad.w/2<HOP.width-HOP.edge-8;};
 
 export class HopRun{
   constructor(seed,{start=0}={}){
@@ -34,20 +39,27 @@ export class HopRun{
   addRow(n){
     const r=this.rng,d=hopDifficulty(n);
     if(n===this.base||n-this.lastBank>=Math.round(lerp(7,16,d))){this.lastBank=n;this.rows.push({n,kind:'bank',dir:0,speed:0,pads:[]});return;}
-    const roll=r();const kind=d>.2&&roll<lerp(0,.22,d)?'sink':roll>lerp(.62,.7,d)?'log':'lily';
-    const dir=r()<.75?-this.lastDir:this.lastDir;this.lastDir=dir;
-    const speed=lerp(28,92,d)*(.75+r()*.5);
-    // Pads round the ring the river turns on, never a gap wider than a hop can cross.
-    const pads=[],maxGap=HOP.reach*2-40;let at=r()*60;
+    const roll=r();const kind=d>.2&&roll<lerp(0,.22,d)?'sink':roll>lerp(.6,.72,d)?'log':'lily';
+    // Each row the other way from the last, so pads in the next row are always coming towards
+    // Galgan's: a wait for one to come into reach is never long, but it is a wait.
+    const dir=-this.lastDir;this.lastDir=dir;
+    const speed=lerp(30,85,d)*(.8+r()*.4);
+    // In a diving row only some pads dive, paler than the rest: there is always a steady one.
+    const dives=()=>kind==='sink'&&r()<lerp(.35,.55,d);
+    // Gaps wider than a hop reaches, so there is not always somewhere to go: the timing is the
+    // game. Never so wide that the wait is longer than the pads take to close it.
+    const pads=[],window=2*(HOP.reach+HOP.near),maxGap=window+lerp(60,130,d);let at=r()*60;
     while(true){
-      const w=kind==='log'?lerp(150,92,d)*(.85+r()*.3):lerp(58,42,d)*(.9+r()*.2);
-      const gap=Math.min(maxGap,(kind==='log'?lerp(40,130,d):lerp(26,108,d))*(.6+r()*.8));
+      // Diving pads come close together, so when one shivers there is always a neighbour to hop to.
+      const w=kind==='log'?lerp(150,95,d)*(.85+r()*.3):lerp(54,40,d)*(.9+r()*.2);
+      const gap=kind==='sink'?lerp(20,44,r()):Math.min(maxGap,(kind==='log'?lerp(110,220,d):lerp(90,200,d))*(.7+r()*.6));
       if(at+w+gap>RING){break;}
-      pads.push({x0:at+w/2,w,omega:kind==='sink'?1.4+r()*.8:0,phase:r()*Math.PI*2});at+=w+gap;
+      pads.push({x0:at+w/2,w,omega:dives()?1.4+r()*.8:0,phase:r()*Math.PI*2});at+=w+gap;
     }
     // Close the ring: the last gap, back round to the first pad, is kept narrow too.
     const first=pads[0].x0-pads[0].w/2,last=pads.at(-1),tail=RING-(last.x0+last.w/2)+first;
-    if(tail>maxGap)pads.push({x0:(last.x0+last.w/2+RING+first)/2,w:Math.min(kind==='log'?100:48,tail-20),omega:kind==='sink'?1.4+r()*.8:0,phase:r()*Math.PI*2});
+    if(tail>maxGap)pads.push({x0:(last.x0+last.w/2+RING+first)/2,w:Math.min(kind==='log'?100:46,tail-20),omega:dives()?1.4+r()*.8:0,phase:r()*Math.PI*2});
+    if(pads.every(p=>p.omega))pads[0].omega=0;
     this.rows.push({n,kind,dir,speed,pads});
   }
   /** The pad under x in a row at time t, within `near` of its edge, or null. A diving one

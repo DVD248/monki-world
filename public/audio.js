@@ -163,6 +163,7 @@ export class Sounds{
         case 'splash':this.hiss(c,{dur:.38,peak:.12,from:1900,to:300,q:.4});this.blip(c,{freq:w(320),to:110,type:'sine',dur:.16,peak:.1});break;
         case 'land':  this.blip(c,{freq:w(150),to:80,type:'sine',dur:.1,peak:.15});this.hiss(c,{dur:.05,peak:.05,from:1200,to:400});break;
         case 'charge':this.blip(c,{freq:w(220),to:w(330),type:'triangle',dur:.12,peak:.07});break;
+        case 'tick':  this.blip(c,{freq:w(440*pitch,.02),to:w(470*pitch,.02),type:'triangle',dur:.035,peak:.05});break;
         case 'match': this.blip(c,{freq:w(520*pitch),to:w(780*pitch),type:'triangle',dur:.09,peak:.13});this.hiss(c,{dur:.06,peak:.04,from:3000,to:1400});break;
         case 'shuffle':this.hiss(c,{dur:.4,peak:.08,from:600,to:3000,q:.5});break;
         case 'fuel':  this.notes(c,[587,880,1175],{step:.06,dur:.14,peak:.11});break;

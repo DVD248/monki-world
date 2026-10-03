@@ -45,6 +45,15 @@ function climb(seed,goal){
   return game.metres;
 }
 
+test('the first clouds are close together and honest, the spread widening with height',()=>{
+  // Early on a next cloud used to be anywhere a perfect thumb could reach, and the first slip
+  // came in the first half minute; now it starts within comfortable reach and widens later.
+  let early=0,late=0,ne=0,nl=0;
+  for(const seed of SEEDS){const course=new JumpCourse(seed);course.extend(1200*JUMP.metre);const safe=spine(course);
+    for(let i=1;i<safe.length;i++){const a=safe[i-1],b=safe[i],dx=Math.abs(b.x-a.x)/Math.max(1,jumpReach(b.y-a.y));if(b.y/JUMP.metre<60){early=Math.max(early,dx);ne++;}else if(b.y/JUMP.metre>800){late=Math.max(late,dx);nl++;}}
+    assert.ok(course.platforms.every(p=>p.type!=='fake'||p.y/JUMP.metre>70),`${seed}: no rain clouds in the first 70 m`);}
+  assert.ok(ne>20&&nl>20);assert.ok(early<.5,`early spread ${early.toFixed(2)} of a jump`);assert.ok(late>early+.1,`late spread ${late.toFixed(2)}`);
+});
 test('a steady player climbs past the point where it stops getting harder',()=>{
   const heights=SEEDS.slice(0,5).map(seed=>climb(seed,1200));
   assert.ok(heights.filter(h=>h>=1200).length>=4,`bot heights: ${heights.join(', ')}`);
@@ -64,8 +73,11 @@ test('birds, balloons and springs turn up; a bird is a bounce from above and a k
   const hit=alone(new SkyJump('hit'),[{...bird,gone:false}],[{id:1,x:200,y:340,w:80,type:'cloud',amp:0}]);
   Object.assign(hit.monki,{x:200,y:370,vy:400});hit.step(1/60,200);
   assert.equal(hit.state,'bonk');assert.equal(hit.course.birds[0].gone,true,'the pigeon flies off');
-  for(let i=0;i<120&&hit.state!=='play';i++)hit.step(1/60,200);
+  for(let i=0;i<120&&!hit.events.some(e=>e.type==='bounce');i++)hit.step(1/60,200);
   assert.equal(hit.state,'play');assert.ok(hit.events.some(e=>e.type==='bounce'&&e.platform===1),'lands on the cloud below');
+  // The tumble is short: his hands are back before he has fallen to the cloud he left, to steer for it.
+  const tumble=alone(new SkyJump('tumble'),[{...bird,gone:false}],[]);Object.assign(tumble.monki,{x:200,y:370,vy:400});tumble.step(1/60,200);
+  let t=0;while(tumble.state==='bonk'&&t<1){tumble.step(1/60,200);t+=1/60;}assert.ok(t<.2,`${t.toFixed(2)} s without steering`);
   // With nothing underneath, the knock is the end of the run.
   const fall=alone(new SkyJump('fall'),[{...bird,gone:false}],[]);fall.cam=300;
   Object.assign(fall.monki,{x:200,y:370,vy:400});

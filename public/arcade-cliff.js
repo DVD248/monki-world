@@ -1,5 +1,5 @@
 import {character,rect,poly,ellipse} from './art.js';
-import {CliffRun,CLIFF,CLIFF_ZONES} from './shared/arcade-cliff.js';
+import {CliffRun,CLIFF,CLIFF_ZONES,cliffLaunch} from './shared/arcade-cliff.js';
 import {W,H,along,noise,clamp,mix,stars} from './arcade-kit.js';
 
 // Cliff Jump: rocks standing in the sea off the end of the garden, through an evening and a
@@ -41,7 +41,28 @@ function draw(g,c){
   // Waves over the feet of the rocks.
   for(let x=-((t*18+cam*.5)%32);x<W;x+=32){rect(c,x,CLIFF.water+2,18,2,mix(sea,'#ffffff',.3));rect(c,x+14,CLIFF.water+14,12,2,mix(sea,'#ffffff',.18));}
   sernik(g,c,L,t,cam);
-  if(L.state==='charge'){const x=L.x-cam,y=sy(L.y)-44;rect(c,x-22,y,44,6,'rgba(38,48,36,.4)');rect(c,x-21,y+1,42*L.charge,4,L.charge>=1?'#d8847a':'#e4c87a');}
+  meter(g,c,L,cam,t);
+}
+/** The power meter over Sernik's head, with a mark where the last leap was let go: a person
+ * judges the next one from the last ("a bit more than that"). It ticks as it fills, faster and
+ * higher, so the hold can be timed by ear as well. On the first two rocks of a run, a dotted arc
+ * shows where the leap would come down. */
+function meter(g,c,L,cam,t){
+  if(L.state!=='stand'&&L.state!=='charge'||L.over)return;
+  const x=L.x-cam,y=sy(L.y)-62,w=64,charge=L.state==='charge'?L.charge:0;
+  c.globalAlpha=L.state==='charge'?1:.55;
+  rect(c,x-w/2-2,y-2,w+4,12,'rgba(38,48,36,.45)');rect(c,x-w/2,y,w*charge,8,charge>=1?'#d8847a':'#e4c87a');
+  for(let k=1;k<4;k++)rect(c,x-w/2+w*k/4,y,1,8,'rgba(255,253,243,.35)');
+  if(L.lastCharge!=null){const lx=x-w/2+w*L.lastCharge;rect(c,lx-1,y-5,2,18,'#fffdf3');}
+  c.globalAlpha=1;
+  if(L.state==='charge'){
+    const n=Math.floor(charge*10);if(n>(g.ticks??-1)){g.ticks=n;if(n>0)g.sound('tick',.8+charge*.7);}
+    if(L.count-L.start<2&&!g.reduced){
+      const {vx,vy}=cliffLaunch(charge);c.globalAlpha=.75;
+      for(let k=1;k<40;k++){const tt=k*.035,px=L.x+vx*tt,py=L.y+vy*tt-CLIFF.gravity*tt*tt/2;if(py<0)break;
+        const hit=L.rocks.find(r=>r!==L.on&&px>=r.x&&px<=r.x+r.w&&py<=r.h);if(hit)break;rect(c,px-cam-1.5,sy(py)-1.5,3,3,'#fffdf3');}
+      c.globalAlpha=1;}
+  }else g.ticks=-1;
 }
 function sernik(g,c,L,t,cam){
   const x=L.x-cam,y=sy(L.y),squash=L.state==='charge'?L.charge*(g.reduced?.4:1):clamp(1-(t-(g.landShown??-9))*6,0,1)*.6;

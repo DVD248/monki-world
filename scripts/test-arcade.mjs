@@ -139,6 +139,14 @@ try{
   await page.waitForFunction(()=>window.__game.logic.monki.vy<0);await page.waitForFunction(()=>window.__game.logic.monki.vy>0);
   await finger(page,40);await delay(700);
   assert.ok(await game(page,()=>window.__game.logic.monki.x)<120,'Monki follows the finger');await page.mouse.up();
+  // A thumb slides instead: down anywhere, and he moves by as far as it goes (a little more), not to it.
+  {const r=await page.$eval('#arcade-canvas',c=>{const r=c.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height};});
+    const at=x=>r.left+x*r.width/400,y=r.top+560*r.height/600,before=await game(page,()=>window.__game.logic.monki.x);
+    await page.touchscreen.touchStart(at(250),y);await delay(150);
+    assert.ok(Math.abs(await game(page,()=>window.__game.logic.monki.x)-before)<25,'a thumb going down does not pull him over to it');
+    for(let k=1;k<=6;k++){await page.touchscreen.touchMove(at(250+k*20),y);await delay(30);}await delay(500);
+    const after=await game(page,()=>window.__game.logic.monki.x);await page.touchscreen.touchEnd();
+    assert.ok(after-before>150&&after<=388,`slid 120 to the right, Monki went ${Math.round(after-before)} from ${Math.round(before)}`);}
   // After the end the clouds and pigeons keep moving, and the panel follows.
   await end(page,{wait:false});const c1=await game(page,()=>window.__game.clock());await delay(250);
   assert.ok(await game(page,()=>window.__game.clock())>c1,'the sky keeps moving after a fall');

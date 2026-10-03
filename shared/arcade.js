@@ -7,12 +7,12 @@
 // Pure and deterministic: no DOM, and the same seed gives the same run on any phone.
 
 export const ARCADE_GAMES={
-  jump:{id:'jump',title:'Sky Jump',star:'monki',one:'metre',many:'metres',short:'m',news:25,hint:'Slide your finger. Monki follows.',did:'got Monki {n} up in Sky Jump'},
+  jump:{id:'jump',title:'Sky Jump',star:'monki',one:'metre',many:'metres',short:'m',news:25,hint:'Slide a finger anywhere. Monki follows.',did:'got Monki {n} up in Sky Jump'},
   drop:{id:'drop',title:'Food Drop',star:'sernik',one:'snack',many:'snacks',short:'',news:15,hint:'Slide Sernik under the food. Not the frogs.',did:'fed Sernik {n} in Food Drop'},
-  drive:{id:'drive',title:'Hill Drive',star:'galgan',one:'metre',many:'metres',short:'m',news:250,hint:'Hold the right side to drive, the left to brake.',did:'drove Galgan {n} in Hill Drive'},
+  drive:{id:'drive',title:'Hill Drive',star:'galgan',one:'metre',many:'metres',short:'m',news:250,hint:'Right to drive. In the air, gas tips you back.',did:'drove Galgan {n} in Hill Drive'},
   jet:{id:'jet',title:'Jet Monki',star:'monki',one:'chimney',many:'chimneys',short:'',news:10,hint:'Tap to fly. Mind the chimneys and the clouds.',did:'flew Monki past {n} in Jet Monki'},
-  cliff:{id:'cliff',title:'Cliff Jump',star:'sernik',one:'point',many:'points',short:'',news:20,hint:'Hold to crouch. Let go to jump.',did:'got Sernik {n} in Cliff Jump'},
-  hop:{id:'hop',title:'Water Hop',star:'galgan',one:'hop',many:'hops',short:'',news:25,hint:'Tap the lily pad to hop onto it.',did:'got Galgan {n} up the river in Water Hop'},
+  cliff:{id:'cliff',title:'Cliff Jump',star:'sernik',one:'point',many:'points',short:'',news:20,hint:'Hold longer, jump further. Aim for the flower.',did:'got Sernik {n} in Cliff Jump'},
+  hop:{id:'hop',title:'Water Hop',star:'galgan',one:'hop',many:'hops',short:'',news:25,hint:'Tap a ringed pad to hop. Wait for one.',did:'got Galgan {n} up the river in Water Hop'},
   fall:{id:'fall',title:'Fall Down',star:'monki',one:'floor',many:'floors',short:'',news:20,hint:'Slide your finger. Find the gaps.',did:'took Monki down {n} in Fall Down'},
   match:{id:'match',title:'Match Tap',star:'sernik',one:'snack',many:'snacks',short:'',news:150,hint:'Tap three or more the same. Misses cost time.',did:'matched {n} in Match Tap'},
   stack:{id:'stack',title:'Pancake Stack',star:'galgan',one:'pancake',many:'pancakes',short:'',news:30,hint:'Tap to drop the pancake. Line it up.',did:'stacked {n} for Galgan in Pancake Stack'},
@@ -42,7 +42,7 @@ export function zoneAt(zones,value){let at=0;zones.forEach(([from],i)=>{if(value
 export const JUMP={width:400,height:600,gravity:1500,bounce:720,spring:1.6,speed:470,metre:20,feet:8,balloonLift:820,balloonTime:1.6,body:34};
 export const JUMP_ZONES=[[0,'The garden'],[60,'The roof'],[150,'The clouds'],[300,'Birds'],[450,'Evening'],[600,'Night'],[800,'Space'],[1000,'The moon']];
 export const jumpApex=(v=JUMP.bounce)=>v*v/(2*JUMP.gravity);
-export const jumpDifficulty=metres=>ease(metres,320);
+export const jumpDifficulty=metres=>ease(metres,360);
 /** How far sideways Monki can travel between a bounce and landing `rise` px higher on the way down. */
 export function jumpReach(rise){const {gravity:g,bounce:v,speed}=JUMP,d=v*v-2*g*rise;return d<0?0:speed*(v+Math.sqrt(d))/g;}
 export const platformX=(p,t)=>p.amp?p.x+p.amp*Math.sin(p.omega*t+p.phase):p.x;
@@ -50,7 +50,7 @@ export const birdX=(b,t)=>b.x+b.amp*Math.sin(b.omega*t+b.phase);
 
 /** The clouds. A spine of safe ones, each reachable from the one before, with decoys and
  * spare clouds around it. Gaps, speed and trickery grow with height and level off at
- * 86% of a jump, so the very top is hard, never impossible. */
+ * 82% of a jump, so the very top is hard, never impossible. */
 export class JumpCourse{
   constructor(seed,{birds=true}={}){
     this.rng=seeded(seed);this.birdsOn=birds;this.serial=0;
@@ -61,17 +61,17 @@ export class JumpCourse{
   prune(below){this.platforms=this.platforms.filter(p=>p.y>=below||p===this.last);this.birds=this.birds.filter(b=>b.y>=below);}
   step(){
     const r=this.rng,prev=this.last,d=jumpDifficulty(prev.y/JUMP.metre);
-    const rise=Math.min(jumpApex()*.86,lerp(40,96,d)+r()*lerp(30,44,d));
-    const w=Math.round(lerp(84,50,d)*(.9+r()*.2)),roll=r();
+    const rise=Math.min(jumpApex()*.82,lerp(40,92,d)+r()*lerp(30,42,d));
+    const w=Math.round(lerp(84,56,d)*(.9+r()*.2)),roll=r();
     let type='cloud';
     if(d>.08&&roll<lerp(.05,.42,d))type='moving';
     else if(d>.15&&roll<lerp(.05,.42,d)+lerp(0,.22,d))type='fragile';
     let amp=type==='moving'?lerp(30,105,d)*(.6+r()*.4):0;
-    const speed=lerp(55,150,d)*(.7+r()*.3),at=r();
+    const speed=lerp(55,135,d)*(.7+r()*.3),at=r();
     const place=()=>{
       // In from the walls far enough that the whole swing stays on screen, and never further
       // sideways from the last safe cloud than Monki can get, with room to spare.
-      const margin=w/2+6+amp,reach=Math.max(0,jumpReach(rise)*.72-amp-(prev.amp||0));
+      const margin=w/2+6+amp,reach=Math.max(0,jumpReach(rise)*lerp(.42,.72,d)-amp-(prev.amp||0));
       const lo=Math.max(margin,prev.x-reach),hi=Math.min(JUMP.width-margin,prev.x+reach);
       return lo<=hi?lerp(lo,hi,at):null;
     };
@@ -86,7 +86,7 @@ export class JumpCourse{
     // always somewhere to bounce while it goes past, and high enough above that cloud that
     // bouncing on it does not reach the bird: only jumping up into it does.
     let bird=null;
-    if(this.birdsOn&&metres>150&&metres-this.lastBird>25&&rise>=90&&prev.type!=='fragile'&&r()<lerp(0,.12,d)){
+    if(this.birdsOn&&metres>150&&metres-this.lastBird>25&&rise>=90&&prev.type!=='fragile'&&r()<lerp(0,.09,d)){
       this.lastBird=metres;const span=120+r()*40;
       bird={id:this.serial++,x:200,y:prev.y+Math.max(JUMP.body+24,rise*.55),amp:span,omega:lerp(60,130,d)*(.8+r()*.4)/span,phase:r()*Math.PI*2,gone:false};
       this.birds.push(bird);
@@ -95,7 +95,7 @@ export class JumpCourse{
     // None in a bird's flight line, where standing on it would put Monki's head in the way.
     const extras=[];
     if(r()<lerp(.85,.12,d))extras.push('cloud');
-    if(d>.12&&r()<lerp(.1,.55,d))extras.push('fake');
+    if(d>.2&&r()<lerp(.06,.32,d))extras.push('fake');
     if(rise>=50)for(const kind of extras){
       const ew=Math.round(lerp(76,52,d)),ex=lerp(ew/2+6,JUMP.width-ew/2-6,r()),ey=prev.y+18+r()*(rise-36);
       if(bird&&ey>bird.y-JUMP.body-15&&ey<bird.y+17)continue;
@@ -130,7 +130,8 @@ export class SkyJump{
   step(dt,target=null,dir=0){
     if(this.over)return;
     dt=Math.min(dt,1/30);this.time+=dt;const m=this.monki;
-    // Knocked by a pigeon he tumbles for a moment without steering, then has his hands back.
+    // Knocked by a pigeon he tumbles for a moment without steering, then has his hands back in
+    // time to steer onto a cloud underneath: a lost bounce, not a fall.
     if(this.state==='bonk'){m.vx*=Math.pow(.2,dt);this.bonk-=dt;if(this.bonk<=0)this.state='play';}
     else{
       const want=dir?dir*JUMP.speed:target==null?0:clamp((target-m.x)*9,-JUMP.speed,JUMP.speed);
@@ -194,7 +195,7 @@ export class SkyJump{
       // down: a lost bounce, and the end only if nothing is underneath to catch him. As the
       // end it stopped careful runs well short of the top, which was meant never to happen.
       else if(m.vy<0){b.gone=true;m.vy=JUMP.bounce*1.1;m.squash=1;this.emit('stomp',bx,b.y);}
-      else{b.gone=true;this.state='bonk';this.bonk=.3;m.vy=Math.min(m.vy,0);this.emit('hit',bx,b.y);return;}
+      else{b.gone=true;this.state='bonk';this.bonk=.12;m.vy=Math.min(m.vy,0);m.vx*=.6;this.emit('hit',bx,b.y);return;}
     }
   }
 }

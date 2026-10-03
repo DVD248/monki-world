@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import {ARCADE_GAMES,bragLine,zoneAt} from '../shared/arcade.js';
 import {DriveRun,DRIVE,DRIVE_ZONES,Terrain,driveDifficulty,driveSlope,driveCanGap} from '../shared/arcade-drive.js';
 import {JetRun,JET,JET_ZONES,gapY} from '../shared/arcade-jet.js';
-import {CliffRun,CLIFF,CLIFF_ZONES,cliffCharge,cliffHeight} from '../shared/arcade-cliff.js';
-import {HopRun,HOP,HOP_ZONES,padX,padUnder,padSoon} from '../shared/arcade-hop.js';
-import {FallRun,FALL,FALL_ZONES} from '../shared/arcade-fall.js';
-import {MatchRun,MATCH,MATCH_ZONES,matchBonus} from '../shared/arcade-match.js';
+import {CliffRun,CLIFF,CLIFF_ZONES,cliffCharge,cliffHeight,cliffFlat} from '../shared/arcade-cliff.js';
+import {HopRun,HOP,HOP_ZONES,padX,padUnder,padSoon,padReach,hopDifficulty} from '../shared/arcade-hop.js';
+import {FallRun,FALL,FALL_ZONES,fallRun,fallRise,fallDifficulty} from '../shared/arcade-fall.js';
+import {MatchRun,MATCH,MATCH_ZONES,matchBonus,matchPace} from '../shared/arcade-match.js';
 import {StackRun,STACK,STACK_ZONES} from '../shared/arcade-stack.js';
 import {CandleRun,CANDLES,CANDLES_ZONES,cakeFor,apart} from '../shared/arcade-candles.js';
 import {SnakeRun,SNAKE,SNAKE_ZONES,DIRS} from '../shared/arcade-snake.js';
@@ -72,6 +72,17 @@ test('Fall Down: at the bottom of the curve a slow finger is caught by the roots
   let caught=0;for(const seed of SEEDS){const g=run(new FallRun(seed,{start:200}),fallBot(.4),{seconds:240});if(g.over)caught++;}
   assert.ok(caught>=6,`a 0.4 s finger was caught in ${caught} of 8`);
 });
+test('Fall Down: Monki starts slow and gets quicker, and the first floors are already a race',()=>{
+  // It used to be the other way round: Monki at full speed from the first floor and the floors
+  // barely moving, so the first minute was a stroll.
+  assert.ok(fallRun(0)<fallRun(1)*.45,'slow to begin with');assert.ok(fallRise(0)>=100,'the floors move from the start');
+  const top=start=>{const g=new FallRun('quick',{start});let most=0;run(g,()=>({target:FALL.width}),{seconds:1.2,until:g=>{most=Math.max(most,Math.abs(g.vx));return false;}});return most;};
+  const early=top(0),deep=top(300);
+  assert.ok(Math.abs(early-fallRun(0))<5&&deep>early*1.8,`${early.toFixed(0)} px/s at the top, ${deep.toFixed(0)} deep down`);
+  // Mid-run, a person's finger a quarter of a second behind is kept busy: Monki runs flat out a good part of the time.
+  const busy=new FallRun('busy');let flat=0,n=0;run(busy,fallBot(.25),{seconds:60,until:g=>{const s=Math.abs(g.vx)/fallRun(fallDifficulty(g.score));if(s>.85)flat++;n++;return false;}});
+  assert.ok(flat/n>.25,`running flat out ${(100*flat/n).toFixed(0)}% of the first minute`);
+});
 test('Fall Down: the bottom of the screen holds him, and every hole fits him',()=>{
   const g=new FallRun('bottom');run(g,g=>({target:g.floors[0].hole}),{seconds:20});
   assert.ok(g.y<=FALL.floor+.01);
@@ -94,6 +105,15 @@ test('Cliff Jump: a steady hand goes on for ever; a rough one falls in at the to
   let wet=0;for(const seed of SEEDS){const g=run(new CliffRun(seed,{start:120}),cliffBot(.14),{seconds:3600,until:g=>g.count>=420});if(g.over)wet++;}
   assert.ok(wet>=6,`a ±14% judge of distance fell in ${wet} of 8 times`);
 });
+test('Cliff Jump: the hold is gentle enough to judge, and every rock is a good part of a second wide',()=>{
+  // It used to be 290 px of leap for each second held, and a rock could be an eighth of a second.
+  const perSecond=(cliffFlat(1)-cliffFlat(0))/CLIFF.charge;assert.ok(perSecond<=200,`${perSecond.toFixed(0)} px a second`);
+  const g=new CliffRun('wide',{start:400});while(g.rocks.length<300)g.addRock();
+  assert.ok(g.rocks.slice(1).every(r=>r.w/perSecond>=.15),'narrowest rock in seconds held: '+Math.min(...g.rocks.slice(1).map(r=>r.w/perSecond)).toFixed(2));
+  assert.ok(CLIFF.perfect/perSecond>=.03,'a Perfect is a few hundredths of a second either way');
+  // The last leap is kept, for the mark on the meter.
+  const h=new CliffRun('mark');h.step(STEP,{held:true});for(let i=0;i<60;i++)h.step(STEP,{held:true});h.step(STEP,{held:false});assert.ok(Math.abs(h.lastCharge-61*STEP/CLIFF.charge)<.02);
+});
 test('Cliff Jump: a Perfect is worth two, then three in a row; a hop on the spot is worth nothing',()=>{
   const g=run(new CliffRun('perfect'),cliffBot(),{until:g=>g.count>=3});assert.equal(g.score,2+3+3);
   const same=new CliffRun('same');same.step(STEP,{held:true});same.step(STEP,{held:false});run(same,()=>({held:false}),{until:g=>g.state==='stand'});
@@ -114,10 +134,22 @@ function hopChoose(g,lead=.12){
   return best;
 }
 const hopBot=(think=.15)=>{let wait=think;return g=>{if(g.hop)return {taps:[]};wait-=STEP;if(wait>0)return {taps:[]};const c=hopChoose(g,think/2);if(c)wait=think;return {taps:c?[c]:[]};};};
-test('Water Hop: no gap in any row is wider than a hop, all the way round',()=>{
+test('Water Hop: pads are far enough apart that there is waiting, never so far that the wait is long',()=>{
   const g=new HopRun('gaps');for(let n=1;n<600;n++)g.addRow(g.rows.at(-1).n+1);
+  const window=2*(HOP.reach+HOP.near);
   for(const row of g.rows){if(row.kind==='bank')continue;const edges=row.pads.map(p=>[p.x0-p.w/2,p.x0+p.w/2]).sort((a,b)=>a[0]-b[0]);
-    for(let i=0;i<edges.length;i++){const next=i+1<edges.length?edges[i+1][0]:edges[0][0]+HOP.width+HOP.margin*2;assert.ok(next-edges[i][1]<=HOP.reach*2-40+1e-9,`row ${row.n}`);}}
+    for(let i=0;i<edges.length;i++){const next=i+1<edges.length?edges[i+1][0]:edges[0][0]+HOP.width+HOP.margin*2;assert.ok(next-edges[i][1]<=window+130+1e-9,`row ${row.n}`);}
+    // Each row the other way from the one before, so the pads ahead are always coming.
+    const prev=g.rowAt(row.n-1);if(prev&&prev.kind!=='bank')assert.equal(row.dir,-prev.dir,`row ${row.n}`);
+    if(row.kind==='sink')assert.ok(row.pads.some(p=>!p.omega),`row ${row.n} has a steady pad`);}
+  // It used to be that from anywhere, at any moment, two pads or more were in reach.
+  let options=0,none=0,k=0;
+  for(const row of g.rows.filter(r=>r.kind!=='bank'&&r.n>60))for(let i=0;i<20;i++){const n=row.pads.filter(p=>padReach(row,p,60+(i*37)%280,i*.41)).length;options+=n;if(!n)none++;k++;}
+  assert.ok(options/k<1.3&&options/k>.7,`pads in reach on average: ${(options/k).toFixed(2)}`);assert.ok(none/k>.05,`nothing in reach ${(100*none/k).toFixed(0)}% of the time`);
+});
+test('Water Hop: tapping ahead without looking ends in the river',()=>{
+  for(const seed of SEEDS.slice(0,4)){let wait=0;const g=run(new HopRun(seed),g=>{wait-=STEP;if(wait>0||g.hop)return {taps:[]};wait=.15;return {taps:[{x:g.x,y:HOP.base-((g.row+1)*HOP.row-g.cam)}]};},{seconds:60});
+    assert.ok(g.over&&g.time<30,`${seed}: lasted ${g.time.toFixed(0)} s`);}
 });
 test('Water Hop: a quick player crosses a long way; carried off the side, into the water he goes',()=>{
   const far=SEEDS.map(seed=>run(new HopRun(seed),hopBot(),{seconds:900}).score);
@@ -150,14 +182,14 @@ test('Match Tap: a settled shelf always has something to tap',()=>{
 });
 test('Match Tap: quick hands keep the clock going; slow ones run out',()=>{
   for(const seed of SEEDS.slice(0,4)){assert.ok(!run(new MatchRun(seed),matchBot(.5),{seconds:300}).over,`${seed} at 0.5 s a move`);}
-  for(const seed of SEEDS.slice(0,4)){const g=run(new MatchRun(seed),matchBot(1.5),{seconds:600});assert.ok(g.over,`${seed} at 1.5 s a move`);assert.ok(g.score>150);}
+  for(const seed of SEEDS.slice(0,4)){const g=run(new MatchRun(seed),matchBot(1.5),{seconds:600});assert.ok(g.over,`${seed} at 1.5 s a move`);assert.ok(g.score>60&&g.time>20,`${seed}: a slow run is still a run, ${g.score} in ${g.time.toFixed(0)} s`);}
 });
 test('Match Tap: tapping anywhere runs the clock out; a miss costs a second once it runs',()=>{
   // Five taps a second at random, as a finger mashing the shelf would. It used to keep the
   // clock going nearly as well as looking did.
   const mash=seed=>{const r=seeded('mash'+seed);let wait=0;return ()=>{wait-=STEP;if(wait>0)return {taps:[]};wait=.2;return {taps:[{x:MATCH.x0+r()*MATCH.cols*MATCH.cell,y:MATCH.y0+r()*MATCH.rows*MATCH.cell}]};};};
   for(const seed of SEEDS.slice(0,4)){
-    const random=run(new MatchRun(seed),mash(seed),{seconds:120}),looking=run(new MatchRun(seed),matchBot(1),{seconds:300});
+    const random=run(new MatchRun(seed),mash(seed),{seconds:120}),looking=run(new MatchRun(seed),matchBot(.7),{seconds:300});
     assert.ok(random.over&&random.time<30,`${seed}: mashing lasted ${random.time.toFixed(0)} s`);
     assert.ok(looking.time>random.time*3,`${seed}: ${looking.time.toFixed(0)} s looking, ${random.time.toFixed(0)} s mashing`);
   }
@@ -166,6 +198,16 @@ test('Match Tap: tapping anywhere runs the clock out; a miss costs a second once
   let lone=null;for(let c=0;c<MATCH.cols&&!lone;c++)for(let r=0;r<MATCH.rows&&!lone;r++)if(g.grid[c][r].kind!=='star'&&g.group(c,r).length<MATCH.min)lone=MatchRun.centre(c,r);
   const before=g.clock;g.step(STEP,{taps:[lone]});assert.ok(Math.abs(before-g.clock-MATCH.miss)<.05,`${(before-g.clock).toFixed(2)} s`);
   assert.ok(matchBonus(3,0)<1&&matchBonus(5,0)>2*matchBonus(4,0)*.8,'three is worth little, five a lot');
+});
+test('Match Tap: quick hands pay, smoothly: the quicker the matches come, the longer the run',()=>{
+  // A hard window for a chain made a cliff: just quick enough lasted for ever, a little slower
+  // a minute. The pace of the last few matches sets the time back instead, from ×1 to ×2.
+  assert.equal(matchPace(MATCH.paceSlow),1);assert.equal(matchPace(5),1);assert.equal(matchPace(.1),MATCH.paceMax);
+  for(let p=.4;p<1.4;p+=.1)assert.ok(matchPace(p)>=matchPace(p+.1));
+  const med=a=>[...a].sort((x,y)=>x-y)[Math.floor(a.length/2)];
+  const lasts=think=>med(SEEDS.slice(0,6).map(seed=>run(new MatchRun(seed),matchBot(think),{seconds:400}).time));
+  const slow=lasts(1.5),steady=lasts(1),quick=lasts(.75);
+  assert.ok(slow<120&&steady>slow*1.3&&quick>steady*1.3,`a match every 1.5 s lasts ${slow.toFixed(0)} s, every 1 s ${steady.toFixed(0)}, every 0.75 s ${quick.toFixed(0)}`);
 });
 test('Match Tap: two do nothing, seven leave a star, and a star takes its row and column',()=>{
   const g=new MatchRun('rules');run(g,()=>({taps:[]}),{seconds:3});
@@ -344,39 +386,56 @@ test('Snack Merge: swiping any old way fills the tray soon; a tidy player makes 
 });
 
 // ---------------------------------------------------------------- Hill Drive
-/** Pedal down; off when the nose comes up; in the air, lines up with the ground ahead. */
-function driveBot(g){
+/** Drives like a steady person: decides every tenth of a second and acts a little later, a
+ * press lasts a moment, pedal down on the ground unless the nose is coming up, and in the air
+ * a tap to line the car up with where it will come down. `creep` keeps it under that speed. */
+const driveBot=({creep=0}={})=>{const q=[];let next=0,cur={},until=0;return g=>{
   if(g.state==='ready')return {right:true};
-  const ground=Math.atan(g.ground.slope(g.x)),rel=g.a-ground;
-  if(g.contact.some(Boolean))return rel>.45?{right:false,left:rel>.7}:{right:true};
-  const target=Math.atan(g.ground.slope(g.x+g.vx*.35));
-  return g.a>target+.15?{left:true}:g.a<target-.15?{right:true}:{};
-}
-test('Hill Drive: no hill is steeper than the car can climb from a standstill',()=>{
+  if(g.time>=next){next=g.time+.1;let want;const ground=Math.atan(g.ground.slope(g.x)),speed=Math.hypot(g.vx,g.vy);
+    if(g.contact.some(Boolean)){const rel=g.a-ground;want=rel>.7?{left:true}:rel>.4?{}:rel<-.35?{right:true}:creep&&speed>creep?(speed>creep+60?{left:true}:{}):{right:true};}
+    else{let x=g.x,y=g.y,vy=g.vy;for(let t=0;t<2&&y-DRIVE.radius-DRIVE.drop>g.ground.h(x);t+=.02){x+=g.vx*.02;vy-=DRIVE.gravity*.02;y+=vy*.02;}
+      const e=g.a+g.w*.22-Math.atan(g.ground.slope(x));want=e>.12?{left:true}:e<-.12?{right:true}:{};}
+    q.push([g.time+.12,want]);}
+  while(q.length&&q[0][0]<=g.time){const w=q.shift()[1];if(w.left||w.right){cur=w;until=g.time+.1;}else if(g.time>=until)cur=w;}
+  return cur;};};
+const ends=g=>g.events.find(e=>['crash','empty','stuck'].includes(e.type))?.type;
+test('Hill Drive: no climb is steeper than the car can take from a standstill, nothing it comes down on is too steep to roll down',()=>{
   const t=new Terrain(seeded('hills'));t.extend(6000*DRIVE.metre);let steepest=0;
-  for(let i=1;i<t.heights.length;i++){const s=Math.abs(t.heights[i]-t.heights[i-1])/DRIVE.step,d=driveDifficulty(i*DRIVE.step/DRIVE.metre);steepest=Math.max(steepest,s);assert.ok(s<=driveSlope(d)+.25,`at ${Math.round(i*DRIVE.step/DRIVE.metre)} m: ${s.toFixed(2)}`);}
-  // The steepest there can be, ripple and all, from a standstill, pedal down: up it goes.
-  const ramp=new DriveRun('ramp');const slope=Math.max(steepest,driveSlope(1)+.12);ramp.ground.heights=ramp.ground.heights.map((_,i)=>Math.max(0,(i-12))*DRIVE.step*slope);ramp.ground.x=Infinity;
-  ramp.x=13*DRIVE.step;ramp.y=ramp.ground.h(ramp.x)+DRIVE.radius+DRIVE.drop;ramp.a=Math.atan(slope);
+  for(let i=1;i<t.heights.length;i++){const s=(t.heights[i]-t.heights[i-1])/DRIVE.step,d=driveDifficulty(i*DRIVE.step/DRIVE.metre),at=Math.round(i*DRIVE.step/DRIVE.metre);
+    if(s>0){steepest=Math.max(steepest,s);assert.ok(s<=driveSlope(d)+.25,`climb at ${at} m: ${s.toFixed(2)}`);}
+    else assert.ok(-s<=DRIVE.jump.steep+.01,`drop at ${at} m: ${s.toFixed(2)}`);}
+  assert.ok(t.hills.some(h=>h.kind==='ramp')&&t.hills.some(h=>h.kind==='bumps'),'jumps and bumps');
+  // The steepest climb there can be, ripple and all, from a standstill, pedal down: up it goes.
+  const ramp=new DriveRun('ramp');const slope=Math.max(steepest,driveSlope(1)+.12);ramp.ground.heights=ramp.ground.heights.map((_,i)=>Math.max(0,(i-24))*DRIVE.step*slope);ramp.ground.x=Infinity;
+  const from=40*DRIVE.step;ramp.x=from;ramp.y=ramp.ground.h(from)+(DRIVE.radius+DRIVE.drop)/Math.cos(Math.atan(slope));ramp.a=Math.atan(slope);
   run(ramp,g=>({right:Math.atan2(Math.sin(g.a),Math.cos(g.a))-Math.atan(slope)<.4}),{seconds:6});
-  assert.ok(!ramp.over&&ramp.x>13*DRIVE.step+300,`climbed ${Math.round(ramp.x-13*DRIVE.step)} px up a slope of ${slope.toFixed(2)}`);
+  assert.ok(!ramp.over&&ramp.x>from+300,`climbed ${Math.round(ramp.x-from)} px up a slope of ${slope.toFixed(2)}`);
 });
-test('Hill Drive: a careful driver gets a long way, and never for want of fuel',()=>{
-  const far=[];for(const seed of SEEDS){const g=run(new DriveRun(seed),driveBot,{seconds:360});far.push(g.score);assert.ok(!g.events.some(e=>e.type==='empty'),`${seed} ran dry`);}
-  assert.ok(far.filter(m=>m>=1000).length>=6,`metres: ${far.join(' ')}`);
-  // The cans: never further apart than a tank lasts at a gentle 9 m/s.
+test('Hill Drive: a steady driver goes a long way and never runs dry; a foot held down flips on an early jump',()=>{
+  const far=[];for(const seed of SEEDS){const g=run(new DriveRun(seed),driveBot(),{seconds:360});far.push(g.score);assert.notEqual(ends(g),'empty',`${seed} ran dry`);}
+  assert.ok(far.filter(m=>m>=3000).length>=6,`metres: ${far.join(' ')}`);
+  // It used to be the way to drive: the pedal held down all the way got as far as a careful driver.
+  for(const seed of SEEDS){const g=run(new DriveRun(seed),()=>({right:true}),{seconds:120});assert.equal(ends(g),'crash',seed);assert.ok(g.time<75,`${seed}: ${g.time.toFixed(0)} s`);}
+  // The cans: never further apart than a tank lasts at a steady 12 m/s, so crawling runs dry.
   const t=new Terrain(seeded('cans'));t.extend(8000*DRIVE.metre);
-  for(let i=1;i<t.cans.length;i++)assert.ok((t.cans[i].x-t.cans[i-1].x)/DRIVE.metre<=DRIVE.tank*9,`can ${i}`);
+  for(let i=1;i<t.cans.length;i++)assert.ok((t.cans[i].x-t.cans[i-1].x)/DRIVE.metre<=DRIVE.tank*12,`can ${i}`);
+  let dry=0;for(const seed of SEEDS.slice(0,4)){const g=run(new DriveRun(seed),driveBot({creep:170}),{seconds:900});if(ends(g)==='empty')dry++;}
+  assert.ok(dry>=3,`crawling at 8.5 m/s ran dry ${dry} times in 4`);
 });
-test('Hill Drive: the car waits for the pedal; tipped onto his head, Galgan is out',()=>{
+test('Hill Drive: the car waits for the pedal; tipped onto his head, Galgan is out; a flip fills the tank',()=>{
   const g=new DriveRun('wait');run(g,()=>({}),{seconds:5});assert.equal(g.state,'ready');assert.ok(!g.over);
   const flip=new DriveRun('flip');flip.state='play';flip.a=Math.PI;flip.y=flip.ground.h(flip.x)+40;run(flip,()=>({}),{seconds:3});
   assert.ok(flip.over);assert.ok(flip.events.some(e=>e.type==='crash'));
+  // High over flat ground, turning: a whole turn and down on the wheels is a flip, worth fuel.
+  let flipped=null;for(let w=6;w<=12&&!flipped;w+=.25){const f=new DriveRun('air');f.state='play';f.y=f.ground.h(f.x)+620;f.vx=0;f.w=w;f.fuel=.3;
+    run(f,()=>({}),{seconds:3,until:g=>g.events.some(e=>e.type==='land')});run(f,()=>({}),{seconds:1});if(f.events.some(e=>e.type==='flip')&&!f.over)flipped=f;}
+  // Two seconds' burn would leave it under 0.2 without the flip.
+  assert.ok(flipped,'some spin lands a flip');assert.ok(flipped.fuel>.45,`fuel ${flipped.fuel.toFixed(2)}`);
 });
 
 // ---------------------------------------------------------------- all six
 // Each run gets a bot of its own: some remember what they have seen.
-const GAMES={drive:[DriveRun,DRIVE_ZONES,()=>driveBot],jet:[JetRun,JET_ZONES,()=>jetBot],cliff:[CliffRun,CLIFF_ZONES,()=>cliffBot()],hop:[HopRun,HOP_ZONES,()=>hopBot()],fall:[FallRun,FALL_ZONES,()=>fallBot()],match:[MatchRun,MATCH_ZONES,()=>matchBot(.4)],stack:[StackRun,STACK_ZONES,()=>stackBot()],candles:[CandleRun,CANDLES_ZONES,()=>candlesBot()],snake:[SnakeRun,SNAKE_ZONES,()=>snakeBot()],merge:[MergeRun,MERGE_ZONES,()=>mergeBot()]};
+const GAMES={drive:[DriveRun,DRIVE_ZONES,()=>driveBot()],jet:[JetRun,JET_ZONES,()=>jetBot],cliff:[CliffRun,CLIFF_ZONES,()=>cliffBot()],hop:[HopRun,HOP_ZONES,()=>hopBot()],fall:[FallRun,FALL_ZONES,()=>fallBot()],match:[MatchRun,MATCH_ZONES,()=>matchBot(.4)],stack:[StackRun,STACK_ZONES,()=>stackBot()],candles:[CandleRun,CANDLES_ZONES,()=>candlesBot()],snake:[SnakeRun,SNAKE_ZONES,()=>snakeBot()],merge:[MergeRun,MERGE_ZONES,()=>mergeBot()]};
 test('every game: the same seed and the same fingers make the same run',()=>{
   for(const [id,[Game,,bot]] of Object.entries(GAMES)){
     const a=run(new Game('same'),bot(),{seconds:40}),b=run(new Game('same'),bot(),{seconds:40});

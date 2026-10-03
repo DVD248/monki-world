@@ -1,4 +1,4 @@
-const CACHE='monki-world-v30';
+const CACHE='monki-world-v31';
 const FILES=['./','./index.html','./style.css','./playground.css','./phone.css','./app.js','./art.js','./scene.js','./room-toys.js','./life-ui.js','./petting.js','./test-lab.js','./store.js','./adventure-player.js','./audio.js','./icon.svg','./manifest.webmanifest','./shared/world.js','./shared/adventures.js','./shared/extra-adventures.js','./shared/life.js','./shared/places.js','./shared/ambience.js'];
 FILES.push('./tidying.js','./icon-180.png','./icon-192.png','./icon-512.png','./shared/positions.js');
 FILES.push('./shared/fridge.js','./fridge-ui.js');

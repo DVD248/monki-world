@@ -18,11 +18,11 @@ import merge from './arcade-merge.js';
  * Drop are drawn here; each later game brings its rules, picture and card in one file. */
 export const VIEWS={drive,jet,cliff,hop,fall,match,stack,candles,snake,merge};
 export const ARCADE_ZONES={jump:JUMP_ZONES,drop:DROP_ZONES,...Object.fromEntries(Object.entries(VIEWS).map(([id,view])=>[id,view.zones]))};
-const STEP=1/120;
+const STEP=1/120,SLIDE=1.6;
 // Sky Jump climbs from a garden afternoon, through the evening, into space.
 const SKY_TOP=[[0,'#bcd9e0'],[150,'#c9e0ec'],[300,'#b5cde6'],[450,'#e7b98f'],[600,'#2e3558'],[800,'#141829']];
 const SKY_LOW=[[0,'#e4efd9'],[150,'#e6f0ee'],[300,'#d9e6ef'],[450,'#f3d8b4'],[600,'#4a5078'],[800,'#1f2440']];
-const PADS={cloud:['#fbf8ee','#dfe2d4'],moving:['#dcebf2','#a9c6d2'],fragile:['#f6e1d6','#d8b3a2'],fake:['#8f989d','#6b7478']};
+const PADS={cloud:['#fbf8ee','#dfe2d4'],moving:['#dcebf2','#a9c6d2'],fragile:['#f6e1d6','#d8b3a2'],fake:['#7a8389','#5a6368']};
 const KITCHEN=[{wall:'#eadcc0',tile:'#e2d1b1',floor:'#b9926a',line:'#a88259'},{wall:'#cfe4dc',tile:'#bcd6c8',floor:'#8fae72',line:'#7c9a61'},{wall:'#c9dcea',tile:'#b8cce0',floor:'#b06d4c',line:'#95593d'},{wall:'#2f3656',tile:'#394166',floor:'#4f4a5c',line:'#403c4c'},{wall:'#161a2c',tile:'#1f2440',floor:'#3a3350',line:'#2d2840'}];
 
 export class ArcadeGame{
@@ -30,10 +30,22 @@ export class ArcadeGame{
     this.canvas=canvas;this.c=canvas.getContext('2d');this.game=game;this.info=ARCADE_GAMES[game];this.view=VIEWS[game]||null;this.start=start;
     this.sound=sound;this.reduced=reduced;this.best=best;this.rival=rival;this.hat=hat;this.onEnd=onEnd;this.onOver=onOver;this.onPause=onPause;
     this.keys=new Set();this.pointers=new Map();this.taps=[];this.swipes=[];this.starts=new Map();this.cleanups=[];this.last=0;this.stopped=false;
-    const point=e=>{const r=canvas.getBoundingClientRect();return {x:clamp((e.clientX-r.left)*W/r.width,0,W),y:clamp((e.clientY-r.top)*H/r.height,0,H)};};
-    this.listen(canvas,'pointerdown',e=>{e.preventDefault();canvas.setPointerCapture?.(e.pointerId);const p=point(e);this.target=p.x;this.pointers.set(e.pointerId,p);this.starts.set(e.pointerId,p);if(!this.paused)this.taps.push(p);this.touched=true;});
-    this.listen(canvas,'pointermove',e=>{const p=point(e);if(e.pointerType==='mouse'||e.buttons||e.pressure>0)this.target=p.x;if(this.pointers.has(e.pointerId))this.pointers.set(e.pointerId,p);this.swipe(e.pointerId,p);});
-    for(const name of ['pointerup','pointercancel','lostpointercapture'])this.listen(canvas,name,e=>{this.pointers.delete(e.pointerId);this.starts.delete(e.pointerId);});
+    const point=e=>{const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*W/r.width;return {x:clamp(x,0,W),y:clamp((e.clientY-r.top)*H/r.height,0,H),raw:x};};
+    // Sky Jump steers by sliding: a thumb anywhere moves Monki as far as it slides, a little more,
+    // so it can rest off to the side instead of over the cloud he is coming down on. A mouse
+    // still just points.
+    const slide=e=>this.game==='jump'&&e.pointerType!=='mouse';
+    this.listen(canvas,'pointerdown',e=>{e.preventDefault();canvas.setPointerCapture?.(e.pointerId);const p=point(e);
+      if(slide(e)){this.drag={id:e.pointerId,from:p.raw,at:this.logic.monki.x};this.target=this.logic.monki.x;}else this.target=p.x;
+      this.pointers.set(e.pointerId,p);this.starts.set(e.pointerId,p);if(!this.paused)this.taps.push(p);this.touched=true;});
+    this.listen(canvas,'pointermove',e=>{const p=point(e);
+      if(this.drag?.id===e.pointerId){const d=this.drag,want=d.at+(p.raw-d.from)*SLIDE,x=clamp(want,12,W-12);this.target=x;
+        // Held against a wall, the slide starts again from there: back the other way moves him at once.
+        // Off the edge of the picture still counts, as a thumb runs on past it.
+        if(x!==want)d.from=p.raw-(x-d.at)/SLIDE;}
+      else if(!slide(e)&&(e.pointerType==='mouse'||e.buttons||e.pressure>0))this.target=p.x;
+      if(this.pointers.has(e.pointerId))this.pointers.set(e.pointerId,p);this.swipe(e.pointerId,p);});
+    for(const name of ['pointerup','pointercancel','lostpointercapture'])this.listen(canvas,name,e=>{this.pointers.delete(e.pointerId);this.starts.delete(e.pointerId);if(this.drag?.id===e.pointerId)this.drag=null;});
     this.listen(canvas,'keydown',e=>{
       // The arrows are also swipes, for the games steered in four directions.
       const way={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'}[e.key];if(way&&!e.repeat&&!this.paused)this.swipes.push({dir:way,key:true});
@@ -62,13 +74,13 @@ export class ArcadeGame{
     const seed=`${this.game}:${Date.now()}:${Math.random()}`;
     this.logic=this.view?new this.view.Logic(seed,{start:this.start}):this.game==='jump'?new SkyJump(seed,{start:this.start}):new FoodDrop(seed,{start:this.start});
     this.particles=[];this.texts=[];this.banner=null;this.shake=0;this.flash=0;this.time=0;this.acc=0;this.ended=0;this.reported=false;this.overAt=null;
-    this.target=null;this.touched=false;this.lastCam=0;this.lastView=null;this.mood=null;this.moodUntil=0;this.taps=[];this.swipes=[];this.pointers.clear();this.starts.clear();this.view?.reset?.(this);
+    this.target=null;this.drag=null;this.touched=false;this.lastCam=0;this.lastView=null;this.mood=null;this.moodUntil=0;this.taps=[];this.swipes=[];this.pointers.clear();this.starts.clear();this.view?.reset?.(this);
     // Nothing to overtake on a first go; afterwards, your own best and theirs are lines to cross.
     // A test run started above a line has not crossed it.
     this.passedBest=this.best<=this.start;this.passedRival=!this.rival?.best||this.rival.best<=this.start;
     this.paused=false;this.onPause(false);
   }
-  pause(value){if(this.stopped||this.logic.over&&value)return;this.paused=value;this.keys.clear();this.pointers.clear();this.starts.clear();this.taps=[];this.swipes=[];this.onPause(value);if(!value){this.last=0;this.canvas.focus();}}
+  pause(value){if(this.stopped||this.logic.over&&value)return;this.paused=value;this.keys.clear();this.pointers.clear();this.starts.clear();this.drag=null;this.taps=[];this.swipes=[];this.onPause(value);if(!value){this.last=0;this.canvas.focus();}}
   stop(){this.stopped=true;cancelAnimationFrame(this.frame);for(const off of this.cleanups)off();this.cleanups=[];}
   loop(ts){
     if(this.stopped)return;this.frame=requestAnimationFrame(t=>this.loop(t));
@@ -237,7 +249,8 @@ export class ArcadeGame{
     rect(c,l+3,y,w-6,10,fill);rect(c,l,y+2,w,6,fill);rect(c,l+5,y-3,w*.34,4,fill);rect(c,x+1,y-4,w*.3,5,fill);rect(c,l+3,y+8,w-6,3,shade);
     if(type==='moving'){rect(c,l+4,y+4,3,2,shade);rect(c,l+w-7,y+4,3,2,shade);}
     if(type==='fragile'){rect(c,x-6,y+2,1,5,shade);rect(c,x-5,y+6,4,1,shade);rect(c,x+7,y+1,1,4,shade);}
-    if(type==='fake')for(let i=0;i<3;i++){const dx=l+8+i*(w-16)/2,dy=(t*40+i*9)%14;rect(c,dx,y+12+dy,1,3,'#84b8c1');}
+    // A rain cloud: dark, and raining hard enough to see at a glance that it is no step.
+    if(type==='fake')for(let i=0;i<5;i++){const dx=l+6+i*(w-12)/4,dy=(t*55+i*7)%18;rect(c,dx,y+12+dy,2,4,'#6fa8c8');}
   }
   balloons(c,x,y,t,scale){
     for(const [dx,dy,phase]of[[-8,-6,0],[6,-10,1.7],[0,-18,3.1]]){

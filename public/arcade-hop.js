@@ -1,5 +1,5 @@
 import {character,rect,poly,ellipse} from './art.js';
-import {HopRun,HOP,HOP_ZONES,padX,padUnder,padSoon} from './shared/arcade-hop.js';
+import {HopRun,HOP,HOP_ZONES,padX,padUnder,padSoon,padReach} from './shared/arcade-hop.js';
 import {W,H,along,noise,clamp,mix} from './arcade-kit.js';
 
 // Water Hop: seen from above, a pond at the bottom of the garden that becomes a stream, a
@@ -21,8 +21,11 @@ function draw(g,c){
   }
   for(const row of L.rows){
     const y=sy(L,row.n);if(y<-HOP.row||y>H+HOP.row||row.kind==='bank')continue;
+    // A ring round each pad a hop would reach right now: the wait is for one of these.
+    const near=!L.hop&&!L.over&&Math.abs(row.n-L.row)<=1&&row.n>=L.base;
     for(const pad of row.pads){const x=padX(row,pad,vt);if(x+pad.w/2<-10||x-pad.w/2>W+10)continue;
-      if(row.kind==='log')log(c,x,y,pad.w,row.dir);else lilyPad(c,x,y,pad,row,vt,lily,water);}
+      if(row.kind==='log')log(c,x,y,pad.w,row.dir);else lilyPad(c,x,y,pad,row,vt,lily,water);
+      if(near&&pad!==L.on&&!padUnder(row,pad,vt)&&padReach(row,pad,L.x,vt))ring(c,x,y,pad,row,t);}
   }
   galgan(g,c,L,t);
   // Falling behind the rising view: the bottom edge warns first.
@@ -48,11 +51,17 @@ function lilyPad(c,x,y,pad,row,vt,lily,water){
   const soon=padSoon(row,pad,vt),close=soon&&padUnder(row,pad,vt+HOP.warn/2);
   const shake=soon?Math.sin(vt*40)*(close?2.5:1.5):0,r=pad.w/2;
   if(under){c.globalAlpha=.22;ellipse(c,x,y,r,r*.62,lily);c.globalAlpha=1;for(let i=0;i<2;i++)rect(c,x-6+i*10,y-4-((vt*20+i*7)%10),2,2,mix(water,'#ffffff',.5));return;}
-  const col=row.kind==='sink'?mix(lily,'#c9d98a',.35):lily;
+  const col=pad.omega?mix(lily,'#c9d98a',.45):lily;
   ellipse(c,x+shake,y+2,r,r*.62,mix(col,'#000000',.2));ellipse(c,x+shake,y,r,r*.62,col);
   poly(c,[[x+shake,y],[x+shake+r*.9,y-r*.2],[x+shake+r*.9,y+r*.25]],mix(col,'#000000',.12));
   rect(c,x+shake-r*.5,y-r*.28,r*.4,2,mix(col,'#ffffff',.25));
   if(noise(pad.x0)>.72){rect(c,x-r*.35,y-6,6,4,'#f3c9d0');rect(c,x-r*.35+1,y-8,4,2,'#fbe4ea');}
+}
+function ring(c,x,y,pad,row,t){
+  c.globalAlpha=.55+.25*Math.sin(t*6);c.strokeStyle='#fffdf3';c.lineWidth=2;c.beginPath();
+  if(row.kind==='log'){const l=x-pad.w/2-4;c.roundRect?c.roundRect(l,y-15,pad.w+8,30,10):c.rect(l,y-15,pad.w+8,30);}
+  else c.ellipse(x,y,pad.w/2+4,pad.w*.31+4,0,0,Math.PI*2);
+  c.stroke();c.globalAlpha=1;
 }
 function galgan(g,c,L,t){
   const after=g.overAt===null?0:g.time-g.overAt;let x=L.x,y=L.hop?null:sy(L,L.row),lift=0,scale=1.3;
