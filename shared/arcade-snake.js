@@ -1,13 +1,14 @@
 import {ease,seeded,zoneAt,lerp} from './arcade.js';
 
-// Long Galgan: the snake game. Galgan trots round the lawn inside the fence; swipe and he
-// turns. Every treat he eats makes him one longer, and now and then a golden bone turns up for
-// a few seconds, worth three. Into the fence or into his own back and that is the end. He
-// keeps two turns in mind, so a quick swipe-swipe round a corner is not lost, and heading for
-// trouble he holds back for a moment before he bumps into it, long enough for a late swipe to
-// save him. He goes a little faster as he grows, levelling off at a pace a steady thumb keeps up.
+// Galgan's Parade: the snake game. Galgan trots round the lawn inside the fence with a line of
+// ducklings following in his footsteps; swipe and he turns. Every treat he eats brings one more
+// duckling to the back of the line, and now and then a golden bone turns up for a few seconds,
+// worth three. Into the fence or into his own ducklings and that is the end. He keeps two
+// turns in mind, so a quick swipe-swipe round a corner is not lost, and heading for trouble he
+// holds back for a moment before he bumps into it, long enough for a late swipe to save him.
+// He goes a little faster as the parade grows, levelling off at a pace a steady thumb keeps up.
 export const SNAKE={width:400,height:600,cols:15,rows:20,cell:25,x0:12.5,y0:92,start:3,grace:.16,golden:6,goldenEvery:9};
-export const SNAKE_ZONES=[[0,'The lawn'],[10,'The flower beds'],[25,'The vegetable patch'],[45,'Evening'],[70,'Night'],[100,'The longest dog']];
+export const SNAKE_ZONES=[[0,'The lawn'],[10,'The flower beds'],[25,'The vegetable patch'],[45,'Evening'],[70,'Night'],[100,'The grand parade']];
 export const SNAKE_TREATS=['fish','pizza','donut','carrot','icecream','mushroom'];
 export const snakeDifficulty=n=>ease(n,35);
 /** Steps a second. */

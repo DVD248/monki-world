@@ -183,10 +183,10 @@ try{
       await finger(page,200,300);await page.mouse.up();await delay(200);
       return game(page,()=>window.__game.logic.score===1&&window.__game.logic.top.w>100);}],
     // The first cake is bare: any tap puts a candle in.
-    ['Candle Cake','Long Galgan',async()=>{await finger(page,200,420);await page.mouse.up();await delay(400);
+    ['Candle Cake',"Galgan's Parade",async()=>{await finger(page,200,420);await page.mouse.up();await delay(400);
       return game(page,()=>window.__game.logic.score===1&&window.__game.logic.items.some(it=>it.kind==='candle'));}],
     // A drag upwards turns Galgan up and sets him off.
-    ['Long Galgan','Snack Merge',async()=>{await finger(page,200,420);for(let i=1;i<=6;i++){await finger(page,200,420-i*12,false);await delay(16);}await page.mouse.up();await delay(500);
+    ["Galgan's Parade",'Snack Merge',async()=>{await finger(page,200,420);for(let i=1;i<=6;i++){await finger(page,200,420-i*12,false);await delay(16);}await page.mouse.up();await delay(500);
       return game(page,()=>{const L=window.__game.logic;return L.state==='play'&&L.dir==='up'&&L.head.r<12;});}],
     // A drag sideways slides the tray (the other way, if everything was already over there).
     ['Snack Merge','Sky Jump',async()=>{
@@ -237,7 +237,7 @@ try{
   assert.equal(await back.$eval('#story-title',e=>e.textContent),'Julia laughed: you got Monki 48 metres up in Sky Jump.');
 
   assert.deepEqual(errors,[]);
-  console.log('PASS: cabinet and menu entry with all twelve games, Food Drop by finger, result panel and near misses, bests kept when leaving at any moment, their best read at the end, pause, the house resting under the game, Sky Jump by finger, the sky moving after a fall, Hill Drive, Jet Monki, Cliff Jump, Water Hop, Fall Down, Match Tap, Pancake Stack, Candle Cake, Long Galgan and Snack Merge each by finger to a result, and a best reaching the other phone with a laugh back.');
+  console.log('PASS: cabinet and menu entry with all twelve games, Food Drop by finger, result panel and near misses, bests kept when leaving at any moment, their best read at the end, pause, the house resting under the game, Sky Jump by finger, the sky moving after a fall, Hill Drive, Jet Monki, Cliff Jump, Water Hop, Fall Down, Match Tap, Pancake Stack, Candle Cake, Galgan\'s Parade and Snack Merge each by finger to a result, and a best reaching the other phone with a laugh back.');
 }finally{
   await browser?.close();server.kill();await rm(data,{recursive:true,force:true});
 }

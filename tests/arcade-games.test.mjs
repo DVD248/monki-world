@@ -296,7 +296,7 @@ test('Candle Cake: a steady hand gets through cake after cake; a hurried one is 
   assert.ok(hurried.every(g=>cakes(g)>=2),`but not on the first cakes: ${hurried.map(cakes).join(' ')}`);
 });
 
-// ---------------------------------------------------------------- Long Galgan
+// ---------------------------------------------------------------- Galgan's Parade
 /** Steers for the treat by the shortest way that still leaves him room to get back to his
  * tail; failing that, follows his tail. Each swipe lands up to `sigma` seconds off, so a late
  * one turns a square late, as a thumb does. `careless`: just heads for the treat. */
@@ -316,7 +316,7 @@ const snakeBot=(sigma=0,seed='hand',{careless=false}={})=>{
     if(g.state==='ready')return {swipes:[{dir:'up'}]};
     if(g.prev!==last){last=g.prev;const d=choose(g);if(d!==(g.queue[0]||g.dir))pending.push({at:g.time+.5/g.speed+(r()+r()+r()-1.5)*2*sigma,dir:d});}
     const swipes=[];pending=pending.filter(p=>p.at<=g.time?(swipes.push({dir:p.dir}),false):true);return {swipes};};};
-test('Long Galgan: he waits for a swipe; a treat makes him one longer; the fence and his own back end it',()=>{
+test("Galgan's Parade: he waits for a swipe; a treat brings a duckling; the fence and his own ducklings end it",()=>{
   const g=new SnakeRun('rules');assert.equal(g.body.length,SNAKE.start);run(g,()=>({}),{seconds:10});assert.equal(g.state,'ready');assert.equal(g.time>0,true);
   // Put a treat right in front of him and go.
   g.treat={c:g.head.c,r:g.head.r-1,kind:'fish'};g.step(STEP,{swipes:[{dir:'up'}]});run(g,()=>({}),{until:g=>g.score>0,seconds:1});
@@ -327,7 +327,7 @@ test('Long Galgan: he waits for a swipe; a treat makes him one longer; the fence
   const turn=g=>g.state==='ready'?'up':g.queue.length?null:g.dir==='up'?'left':g.dir==='left'?'down':null;
   run(h,g=>({swipes:turn(g)?[{dir:turn(g)}]:[]}),{seconds:5});assert.ok(h.over);assert.equal(h.events.find(e=>e.type==='bump').what,'tail');
 });
-test('Long Galgan: a turn straight back is ignored, two quick turns both count, and a late swipe at the fence saves him',()=>{
+test("Galgan's Parade: a turn straight back is ignored, two quick turns both count, and a late swipe at the fence saves him",()=>{
   const g=new SnakeRun('turns');g.step(STEP,{swipes:[{dir:'left'}]});assert.equal(g.state,'ready','straight back into himself is not a turn');
   g.step(STEP,{swipes:[{dir:'up'},{dir:'left'}]});assert.deepEqual(g.queue.slice(0,2),['up','left']);
   run(g,()=>({}),{until:g=>g.dir==='left',seconds:2});assert.equal(g.dir,'left','both turns were taken, one a step');
@@ -337,7 +337,7 @@ test('Long Galgan: a turn straight back is ignored, two quick turns both count, 
   f.step(STEP,{swipes:[{dir:'right'}]});run(f,()=>({}),{seconds:.5});assert.ok(!f.over,'and the late swipe got him out');assert.equal(f.dir,'right');
   const late=new SnakeRun('fence');late.step(STEP,{swipes:[{dir:'up'}]});run(late,()=>({}),{until:g=>g.head.r===0,seconds:5});run(late,()=>({}),{seconds:SNAKE.grace+.2});assert.ok(late.over,'but not for ever');
 });
-test('Long Galgan: a careful player goes a long way; a careless one runs into himself, but not at once',()=>{
+test("Galgan's Parade: a careful player goes a long way; a careless one runs into his ducklings, but not at once",()=>{
   const careful=SEEDS.map(seed=>run(new SnakeRun(seed),snakeBot(.02,seed),{seconds:240}));
   assert.ok(careful.filter(g=>g.score>=50).length>=6,`treats: ${careful.map(g=>g.score).join(' ')}`);
   const careless=SEEDS.map(seed=>run(new SnakeRun(seed),snakeBot(.06,seed,{careless:true}),{seconds:600}));

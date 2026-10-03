@@ -17,7 +17,7 @@ export const ARCADE_GAMES={
   match:{id:'match',title:'Match Tap',star:'sernik',one:'snack',many:'snacks',short:'',news:150,hint:'Tap three or more the same. Misses cost time.',did:'matched {n} in Match Tap'},
   stack:{id:'stack',title:'Pancake Stack',star:'galgan',one:'pancake',many:'pancakes',short:'',news:30,hint:'Tap to drop the pancake. Line it up.',did:'stacked {n} for Galgan in Pancake Stack'},
   candles:{id:'candles',title:'Candle Cake',star:'monki',one:'candle',many:'candles',short:'',news:40,hint:'Tap to put a candle in. Miss the others.',did:'put {n} on the cakes in Candle Cake'},
-  snake:{id:'snake',title:'Long Galgan',star:'galgan',one:'treat',many:'treats',short:'',news:25,hint:'Swipe to steer Galgan to the treats.',did:'fed Galgan {n} in Long Galgan'},
+  snake:{id:'snake',title:"Galgan's Parade",star:'galgan',one:'treat',many:'treats',short:'',news:25,hint:'Swipe to lead Galgan. Treats bring ducklings.',did:"fed Galgan {n} in Galgan's Parade"},
   merge:{id:'merge',title:'Snack Merge',star:'sernik',one:'point',many:'points',short:'',news:2000,hint:'Swipe to slide. Two the same make the next snack.',did:'scored {n} in Snack Merge'},
 };
 export const ARCADE_MAX=99999;
