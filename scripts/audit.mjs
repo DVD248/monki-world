@@ -9,8 +9,8 @@
 //   node scripts/audit.mjs --quick    skip the long-horizon and fuzz passes
 //   node scripts/audit.mjs --json     machine-readable report
 
-import {createWorld,applyOperation,visibleWorld,prepareWorld,waitingFor,favourite,
-        ITEMS,ACTORS,PEOPLE,RESIDENTS,MODIFIERS,other,random} from '../shared/world.js';
+import {createWorld,applyOperation,visibleWorld,prepareWorld,waitingFor,favourite,moveEveryoneIn,present,atTheDoor,
+        ITEMS,ACTORS,PEOPLE,RESIDENTS,PETS,AWAY,MODIFIERS,other,random} from '../shared/world.js';
 import {ADVENTURES,VARIATIONS,CHAPTER_GAP,adventureFor,featuredStepFor} from '../shared/adventures.js';
 import {DISCOVERIES,REACTIONS,DAY,plantStage,pendingMail} from '../shared/life.js';
 import {PLACE_STORIES,placeStory,WEATHER,weatherFor} from '../shared/places.js';
@@ -72,7 +72,10 @@ function checkWorld(state,context){
     if(!a){note('high','actors',`${id} disappeared from the world`,at(id));continue;}
     if(!inRange(a.x,X)||!inRange(a.y,Y))
       note('medium','actors',`A character can be moved outside the drawable room`,at(`${id} at ${a.x},${a.y}`));
-    if(!state.unlocked.includes(a.room))
+    // Somebody who has not moved in yet is nowhere, with nothing on.
+    const away=RESIDENTS.includes(id)&&!state.cast?.includes(id);
+    if(away&&(a.room!==AWAY||a.hat))note('high','arrivals',`A resident who has not moved in is in a room or dressed`,at(`${id} in ${a.room} wearing ${a.hat}`));
+    if(!away&&!state.unlocked.includes(a.room))
       note('high','actors',`A character is standing in a room that is not unlocked`,at(`${id} in ${a.room}`));
     if(a.hat!==null&&a.hat!==undefined){
       if(!ITEMS[a.hat])note('high','hats',`Someone is wearing an item that does not exist`,at(`${id} wears ${a.hat}`));
@@ -83,6 +86,9 @@ function checkWorld(state,context){
     }
     if(!Number.isInteger(a.pokes)||a.pokes<0)note('medium','actors',`Poke count is not a whole number`,at(`${id}=${a.pokes}`));
   }
+
+  if(!Array.isArray(state.cast)||!state.cast.includes('monki')||state.cast.some(id=>!RESIDENTS.includes(id))||new Set(state.cast).size!==state.cast.length)
+    note('high','arrivals',`Who lives here is not a list of residents with Monki in it`,at(JSON.stringify(state.cast)));
 
   // 4. Objects are real, unique, in an open room, and reachable.
   const ids=new Set();
@@ -150,6 +156,8 @@ let serial=0;
 const id=()=>`audit-${serial++}`;
 const one=(arr,rng)=>arr.length?arr[Math.floor(rng()*arr.length)]:null;
 const wearables=s=>s.inventory.filter(i=>ITEMS[i]?.wearable);
+/** Mostly whoever lives here; one time in ten anybody, so a refusal for someone not yet moved in is tested too. */
+const someone=(s,rng,list=ACTORS)=>one(rng()<.1?list:list.filter(id=>present(s).includes(id)),rng)||one(list,rng);
 
 const GENERATORS={
   visit:(s,a,now,rng)=>({hour:Math.floor(rng()*24)}),
@@ -169,10 +177,11 @@ const GENERATORS={
   placeFurniture:(s,a,now,rng)=>{const object=one(s.catalog.storage,rng);return object?{target:object.id,room:one(s.unlocked,rng),x:35+rng()*330,y:171+rng()*143}:null;},
   sellFurniture:(s,a,now,rng)=>{const object=one([...s.objects,...s.catalog.storage].filter(o=>FURNITURE[o.type]),rng);return object?{target:object.id}:null;},
   sendTo:(s,a,now,rng)=>{const o=one(s.objects,rng);return o?{target:o.id,room:one(s.unlocked,rng),x:35+rng()*330,y:171+rng()*143}:null;},
-  poke:(s,a,now,rng)=>({target:one(ACTORS,rng)}),
-  pet:(s,a,now,rng)=>({target:one(['sernik','galgan'],rng)}),
-  move:(s,a,now,rng)=>{const t=one([...ACTORS,...s.objects.map(o=>o.id)],rng);return{target:t,x:35+rng()*330,y:171+rng()*143,room:one(s.unlocked,rng)};},
-  wear:(s,a,now,rng)=>{const t=one(ACTORS,rng);if((s.stuck[t]||0)>now)return null;return{target:t,item:rng()<.15?null:one(wearables(s),rng)};},
+  poke:(s,a,now,rng)=>({target:someone(s,rng)}),
+  pet:(s,a,now,rng)=>({target:someone(s,rng,PETS)}),
+  welcome:s=>{const id=atTheDoor(s);return id?{target:id}:null;},
+  move:(s,a,now,rng)=>{const t=rng()<.5?someone(s,rng):one([...ACTORS,...s.objects.map(o=>o.id)],rng);return{target:t,x:35+rng()*330,y:171+rng()*143,room:one(s.unlocked,rng)};},
+  wear:(s,a,now,rng)=>{const t=someone(s,rng);if((s.stuck[t]||0)>now)return null;return{target:t,item:rng()<.15?null:one(wearables(s),rng)};},
   place:(s,a,now,rng)=>({item:one(s.inventory,rng),room:one(s.unlocked,rng)}),
   gift:(s,a,now,rng)=>s.gifts.filter(g=>!g.opened&&g.from===a).length>=3?null:{item:one(s.inventory,rng)},
   openGift:(s,a)=>{const g=s.gifts.find(g=>g.to===a&&!g.opened);return g?{target:g.id}:null;},
@@ -180,7 +189,7 @@ const GENERATORS={
   chaos:(s,a,now,rng)=>({modifier:one(['bouncy','tiny','windy','giant'],rng)}),
   hide:(s,a,now,rng)=>{const o=one(s.objects.filter(o=>!s.hidden[o.id]),rng);return o?{target:o.id}:null;},
   found:s=>{const k=Object.keys(s.hidden)[0];return k?{target:k}:null;},
-  stick:(s,a,now,rng)=>{const w=wearables(s);return w.length?{target:one([...PEOPLE,...RESIDENTS],rng),item:one(w,rng)}:null;},
+  stick:(s,a,now,rng)=>{const w=wearables(s);return w.length?{target:someone(s,rng,[...PEOPLE,...RESIDENTS]),item:one(w,rng)}:null;},
   pick:(s,a,now,rng)=>s.choices.picks[a]!==undefined?null:{round:s.choices.round,choice:Math.floor(rng()*5)},
   nextPick:s=>PEOPLE.every(p=>s.choices.picks[p]!==undefined)?{}:null,
   fridge:s=>s.inventory.includes('potato')&&!s.fridgeAt?{}:null,
@@ -197,7 +206,7 @@ const GENERATORS={
   pickBloom:(s,a,now)=>s.life?.plant&&!s.life.plant.picked&&plantStage(s,now)>=4?{}:null,
   replant:s=>s.life?.plant?.picked?{}:null,
   walkWith:(s,a,now,rng)=>({room:one(s.unlocked,rng)}),
-  postcard:(s,a,now,rng)=>({portrait:one(ACTORS,rng),hat:rng()<.3?null:one(wearables(s),rng),scene:one(['house','garden','night'],rng),pose:one(['idle','happy','sleep'],rng),send:rng()<.5}),
+  postcard:(s,a,now,rng)=>({portrait:someone(s,rng),hat:rng()<.3?null:one(wearables(s),rng),scene:one(['house','garden','night'],rng),pose:one(['idle','happy','sleep'],rng),send:rng()<.5}),
   openLetter:(s,a)=>{const m=s.life?.mail?.find(m=>m.to===a&&!m.opened&&m.kind!=='gift');return m?{target:m.id}:null;},
   reactLetter:(s,a,now,rng)=>{const m=s.life?.mail?.find(m=>m.to===a&&m.opened&&!m.reaction);return m?{target:m.id,reaction:one(REACTIONS,rng)}:null;},
   readReaction:(s,a)=>{const m=s.life?.mail?.find(m=>m.from===a&&m.reaction&&!m.reactionSeen);return m?{target:m.id}:null;},
@@ -237,7 +246,8 @@ function passEveryOperation(){
 
   both('visit',now);
   // Two adventures unlock the garden and give the journeys somewhere to go.
-  for(let i=0;i<4;i++){now+=CHAPTER_GAP+1000;both('visit',now);both('inviteAdventure',now);both('adventureComplete',now);}
+  // …and let in whoever knocks after them: Galgan, Sernik, then Kot.
+  for(let i=0;i<4;i++){now+=CHAPTER_GAP+1000;both('visit',now);both('inviteAdventure',now);both('adventureComplete',now);both('welcome',now);}
   both('plantSeed',now);
   for(const type of OP_TYPES){
     // Two passes: the second catches operations whose precondition the first created.
@@ -535,7 +545,7 @@ function passPrivacy(){
   checkWorld(prepareWorld(forDavid),'visibleWorld');
 
   // Sanity on the two helpers the UI trusts.
-  let t=createWorld('audit',NOW);
+  let t=moveEveryoneIn(createWorld('audit',NOW));
   for(let i=0;i<4;i++)t=applyOperation(t,{id:id(),type:'poke',actor:'julia',target:'sernik'},NOW+i);
   if(favourite(t,'julia')!=='sernik')note('medium','bond',`Four pokes do not make a favourite`,String(favourite(t,'julia')));
   if(favourite(t,'david')!==null)note('medium','bond',`Julia's pokes changed David's favourite`,String(favourite(t,'david')));

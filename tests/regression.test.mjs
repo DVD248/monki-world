@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {createWorld,applyOperation,prepareWorld,ITEMS,PEOPLE,RESIDENTS} from '../shared/world.js';
 import {ADVENTURES,CHAPTER_GAP,adventureFor} from '../shared/adventures.js';
 import {DISCOVERIES,DAY} from '../shared/life.js';
+import {fullHouse} from './house.mjs';
 
 const NOW=Date.UTC(2026,0,5,9,0,0);
 let n=0;const id=()=>`regression-${n++}`;
@@ -12,7 +13,7 @@ test('the same operations produce the same world on both phones', () => {
   // schedule() used Math.random(), which gave each device a different future.
   const run=()=>{
     n=0;
-    let s=createWorld('same','x'&&NOW);
+    let s=fullHouse('same','x'&&NOW);
     s=applyOperation(s,{id:id(),type:'hide',actor:'julia',target:'lamp'},NOW);
     s=applyOperation(s,{id:id(),type:'wear',actor:'julia',target:'julia',item:'cone'},NOW+1000);
     s=applyOperation(s,{id:id(),type:'wear',actor:'david',target:'david',item:'cone'},NOW+2000);
@@ -23,7 +24,7 @@ test('the same operations produce the same world on both phones', () => {
 });
 
 test('a bond is only ever recorded with a resident', () => {
-  let s=createWorld('bond',NOW);
+  let s=fullHouse('bond',NOW);
   s=applyOperation(s,{id:id(),type:'toyResult',actor:'julia',toy:'bubbles',room:'house',target:'david'},NOW);
   assert.equal(s.bond.julia.david,undefined,'playing at your person is not a bond with them');
   s=applyOperation(s,{id:id(),type:'toyResult',actor:'julia',toy:'bubbles',room:'house',target:'monki'},NOW+1);
@@ -34,7 +35,7 @@ test('everything a chapter puts on a head is a hat you then own', () => {
   for(const chapter of ADVENTURES)
     assert.ok(ITEMS[chapter.reward]?.wearable,`${chapter.id} rewards ${chapter.reward}, which is not wearable`);
   // The ice cream Sernik ends up wearing has to be in the inventory too.
-  let s=createWorld('hats',NOW),now=NOW;
+  let s=fullHouse('hats',NOW),now=NOW;
   for(let i=0;i<ADVENTURES.length;i++){
     now+=CHAPTER_GAP+1000;
     s=applyOperation(s,{id:id(),type:'visit',actor:'julia'},now);
@@ -48,7 +49,7 @@ test('everything a chapter puts on a head is a hat you then own', () => {
 
 test('playing with the toilet paper is how you come to own a roll', () => {
   // Without this the paper-moth discovery could never be set up at all.
-  let s=createWorld('paper',NOW);
+  let s=fullHouse('paper',NOW);
   assert.ok(!s.inventory.includes('paper'));
   s=applyOperation(s,{id:id(),type:'toyResult',actor:'julia',toy:'paper',room:'house',target:'sernik'},NOW);
   assert.ok(s.inventory.includes('paper'));
@@ -56,7 +57,7 @@ test('playing with the toilet paper is how you come to own a roll', () => {
 
 test('every discovery that waits for a setup can actually be finished', () => {
   for(const d of DISCOVERIES.filter(d=>d.setup)){
-    let s=createWorld(`setup-${d.id}`,NOW),now=NOW;
+    let s=fullHouse(`setup-${d.id}`,NOW),now=NOW;
     for(let i=0;i<8;i++){
       now+=CHAPTER_GAP+1000;
       s=applyOperation(s,{id:id(),type:'visit',actor:'julia'},now);
@@ -77,7 +78,7 @@ test('every discovery that waits for a setup can actually be finished', () => {
 });
 
 test('something your person hid can be found again', () => {
-  let s=createWorld('hide',NOW);
+  let s=fullHouse('hide',NOW);
   s=applyOperation(s,{id:id(),type:'hide',actor:'julia',target:'lamp'},NOW);
   assert.ok(s.hidden.lamp,'it should be hidden');
   s=applyOperation(s,{id:id(),type:'found',actor:'david',target:'lamp'},NOW+60000);
@@ -87,7 +88,7 @@ test('something your person hid can be found again', () => {
 test('an incident never leaves a mark that draws nothing', () => {
   // 'hat' and 'sofa' are visible as state changes; a trace for them was invisible
   // and still used one of the eight slots a room keeps.
-  let s=createWorld('marks',NOW);
+  let s=fullHouse('marks',NOW);
   s.incident={...s.incident,aftermath:'hat',reward:'cone',actor:'monki',room:'house',kind:'tap',goal:1};
   const after=applyOperation(s,{id:id(),type:'resolve',actor:'julia',target:s.incident.uid,score:5},NOW);
   assert.ok(!after.traces.some(t=>['hat','sofa'].includes(t.type)));

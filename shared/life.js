@@ -76,6 +76,20 @@ export const FRESH=[
   {id:'m-magnet',actor:'monki',item:'magnet',mood:'annoyed',spot:'radio',title:'Monki is stuck to the radio.',after:'Unstuck.'},
   {id:'m-pizza',actor:'monki',item:'pizza',mood:'happy',title:'Monki ordered a pizza.',after:'Monki ate a pizza.'},
   {id:'m-frog',actor:'monki',item:'frog',mood:'idle',title:'A frog is sitting on Monki. He is letting it.',after:'The frog had somewhere to be.'},
+  {id:'k-teacup',actor:'kot',item:'teacup',mood:'sleep',spot:'couch',title:'If it fits, Kot sits.',after:'It did not fit.'},
+  {id:'k-sock',actor:'kot',item:'sock',mood:'happy',spot:'door',title:'Kot brought you a sock. It is a gift.',after:'You may keep it.'},
+  {id:'k-fish',actor:'kot',item:'fish',mood:'happy',spot:'bowl',title:'The fish is in a meeting with Kot.',after:'The meeting went badly for the fish.'},
+  {id:'k-cone',actor:'kot',item:'cone',mood:'annoyed',title:'Kot is wearing a cone. Nobody is to mention it.',after:'Nobody mentioned it.'},
+  {id:'k-crown',actor:'kot',item:'crown',mood:'idle',spot:'couch',title:'Kot was always in charge. Now it is official.',after:'Still in charge.'},
+  {id:'k-glasses',actor:'kot',item:'glasses',mood:'sleep',spot:'rug',title:'Sunbathing indoors, in the one warm spot.',after:'The sun moved.'},
+  {id:'k-bow',actor:'kot',item:'bow',mood:'annoyed',title:'Kot is a present. Kot did not agree to this.',after:'Returned to sender.'},
+  {id:'k-headphones',actor:'kot',item:'headphones',mood:'sleep',spot:'radio',title:'Asleep on the radio. It is warm.',after:'The radio is cold now.'},
+  {id:'k-duck',actor:'kot',item:'duck',mood:'idle',title:'Kot is staring at the duck. The duck is staring back.',after:'The duck blinked first.'},
+  {id:'k-flower',actor:'kot',item:'flower',mood:'idle',spot:'plant',title:'Kot is in the plant. The plant is losing.',after:'The plant will recover.'},
+  {id:'k-star',actor:'kot',item:'star',mood:'happy',spot:'lamp',title:'On top of the lamp. Somehow.',after:'Down again. Nobody saw how.'},
+  {id:'k-nightcap',actor:'kot',item:'nightcap',mood:'sleep',spot:'couch',title:'Kot has taken your seat.',after:'You may have it back.'},
+  {id:'k-umbrella',actor:'kot',item:'umbrella',mood:'annoyed',title:'Under an umbrella, and furious about it.',after:'Freed.'},
+  {id:'k-shell',actor:'kot',item:'shell',mood:'idle',spot:'bowl',title:'Kot is sitting in the dog bowl. On purpose.',after:'The dogs have their bowl back.'},
 ];
 /** Where a spot is, in the house as it is today: the sofa wherever the sofa has got to. */
 export function freshSpot(s,sit){
@@ -117,7 +131,9 @@ function endSituation(s,actor,{found=false}={}){
   return sit||null;
 }
 export const REACTIONS=['laugh','wow','love'];
-const people=['david','julia'],residents=['monki','sernik','galgan'],actors=[...people,...residents];
+const people=['david','julia'],residents=['monki','sernik','galgan','kot'],actors=[...people,...residents];
+// The residents who have moved in (see ARRIVALS in world.js), and anyone who lives here.
+const settled=s=>residents.filter(id=>!Array.isArray(s.cast)||s.cast.includes(id)),lives=(s,id)=>people.includes(id)||settled(s).includes(id);
 const other=who=>who==='david'?'julia':'david';
 const unlock=(s,item)=>{if(!s.inventory.includes(item))s.inventory.push(item);};
 function entry(s,who,action,target,now,item){s.log.unshift({id:`life-${s.revision}-${now}`,who,action,target,at:now,item});s.log=s.log.slice(0,48);}
@@ -141,7 +157,7 @@ export function addLetter(s,letter){
 export function pendingMail(s,actor){
   return (s.life?.mail||[]).flatMap(m=>m.to===actor&&!m.opened?[{kind:m.kind,id:m.kind==='gift'?m.giftId:m.id,mailId:m.id,from:m.from}]:m.from===actor&&m.reaction&&!m.reactionSeen?[{kind:'reaction',id:m.id,mailId:m.id,from:m.to,reaction:m.reaction}]:[]);
 }
-export function buddy(s,actor){const all=residents.map(id=>[id,s.bond?.[actor]?.[id]||0]).sort((a,b)=>b[1]-a[1]);return all[0][1]>=3?all[0][0]:null;}
+export function buddy(s,actor){const all=settled(s).map(id=>[id,s.bond?.[actor]?.[id]||0]).sort((a,b)=>b[1]-a[1]);return all[0]?.[1]>=3?all[0][0]:null;}
 export function plantStage(s,now=Date.now()){const p=s.life?.plant;if(!p)return -1;return Math.min(4,Math.max(0,Math.floor((now-p.at)/(2*DAY))));}
 // Test fixtures age timestamps, never change the computer clock or a real save.
 export function ageSandbox(s,days){
@@ -175,15 +191,15 @@ export function advanceLife(s,actor,now){
   // A rare visitor somebody set up for (paper left in the garden, and so on) still comes
   // first, and waits to be found: it was earned.
   const owned=new Set(life.collection.map(c=>c.discovery));
-  const special=DISCOVERIES.find(d=>d.setup&&!owned.has(d.id)&&life.setups[d.id]!==undefined&&now-life.setups[d.id]>=d.setup.days*DAY);
+  const special=DISCOVERIES.find(d=>d.setup&&lives(s,d.actor)&&!owned.has(d.id)&&life.setups[d.id]!==undefined&&now-life.setups[d.id]>=d.setup.days*DAY);
   if(special){life.finds[actor]={id:`find-${life.serial++}`,discovery:special.id,actor:special.actor,at:now};life.nextFind[actor]=now+20*3600000;return;}
   // The same rhythm as before (one at most every twenty hours), but each one new: the
   // first not yet seen by this person, in an order of this world's own.
   life.freshSeen??={};const seen=new Set(life.freshSeen[actor]||[]);
-  // Shuffled for this world, then taking turns between the three, so it is not Monki four days running.
+  // Shuffled for this world, then taking turns between whoever lives here, so it is not Monki four days running.
   const mixed=who=>FRESH.filter(f=>f.actor===who).sort((a,b)=>roll(`${s.seed}:fresh:${a.id}`)-roll(`${s.seed}:fresh:${b.id}`));
-  const lanes=['galgan','sernik','monki'].map(mixed),order=[];
-  for(let i=0;order.length<FRESH.length;i++)for(const lane of lanes)if(lane[i])order.push(lane[i]);
+  const lanes=['galgan','sernik','monki','kot'].filter(id=>lives(s,id)).map(mixed),order=[],total=lanes.reduce((n,l)=>n+l.length,0);
+  for(let i=0;order.length<total;i++)for(const lane of lanes)if(lane[i])order.push(lane[i]);
   const offset=actor==='julia'?Math.floor(order.length/2):0,turned=[...order.slice(offset),...order.slice(0,offset)];
   // Never on the one the other person's situation already has on, nor on a hat stuck there for a day.
   const taken=new Set(Object.entries(life.finds).filter(([who,f])=>who!==actor&&f?.fresh).map(([,f])=>f.actor));
@@ -200,19 +216,22 @@ const PERCHES={
   sernik:[[318,196,'on the shelf'],[147,277,'under the sofa'],[92,300,'behind the door']],
   galgan:[[196,183,'on top of the lamp'],[330,300,'in the bowl'],[60,290,'in the corner, facing it']],
   monki:[[56,192,'in the plant'],[336,188,'on the radio'],[220,300,'face down on the rug']],
+  kot:[[118,175,'along the back of the sofa'],[336,186,'on the radio'],[326,300,'in the dog bowl']],
 };
 
 export function routines(s,now,hour,items){
   // Only on a genuine return; never move something she just positioned herself.
   const h=Number.isInteger(hour)&&hour>=0&&hour<=23?hour:centralTime(now).hour;
   const busy=new Set(Object.values(s.life?.finds||{}).filter(f=>f?.fresh).map(f=>f.actor));
-  for(const id of residents){
+  for(const id of settled(s)){
     if(busy.has(id))continue;
     const a=s.actors[id];if(now-(a.movedAt||0)<6*3600000)continue;
     let room='house',x=220,y=230,mood='idle';
     if(id==='sernik'){const bowl=s.objects.find(o=>o.id==='bowl');if(h<11){room=bowl?.room||'house';x=(bowl?.x||320)-25;y=bowl?.y||280;}else if(h<19&&s.unlocked.includes('garden')){room='garden';x=273;y=270;}else{x=147;y=277;mood='sleep';}}
     if(id==='galgan'){const sofa=s.objects.find(o=>o.id==='couch');room=sofa?.room||'house';x=(sofa?.x||120)+15;y=(sofa?.y||190)+22;mood=h>11?'sleep':'idle';}
     if(id==='monki'){if(h>=20&&s.unlocked.includes('roof')){room='roof';x=191;y=200;}else{x=167;y=194;}}
+    // Kot follows the warm spots: the rug in the morning, the sofa all afternoon, by the lamp at night.
+    if(id==='kot'){const sofa=s.objects.find(o=>o.id==='couch'),lamp=s.objects.find(o=>o.id==='lamp');if(h<10){x=232;y=302;}else if(h<19){room=sofa?.room||'house';x=(sofa?.x||120)-14;y=(sofa?.y||190)+4;mood='sleep';}else{room=lamp?.room||'house';x=(lamp?.x||197)+26;y=(lamp?.y||181)+30;}}
     // One day in three, it is somewhere daft instead of somewhere sensible.
     const day=Math.floor(now/86400000);
     if(roll(`${s.seed}:perch:${id}:${day}`)<0.34){
@@ -226,7 +245,7 @@ export function routines(s,now,hour,items){
     // Never two of them at once: a household in matching outfits reads as a bug,
     // and one animal in something daft is where the laugh actually is.
     if(items&&!a.hat&&!(s.stuck?.[id]>now)&&roll(`${s.seed}:hat:${id}:${day}`)<0.34){
-      const worn=residents.map(r=>s.actors[r].hat).filter(Boolean);
+      const worn=settled(s).map(r=>s.actors[r].hat).filter(Boolean);
       const hats=(s.inventory||[]).filter(i=>items[i]?.wearable&&!worn.includes(i));
       if(hats.length&&worn.length<1){a.hat=hats[Math.floor(roll(`${s.seed}:whichhat:${id}:${day}`)*hats.length)];a.hatAt=now;}
     }
@@ -287,7 +306,7 @@ export function applyLifeOperation(s,op,now,items){
       a.room=op.room;a.x=actor==='julia'?(garden?250:300):(garden?160:90);a.y=garden?311:289;a.mood='happy';a.movedAt=now;break;
     }
     case 'postcard':{
-      if(!actors.includes(op.portrait)||!['house','garden','night'].includes(op.scene)||!['idle','happy','sleep'].includes(op.pose)||(op.hat!==null&&(!items[op.hat]||!s.inventory.includes(op.hat))))throw new Error('Invalid postcard');
+      if(!actors.includes(op.portrait)||!lives(s,op.portrait)||!['house','garden','night'].includes(op.scene)||!['idle','happy','sleep'].includes(op.pose)||(op.hat!==null&&(!items[op.hat]||!s.inventory.includes(op.hat))))throw new Error('Invalid postcard');
       if(life.postcards.length>=300)throw new Error('The postcard album is full. Save a picture to your phone.');
       const card={id:op.id,kind:'postcard',from:actor,to:other(actor),portrait:op.portrait,hat:op.hat,scene:op.scene,pose:op.pose,at:now,opened:false};
       life.postcards.unshift({...card});if(op.send===true)addLetter(s,card);entry(s,actor,'postcard',op.portrait,now);break;

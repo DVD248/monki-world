@@ -2,13 +2,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,applyOperation,visibleWorld,prepareWorld,RESIDENTS} from '../shared/world.js';
+import {fullHouse} from './house.mjs';
 
 const NOW=Date.UTC(2026,8,27,18,0,0);
 let n=0;const op=(s,type,fields={},actor='david',at=NOW)=>applyOperation(s,{id:`presents-${n++}`,type,actor,...fields},at);
 const floor=s=>s.objects.filter(o=>o.id.startsWith('gift-')).map(o=>o.type);
 
 test('a present opened onto a dog is on the dog, not also on the floor', () => {
-  let s=op(createWorld('present-worn',NOW),'gift',{item:'bow'});
+  let s=op(fullHouse('present-worn',NOW),'gift',{item:'bow'});
   s=op(s,'openGift',{target:s.gifts[0].id,wearer:'galgan'},'julia');
   assert.equal(s.actors.galgan.hat,'bow');
   assert.equal(s.gifts[0].wornBy,'galgan');
@@ -19,7 +20,7 @@ test('a present opened onto a dog is on the dog, not also on the floor', () => {
 });
 
 test('the dog in today\'s situation is passed over for the present', () => {
-  let s=createWorld('present-busy',NOW);
+  let s=fullHouse('present-busy',NOW);
   s.life.finds.david={id:'find-x',fresh:'g-teacup',actor:'galgan',at:NOW,was:{hat:null}};
   s=op(s,'gift',{item:'bow'});
   s=op(s,'openGift',{target:s.gifts[0].id,wearer:'galgan'},'julia');
@@ -29,7 +30,7 @@ test('the dog in today\'s situation is passed over for the present', () => {
 });
 
 test('something not to wear, or a present opened in the mailbox, is put down in the room', () => {
-  let s=createWorld('present-floor',NOW);
+  let s=fullHouse('present-floor',NOW);
   s.inventory.push('key');
   s=op(s,'gift',{item:'key'});
   s=op(s,'openGift',{target:s.gifts[0].id,wearer:'galgan'},'julia');
@@ -41,13 +42,13 @@ test('something not to wear, or a present opened in the mailbox, is put down in 
 });
 
 test('the recipient\'s sealed copy opens without guessing what is inside', () => {
-  let s=op(createWorld('present-sealed',NOW),'gift',{item:'bow'});
+  let s=op(fullHouse('present-sealed',NOW),'gift',{item:'bow'});
   const sealed=op(visibleWorld(s,'julia'),'openGift',{target:s.gifts[0].id,wearer:'galgan'},'julia');
   assert.equal(sealed.actors.galgan.hat,null);assert.deepEqual(floor(sealed),[]);
 });
 
 test('Sernik goes back to his own spot after fetching, on both phones', () => {
-  let s=createWorld('fetch',NOW);
+  let s=fullHouse('fetch',NOW);
   const before={...s.actors.sernik};
   s=op(s,'toyResult',{toy:'paper',target:'sernik',room:'house'});
   assert.deepEqual([s.actors.sernik.x,s.actors.sernik.y,s.actors.sernik.room],[before.x,before.y,before.room]);
@@ -59,7 +60,7 @@ test('Sernik goes back to his own spot after fetching, on both phones', () => {
 });
 
 test('tidying one room leaves the others as they are', () => {
-  let s=createWorld('tidy-room',NOW);s.unlocked.push('garden');
+  let s=fullHouse('tidy-room',NOW);s.unlocked.push('garden');
   // Paper left in the garden for the moth, a potato on the house floor, the sofa dragged outside.
   s=op(s,'place',{item:'potato',room:'house'});
   s.inventory.push('paper');s=op(s,'place',{item:'paper',room:'garden'});
@@ -77,7 +78,7 @@ test('tidying one room leaves the others as they are', () => {
 });
 
 test('every log entry has its own id, even with the log full and two entries from one operation', () => {
-  let s=createWorld('log-ids',NOW);
+  let s=fullHouse('log-ids',NOW);
   for(let i=0;i<60;i++)s=op(s,'poke',{target:'monki'},'julia',NOW+i*1000);
   s=op(s,'gift',{item:'bow'},'david',NOW+70000);
   s=op(s,'openGift',{target:s.gifts[0].id,wearer:'galgan'},'julia',NOW+80000);
@@ -89,7 +90,7 @@ test('every log entry has its own id, even with the log full and two entries fro
 });
 
 test('an old save gets every decorating surface and keeps what someone is wearing', () => {
-  const old=createWorld('old-decor',NOW);
+  const old=fullHouse('old-decor',NOW);
   delete old.catalog.styles.house.trim;delete old.catalog.styles.house.view;delete old.catalog.styles.garden.backdrop;
   old.actors.sernik.hat='icecream';old.inventory=old.inventory.filter(i=>i!=='icecream');
   old.actors.monki.hat='retired-hat';

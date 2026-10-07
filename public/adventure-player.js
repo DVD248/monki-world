@@ -7,8 +7,8 @@ import {launchShot,shotPoint,advanceShot,looseBody,advanceLooseBody} from './pro
 /** Little physical stories. No hidden win conditions, random instant losses,
  * countdown pressure or empty waiting games. Each gesture has an immediate response. */
 export class AdventurePlayer{
-  constructor(canvas,chapter,{onDone,onStep,sound,startStep=0,reduced=false,singleStep=false}){
-    this.canvas=canvas;this.c=canvas.getContext('2d');this.chapter=chapter;this.onDone=onDone;this.onStep=onStep;this.sound=sound;this.reduced=reduced;this.singleStep=singleStep;
+  constructor(canvas,chapter,{onDone,onStep,sound,startStep=0,reduced=false,singleStep=false,cast=null}){
+    this.cast=cast;this.canvas=canvas;this.c=canvas.getContext('2d');this.chapter=chapter;this.onDone=onDone;this.onStep=onStep;this.sound=sound;this.reduced=reduced;this.singleStep=singleStep;
     this.chapter={...chapter,edition:chapter.edition||0,variant:chapter.variant||'plain'};this.difficulty=difficultyFor(this.chapter);this.rng=random(chapter.id+this.chapter.edition);this.pointer={x:200,y:360,down:false};this.keys=new Set();this.cleanups=[];
     this.time=0;this.last=0;this.age=0;this.particles=[];this.shots=[];this.phase='play';this.closed=false;this.paused=false;
     this.enter(clamp(startStep,0,2));
@@ -304,7 +304,8 @@ export class AdventurePlayer{
   ending(c,t){
     const id=this.chapter.id;
     if(id==='boat'){item(c,'couch',200+Math.sin(t)*10,285,{scale:2.4});character(c,'galgan',200+Math.sin(t)*10,217,{scale:2.5,hat:'duck'});}
-    else{character(c,this.chapter.actor,210,282,{scale:3.5,hat:this.chapter.reward,mood:'happy'});character(c,id==='up'?'sernik':'monki',91,315,{scale:1.8,hat:id==='up'?'icecream':null,mood:'happy'});}
+    else{character(c,this.chapter.actor,210,282,{scale:3.5,hat:this.chapter.reward,mood:'happy'});// Sernik with the ice cream at the end of the first story, once he lives here.
+      const side=id!=='up'?'monki':!this.cast||this.cast.includes('sernik')?'sernik':null;if(side)character(c,side,91,315,{scale:1.8,hat:id==='up'?'icecream':null,mood:'happy'});}
     for(let i=0;i<10;i++){const x=25+i*37,y=80+(i*39+t*22)%280;rect(c,x,y,4,5,['#e8b165','#d89181','#a3bb82'][i%3]);}
   }
   basket(c,x,y,impact=0){c.save();c.translate(x,y+impact*.4);c.scale(1+impact*.008,1-impact*.018);ellipse(c,0,12,39,6,'#5d69442b');rect(c,-34,-20,68,28,'#c69a64');for(let i=0;i<6;i++)rect(c,-27+i*11,-17,2,22,'#ad7e54');for(let j=0;j<3;j++)rect(c,-33,-11+j*8,66,2,'#dab27c');ellipse(c,0,-20,40,10,'#e7c38e');ellipse(c,0,-21,33,6,'#806144');c.restore();}

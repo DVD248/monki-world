@@ -10,6 +10,7 @@ export const LOOKS={
   monki:'a small brown monkey, a soft toy',
   sernik:'a small cream dog',
   galgan:'a larger dark grey dog',
+  kot:'a small calico cat, white with ginger and black patches',
 };
 
 /** What is in front of her. Runs in the page. */
@@ -99,8 +100,11 @@ export const DESCRIBE=`(()=>{
       'plant-inspection':L('monki')+' is inspecting the plant',
       'galgan-tests-sofa':L('galgan')+' is trying out the sofa for a nap',
       'wrong-telescope':L('monki')+' is looking at a star through the telescope',
-      'potato-audience':L('monki')+' is performing for some potatoes'}[id]
-      ||(/-follows-/.test(id)?L(b)+' is following '+L(a)+' around'
+      'potato-audience':L('monki')+' is performing for some potatoes',
+      'kot-takes-the-sofa':L('kot')+' has taken the warm spot on the sofa, and '+L('galgan')+' is not pleased',
+      'kot-bats-the-sock':L('kot')+' is batting at whatever '+L('sernik')+' is carrying'}[id]
+      ||(/^kot-weaves-/.test(id)?L('kot')+' is weaving round '+L(a)+'’s legs'
+        :/-follows-/.test(id)?L(b)+' is following '+L(a)+' around'
         :/-pond$/.test(id)?L(a)+' is splashing in the pond'
         :/-notices-/.test(id)?L(a)+' has noticed '+(tail==='new room'?'the room has changed':'the new '+tail)+' and is looking at it'
         :/-avoids-the-finger$/.test(id)?L(a)+' is edging away from her finger'
@@ -181,9 +185,9 @@ export const AFFORDANCES=`(()=>{
   for(const o of s.objects.filter(o=>o.room===room).slice(0,6))
     list.push({id:'tap_'+o.id,how:'canvas',...own(o.id,o.x,o.y-12),looks:'the '+String(o.type)+' in the room'});
   // Rubbing a dog is a different gesture from tapping it, and does something else.
-  for(const id of ['sernik','galgan']){const a=s.actors[id];if(a.room!==room)continue;
+  for(const id of ['sernik','galgan','kot']){const a=s.actors[id];if(a.room!==room)continue;
     list.push({id:'rub_'+id,how:'stroke',...at(a.x,a.y-19),
-      looks:'rub '+LOOKS[id]+' back and forth with a finger, the way you would a real dog'});}
+      looks:'rub '+LOOKS[id]+' back and forth with a finger, the way you would a real '+(id==='kot'?'cat':'dog')});}
   const ball=document.getElementById('play-ball');
   if(ball&&showing(ball)&&!ball.disabled){
     const r=ball.getBoundingClientRect(),room=scene.canvas.getBoundingClientRect();

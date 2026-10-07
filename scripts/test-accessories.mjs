@@ -25,7 +25,7 @@ try{
       if(!ink||edge)failures.push(`${id}/${hat}/${JSON.stringify(pose)} clipped or empty`);
     }
     for(const id of ACTORS)for(const pose of poses.slice(0,3))for(const flip of [false,true]){
-      const dog=id==='sernik'||id==='galgan',kind=dog&&pose.pet?'belly':dog&&pose.mood==='sleep'?'sleep':'standing',h=headProfile(id,kind);
+      const dog=['sernik','galgan','kot'].includes(id),kind=dog&&pose.pet?'belly':dog&&pose.mood==='sleep'?'sleep':'standing',h=headProfile(id,kind);
       const eyeX=128+(flip?-1:1)*h.x*2,eyeY=190+h.eyeY*2;
       for(const [hat,color]of [['glasses',[61,72,64]],['headphones',[168,124,100]]]){
         draw(id,{hat,...pose,flip});const points=mask(color),cx=points.reduce((n,p)=>n+p.x,0)/points.length,cy=points.reduce((n,p)=>n+p.y,0)/points.length;
@@ -35,11 +35,11 @@ try{
       draw(id,{...pose,flip});const bareEyes=eyesVisible();
       for(const hat of ['helmet','beret','chefhat','towel','flowercrown']){draw(id,{hat,...pose,flip});if(eyesVisible()<bareEyes*.8)failures.push(`${id}/${kind}/${hat}/${flip}: hat obscures the eyes`);}
     }
-    const columns=[['David','david',{}],['Julia','julia',{}],['Monki','monki',{}],['Sernik','sernik',{}],['Galgan','galgan',{}],['Sleeping','sernik',{mood:'sleep'}],['Sleeping','galgan',{mood:'sleep'}],['Belly up','sernik',{pet:1}],['Belly up','galgan',{pet:1}]];
+    const columns=[['David','david',{}],['Julia','julia',{}],['Monki','monki',{}],['Sernik','sernik',{}],['Galgan','galgan',{}],['Sleeping','sernik',{mood:'sleep'}],['Sleeping','galgan',{mood:'sleep'}],['Belly up','sernik',{pet:1}],['Belly up','galgan',{pet:1}],['Kot','kot',{}],['Kot asleep','kot',{mood:'sleep'}]];
     const hats=['glasses','headphones','bow','flower','helmet','beret','towel','flowercrown'];
     const atlas=document.createElement('canvas');atlas.id='accessory-atlas';atlas.width=1180;atlas.height=1460;Object.assign(atlas.style,{position:'fixed',inset:'0',zIndex:10000,width:'1180px',height:'1460px'});document.body.append(atlas);const a=atlas.getContext('2d');a.fillStyle='#eef0df';a.fillRect(0,0,1180,1460);
-    a.font='15px sans-serif';a.textAlign='center';a.fillStyle='#334d42';for(let j=0;j<columns.length;j++)a.fillText(columns[j][0],160+j*117,25);
-    for(let i=0;i<hats.length;i++){a.textAlign='left';a.fillStyle='#334d42';a.fillText(ITEMS[hats[i]].name,12,65+i*178);a.strokeStyle='#c4cebb';a.beginPath();a.moveTo(0,42+i*178);a.lineTo(1180,42+i*178);a.stroke();for(let j=0;j<columns.length;j++){const[,id,pose]=columns[j];character(a,id,160+j*117,185+i*178,{hat:hats[i],scale:2.45,...pose});}}
+    a.font='15px sans-serif';a.textAlign='center';a.fillStyle='#334d42';for(let j=0;j<columns.length;j++)a.fillText(columns[j][0],100+j*100,25);
+    for(let i=0;i<hats.length;i++){a.textAlign='left';a.fillStyle='#334d42';a.fillText(ITEMS[hats[i]].name,12,65+i*178);a.strokeStyle='#c4cebb';a.beginPath();a.moveTo(0,42+i*178);a.lineTo(1180,42+i*178);a.stroke();for(let j=0;j<columns.length;j++){const[,id,pose]=columns[j];character(a,id,100+j*100,185+i*178,{hat:hats[i],scale:2.45,...pose});}}
     return{renders,failures};
   });
   await page.$eval('#accessory-atlas',e=>e.scrollIntoView());await page.screenshot({path:path.join(output,'v13-accessory-fitting.png'),clip:{x:0,y:0,width:1180,height:1460}});

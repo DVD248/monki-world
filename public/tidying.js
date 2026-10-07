@@ -1,5 +1,5 @@
 import {rect,ellipse} from './art.js';
-import {ACTORS,clamp} from './shared/world.js';
+import {present,clamp} from './shared/world.js';
 const ease=p=>{p=clamp(p,0,1);return p*p*(3-2*p);};
 const lerp=(a,b,p)=>a+(b-a)*p;
 
@@ -8,8 +8,10 @@ const lerp=(a,b,p)=>a+(b-a)*p;
 export class Tidying{
   constructor(scene,before){
     this.scene=scene;this.room=scene.room;this.started=performance.now();this.duration=scene.reduced?180:3200;this.owned=new Map();this.soundStage=-1;this.stopped=false;
-    this.jobs=before.objects.filter(o=>o.room===this.room).map((o,i)=>({from:o,to:scene.state.objects.find(n=>n.id===o.id),helper:ACTORS[i%5]}));
-    this.helpers=ACTORS.map((id,i)=>({id,home:{...before.actors[id]},from:before.actors[id].room===this.room?{...before.actors[id]}:{x:i%2?470+(scene.ox||0):-70-(scene.ox||0),y:260},spot:{x:64+i*67,y:240+i%2*35}}));
+    // Everybody who lives here helps; nobody who has not moved in yet turns up for it.
+    const crew=present(before),gap=crew.length>5?56:67;
+    this.jobs=before.objects.filter(o=>o.room===this.room).map((o,i)=>({from:o,to:scene.state.objects.find(n=>n.id===o.id),helper:crew[i%crew.length]}));
+    this.helpers=crew.map((id,i)=>({id,home:{...before.actors[id]},from:before.actors[id].room===this.room?{...before.actors[id]}:{x:i%2?470+(scene.ox||0):-70-(scene.ox||0),y:260},spot:{x:(crew.length>5?60:64)+i*gap,y:240+i%2*35}}));
     this.dust=before.traces.filter(t=>t.room===this.room);this.progress=0;
   }
   override(id,value){this.scene.override[id]=value;this.owned.set(id,value);}

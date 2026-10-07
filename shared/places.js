@@ -33,5 +33,8 @@ export const PLACE_STORIES={
 };
 export function placeStory(state,place){
   const n=state.life?.places?.[place]?.count||0,pool=PLACE_STORIES[place];if(!pool)return null;
-  const def=pool[n%pool.length];return {...def,id:`place-${place}-${n%pool.length}`,place,round:n,index:-1,difficulty:Math.min(1,n/14),edition:Math.floor(n/3),variant:['plain','wind','bubbles','bounce'][Math.floor(n/3)%4],ready:true,room:place==='sky'?'roof':'garden',theme:place==='sky'?'space':place==='pool'?'water':'garden',color:'#cfddbe',ending:def.title,detail:'Something here is a little different now.',souvenir:def.reward};
+  // A story about somebody who has not moved in yet waits its turn: the next one round instead.
+  const lives=id=>['david','julia'].includes(id)||!Array.isArray(state.cast)||state.cast.includes(id);
+  const at=[0,1,2,3,4,5].map(k=>(n+k)%pool.length).find(i=>lives(pool[i].actor))??n%pool.length;
+  const def=pool[at];return {...def,id:`place-${place}-${at}`,place,round:n,index:-1,difficulty:Math.min(1,n/14),edition:Math.floor(n/3),variant:['plain','wind','bubbles','bounce'][Math.floor(n/3)%4],ready:true,room:place==='sky'?'roof':'garden',theme:place==='sky'?'space':place==='pool'?'water':'garden',color:'#cfddbe',ending:def.title,detail:'Something here is a little different now.',souvenir:def.reward};
 }

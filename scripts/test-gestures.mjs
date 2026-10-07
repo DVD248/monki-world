@@ -17,7 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {AFFORDANCES} from './play.mjs';
-import {createWorld,applyOperation} from '../shared/world.js';
+import {createWorld,applyOperation,moveEveryoneIn} from '../shared/world.js';
 import {ADVENTURES} from '../shared/adventures.js';
 
 const data=await mkdtemp(path.join(os.tmpdir(),'monki-gestures-'));
@@ -32,7 +32,7 @@ const browser=await puppeteer.launch({executablePath:process.env.BROWSER_BIN||(e
 async function room({dog,chapterReady}){
   const page=await browser.newPage();await page.setViewport({width:390,height:844,deviceScaleFactor:1});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  let w=createWorld('gestures',Date.now());
+  let w=moveEveryoneIn(createWorld('gestures',Date.now()));
   w=applyOperation(w,{id:'g0',type:'visit',actor:'julia'},Date.now());
   const chapter=ADVENTURES.findIndex(c=>c.actor===dog);
   assert.ok(chapter>=0,`no chapter stars ${dog}`);

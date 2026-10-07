@@ -11,6 +11,7 @@ import {StackRun,STACK,STACK_ZONES} from '../shared/arcade-stack.js';
 import {CandleRun,CANDLES,CANDLES_ZONES,cakeFor,apart} from '../shared/arcade-candles.js';
 import {SnakeRun,SNAKE,SNAKE_ZONES,DIRS} from '../shared/arcade-snake.js';
 import {MergeRun,MERGE,MERGE_ZONES,MERGE_DIRS,mergeKind} from '../shared/arcade-merge.js';
+import {ClimbRun,CLIMB,CLIMB_ZONES,climbDrain} from '../shared/arcade-climb.js';
 import {seeded} from '../shared/arcade.js';
 import {createWorld,applyOperation} from '../shared/world.js';
 
@@ -433,9 +434,51 @@ test('Hill Drive: the car waits for the pedal; tipped onto his head, Galgan is o
   assert.ok(flipped,'some spin lands a flip');assert.ok(flipped.fuel>.45,`fuel ${flipped.fuel.toFixed(2)}`);
 });
 
+// ---------------------------------------------------------------- Kot Climb
+/** Hops to the free side every `gap` seconds, like a thumb keeping a rhythm; `wrong` of the
+ * time it misreads and hops the other way. */
+function climbBot(gap=.27,{wrong=0,seed='kot'}={}){
+  const r=seeded(seed);let next=.5;
+  return g=>{if(g.time<next)return {};next=g.time+gap;const row=g.rows[g.score+1],want=row.side?-row.side:g.side,side=r()<wrong?-want:want;return {taps:[{x:side<0?100:300,y:400}]};};
+}
+test('Kot Climb: nothing drains before the first hop, the first steps are bare, there is always a free side, and a shelf or an empty bar ends it',()=>{
+  const g=new ClimbRun('a');
+  run(g,()=>({}),{seconds:5});assert.ok(!g.over);assert.equal(g.energy,CLIMB.start,'waits for the first hop');
+  for(let k=1;k<=CLIMB.bare;k++)assert.equal(g.rows[k].side,0,`step ${k} is bare`);
+  while(g.rows.length<3000)g.rows.push(g.row(g.rows.length));
+  assert.ok(g.rows.every(r=>[-1,0,1].includes(r.side)),'one side at most');
+  const bare=g.rows.slice(1000).filter(r=>!r.side).length/2000;assert.ok(bare>.1&&bare<.3,`some bare steps all the way up (${bare})`);
+  // Into a shelf.
+  const b=new ClimbRun('b');while(b.rows[b.score+1].side===0)b.hop(b.side);
+  b.hop(b.rows[b.score+1].side);assert.ok(b.over);assert.equal(b.events.at(-1).type,'bonk');
+  // Hanging on too long.
+  const c=new ClimbRun('c');c.step(STEP,{taps:[{x:100}]});run(c,()=>({}),{seconds:30});
+  assert.ok(c.over);assert.equal(c.events.at(-1).type,'slip');assert.ok(c.time>4&&c.time<8,`lets go after ${c.time.toFixed(1)} s`);
+  // The keyboard: arrows hop, Space does not.
+  const k=new ClimbRun('k');k.step(STEP,{taps:[{x:200,key:true}]});assert.ok(!k.started);k.step(STEP,{swipes:[{dir:'right',key:true}]});assert.equal(k.side,1);
+});
+test('Kot Climb: a steady thumb goes on at the top of the curve; a slow one is caught there; hopping blindly ends at once',()=>{
+  const need=climbDrain(1)/CLIMB.gain;assert.ok(need>3&&need<3.7,`the top asks ${need.toFixed(2)} hops a second`);
+  for(const seed of SEEDS){
+    const steady=run(new ClimbRun(seed),climbBot(.27,{seed}),{seconds:600});
+    assert.ok(!steady.over,`${seed}: a steady 3.7 a second holds (${steady.score})`);
+    const slow=run(new ClimbRun(seed),climbBot(.45,{seed}),{seconds:600});
+    assert.ok(slow.over&&slow.events.at(-1).type==='slip',`${seed}: 2.2 a second is caught`);
+    assert.ok(slow.time>25&&slow.time<150,`${seed}: but not at once (${slow.time.toFixed(0)} s)`);
+    let flip=1;const blind=run(new ClimbRun(seed),g=>{if(Math.round(g.time/STEP)%30)return {};flip=-flip;return {taps:[{x:flip<0?100:300}]};},{seconds:60});
+    assert.ok(blind.over&&blind.time<15,`${seed}: left, right, left without looking (${blind.time.toFixed(1)} s)`);
+  }
+});
+test('Kot Climb: whoever is asleep on a shelf lives in the house',()=>{
+  const sleepers=cast=>{const g=new ClimbRun('who',{cast});while(g.rows.length<800)g.rows.push(g.row(g.rows.length));return new Set(g.rows.filter(r=>r.prop==='resident').map(r=>r.who));};
+  assert.deepEqual([...sleepers([])],[]);
+  assert.deepEqual([...sleepers(['david','julia','monki'])],['monki']);
+  assert.deepEqual([...sleepers(['monki','sernik','galgan','kot'])].sort(),['galgan','monki','sernik']);
+});
+
 // ---------------------------------------------------------------- all six
 // Each run gets a bot of its own: some remember what they have seen.
-const GAMES={drive:[DriveRun,DRIVE_ZONES,()=>driveBot()],jet:[JetRun,JET_ZONES,()=>jetBot],cliff:[CliffRun,CLIFF_ZONES,()=>cliffBot()],hop:[HopRun,HOP_ZONES,()=>hopBot()],fall:[FallRun,FALL_ZONES,()=>fallBot()],match:[MatchRun,MATCH_ZONES,()=>matchBot(.4)],stack:[StackRun,STACK_ZONES,()=>stackBot()],candles:[CandleRun,CANDLES_ZONES,()=>candlesBot()],snake:[SnakeRun,SNAKE_ZONES,()=>snakeBot()],merge:[MergeRun,MERGE_ZONES,()=>mergeBot()]};
+const GAMES={drive:[DriveRun,DRIVE_ZONES,()=>driveBot()],jet:[JetRun,JET_ZONES,()=>jetBot],cliff:[CliffRun,CLIFF_ZONES,()=>cliffBot()],hop:[HopRun,HOP_ZONES,()=>hopBot()],fall:[FallRun,FALL_ZONES,()=>fallBot()],match:[MatchRun,MATCH_ZONES,()=>matchBot(.4)],stack:[StackRun,STACK_ZONES,()=>stackBot()],candles:[CandleRun,CANDLES_ZONES,()=>candlesBot()],snake:[SnakeRun,SNAKE_ZONES,()=>snakeBot()],climb:[ClimbRun,CLIMB_ZONES,()=>climbBot(.27)],merge:[MergeRun,MERGE_ZONES,()=>mergeBot()]};
 test('every game: the same seed and the same fingers make the same run',()=>{
   for(const [id,[Game,,bot]] of Object.entries(GAMES)){
     const a=run(new Game('same'),bot(),{seconds:40}),b=run(new Game('same'),bot(),{seconds:40});
@@ -450,7 +493,8 @@ test('every game: the test lab can start it at any stage, and it opens there',()
   }
 });
 test('every game: its line on the other phone',()=>{
-  assert.deepEqual(Object.keys(ARCADE_GAMES),['jump','drop','drive','jet','cliff','hop','fall','match','stack','candles','snake','merge']);
+  assert.deepEqual(Object.keys(ARCADE_GAMES),['jump','drop','drive','jet','cliff','hop','fall','match','stack','candles','snake','merge','climb']);
+  assert.equal(bragLine('climb',120),'got Kot 120 metres up in Kot Climb');
   assert.equal(bragLine('drive',812),'drove Galgan 812 metres in Hill Drive');
   assert.equal(bragLine('jet',1),'flew Monki past 1 chimney in Jet Monki');
   assert.equal(bragLine('hop',40),'got Galgan 40 hops up the river in Water Hop');

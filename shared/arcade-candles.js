@@ -11,7 +11,7 @@ import {ease,seeded,zoneAt,lerp} from './arcade.js';
 export const CANDLES={width:400,height:600,cx:200,cy:225,r:78,big:96,from:500,speed:2300,len:44,gap:.16,berry:.17,pause:1.15,inset:6,crowd:11};
 export const CANDLES_ZONES=[[0,'The party'],[30,'Second helpings'],[70,'Big birthday'],[120,'Midnight cake'],[200,'Cake for everyone']];
 /** Whose birthday each cake is, in turn. */
-export const CAKE_FOR=['sernik','galgan','monki','julia','david'];
+export const CAKE_FOR=['sernik','galgan','monki','julia','david','kot'];
 export const candlesDifficulty=k=>ease(k,8);
 const TAU=Math.PI*2;
 /** The angle between two directions, 0 to π. */
@@ -26,7 +26,9 @@ export function cakeFor(k){
 
 export class CandleRun{
   /** `start` is for the test lab: a run that begins on the cake that many candles in. */
-  constructor(seed,{start=0}={}){
+  /** `cast` is who lives in the house: the cakes are for them, and nobody who has not moved in yet. */
+  constructor(seed,{start=0,cast=CAKE_FOR}={}){
+    this.cakeFor=CAKE_FOR.filter(id=>cast.includes(id));if(!this.cakeFor.length)this.cakeFor=['monki'];
     this.rng=seeded(seed);this.score=start;this.time=0;this.events=[];this.zone=0;this.state='play';
     let k=0,sum=0;while(sum+cakeFor(k).need<=start){sum+=cakeFor(k).need;k++;}
     this.k=k-1;this.zone=zoneAt(CANDLES_ZONES,start)[2];this.newCake(true);
@@ -42,7 +44,7 @@ export class CandleRun{
     const kinds=['steady'];if(k>=2)kinds.push('pulse');if(k>=4)kinds.push('swing');if(k>=6)kinds.push('stopgo');if(k>=8)kinds.push('flip');
     const kind=c.big&&k>=4?(r()<.5?'swing':'flip'):kinds[Math.floor(r()*kinds.length)];
     this.cake={k,big:c.big,need:c.need,left:c.need,kind,speed:c.speed*(.9+r()*.2),dir:r()<.5?-1:1,phase:r()*TAU,period:lerp(3.2,2.2,d)*(.85+r()*.3),
-      for:CAKE_FOR[k%CAKE_FOR.length],look:k%4};
+      for:this.cakeFor[k%this.cakeFor.length],look:k%4};
     this.items=[];this.serial=0;this.rot=r()*TAU;this.ct=0;this.flying=null;
     // Candles already in, spread out, and strawberries in the spaces between.
     for(let i=0;i<c.pre;i++){const a=this.freeAngle(.8);if(a!==null)this.items.push({id:this.serial++,a,kind:'pre'});}

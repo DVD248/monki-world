@@ -17,6 +17,7 @@ export function headProfile(id,pose='standing'){
   if(id==='david')return{x:0,capX:0,eyeY:-27,top:-36,upper:-38,half:9,scale:.72};
   if(id==='julia')return{x:0,capX:0,eyeY:-27,top:-34,upper:-35,half:10,scale:.72};
   if(id==='monki')return{x:1,capX:0,eyeY:-30,top:-35,upper:-37,half:12,scale:.8};
+  if(id==='kot')return{x:10,capX:10,eyeY:-23,top:-28,upper:-35,half:9,scale:.68};
   return{x:10,capX:10,eyeY:-23,top:-28,upper:-35,half:10,scale:.7};
 }
 const FACE_ACCESSORIES=new Set(['glasses','headphones','bow','flower']);
@@ -85,6 +86,8 @@ export function character(c,id,x,y,options={}){
     if(mood==='annoyed'){rect(c,-6,-34,5,1,P.ink);rect(c,2,-34,5,1,P.ink);}
     rect(c,-5,-16,2,4,'#ca8a52');rect(c,3,-10,2,3,'#ca8a52');
     wearAccessory(c,hat,id);
+  }else if(id==='kot'){
+    kot(c,{frame,mood,hat,pet,carried,running});
   }else{
     const dark=id==='galgan',fur=dark?'#50554a':'#d9c18d',lit=dark?'#616758':'#ead5a5',cream=dark?'#c9b888':'#f1dfb6';
     if(mood==='sleep'&&pet<=.1&&!carried&&!running){
@@ -138,6 +141,63 @@ export function character(c,id,x,y,options={}){
     }
   }
   c.restore();
+}
+
+// Kot: a calico cat. White socks and bib, a ginger face with a black patch over one eye,
+// black ears, a black saddle, a ginger tail that curls at the tip, and a black band on one
+// white front leg. Same footprint as the dogs, so hats, petting and the room treat her alike.
+const KOT={white:'#f3eee2',lit:'#fbf8ef',shade:'#ddd5c4',ginger:'#cf8a48',gingerLit:'#e0a462',black:'#3b3833',blackLit:'#4d4943',pink:'#e2a19b',ear:'#c98a86',eye:'#cdc46c',whisker:'#b9ae9c'};
+function kot(c,{frame=0,mood='idle',hat=null,pet=0,carried=false,running=false}){
+  const K=KOT,closed=mood==='sleep'||pet>.1||mood==='happy';
+  // One face, drawn where each pose puts the head: (x,y) is the head's top-left corner.
+  const face=(x,y,{lying=false}={})=>{
+    rect(c,x,y,18,14,K.ginger);rect(c,x+1,y-1,16,1,K.ginger);rect(c,x-1,y+2,1,10,K.ginger);rect(c,x+18,y+2,1,10,K.black);
+    rect(c,x+10,y,8,9,K.black);rect(c,x+10,y-1,7,1,K.black);rect(c,x,y,4,4,K.black);
+    rect(c,x+8,y+1,2,6,K.gingerLit);
+    rect(c,x+4,y+9,10,5,K.white);rect(c,x+5,y+14,8,1,K.white);rect(c,x+3,y+10,1,3,K.white);
+    // Ears flatten when she is cross.
+    const drop=mood==='annoyed'?3:0;
+    poly(c,[[x,y+2],[x+1-drop,y-8+drop],[x+7,y]],K.black);poly(c,[[x+11,y],[x+18+drop,y-8+drop],[x+18,y+2]],K.black);
+    if(!drop){rect(c,x+2,y-4,2,3,K.ear);rect(c,x+15,y-4,2,3,K.ear);}
+    if(closed){const lid=mood==='sleep'||lying?0:-1;rect(c,x+3,y+6+lid,4,1,P.dark);rect(c,x+12,y+6+lid,4,1,K.eye);if(lid){rect(c,x+4,y+4,2,1,P.dark);rect(c,x+13,y+4,2,1,K.eye);}}
+    else{rect(c,x+3,y+4,4,3,K.eye);rect(c,x+12,y+4,4,3,K.eye);rect(c,x+4,y+4,2,3,P.dark);rect(c,x+13,y+4,2,3,P.dark);rect(c,x+3,y+4,1,1,K.lit);rect(c,x+12,y+4,1,1,K.lit);}
+    rect(c,x+8,y+9,3,2,K.pink);rect(c,x+9,y+11,1,1,P.ink);rect(c,x+7,y+12,2,1,P.ink);rect(c,x+10,y+12,2,1,P.ink);
+    if(mood==='happy'&&!lying)rect(c,x+9,y+13,2,1,'#c68776');
+    if(mood==='annoyed'){rect(c,x+2,y+2,5,1,P.ink);rect(c,x+11,y+2,5,1,K.whisker);}
+    rect(c,x-4,y+10,5,1,K.whisker);rect(c,x-3,y+12,4,1,K.whisker);rect(c,x+18,y+10,5,1,K.whisker);rect(c,x+18,y+12,4,1,K.whisker);
+  };
+  if(mood==='sleep'&&pet<=.1&&!carried&&!running){
+    // A loaf with the tail wrapped round the front and the chin on it.
+    const breath=Math.sin(frame*1.5)>.1?1:0;
+    rect(c,-21,-12-breath,30,12+breath,K.white);rect(c,-19,-14-breath,26,4,K.white);
+    rect(c,-18,-15-breath,13,6,K.black);rect(c,-17,-15-breath,6,1,K.blackLit);rect(c,-5,-14-breath,9,5,K.ginger);rect(c,-22,-9,4,6,K.ginger);
+    rect(c,-20,-3,30,3,K.ginger);rect(c,-14,-3,8,3,K.black);rect(c,6,-4,5,4,K.gingerLit);
+    rect(c,-1,-6,6,3,K.white);rect(c,-1,-5,6,1,K.black);
+    face(4,-19,{lying:true});
+    wearAccessory(c,hat,'kot','sleep');
+  }else if(pet>.72&&!carried&&!running){
+    // Belly up, paws folded, face upside down: the dogs' trick, and she knows it.
+    const kick=Math.floor(frame/2)%2;
+    rect(c,-30,-7+kick,10,3,K.ginger);rect(c,-31,-11+kick,3,5,K.ginger);rect(c,-31,-12+kick,3,2,K.black);
+    rect(c,-16,-22+kick,4,11,K.white);rect(c,1,-20-kick,4,9,K.white);rect(c,1,-16-kick,4,2,K.black);
+    rect(c,-21,-14,31,14,K.white);rect(c,-19,-16,26,4,K.white);rect(c,-21,-6,9,6,K.black);rect(c,4,-5,6,5,K.ginger);
+    rect(c,-14,-13,17,9,K.lit);rect(c,-7,-9,2,2,K.shade);
+    rect(c,-22,-19-kick,5,9,K.white);rect(c,5,-18+kick,5,8,K.white);
+    c.save();c.translate(18,-12);c.rotate(Math.PI);face(-9,-7,{lying:true});wearAccessory(c,hat,'kot','belly-face','face');c.restore();
+    wearAccessory(c,hat,'kot','belly','head');
+  }else{
+    const kick=carried||running?Math.sin(frame*3)*3:0,curl=pet?Math.round(Math.sin(frame*1.6)*pet*2):0;
+    // Tail up behind her, ginger, curling forward at the tip.
+    rect(c,-16,-15,4,4,K.ginger);rect(c,-18,-25,3,11,K.ginger);rect(c,-17,-24,1,8,K.gingerLit);rect(c,-18,-30+curl,3,6,K.black);rect(c,-16,-32+curl,3,3,K.black);rect(c,-14,-31+curl,2,2,K.blackLit);
+    // Far legs, then body, then near legs: the near front one has the black band.
+    rect(c,-7,-6-kick,3,7,K.shade);rect(c,1,-6+kick,3,7,K.shade);
+    rect(c,-13,-17,25,12,K.white);rect(c,-11,-18,20,2,K.lit);
+    rect(c,-12,-18,11,6,K.black);rect(c,-11,-18,6,1,K.blackLit);rect(c,-1,-17,7,4,K.ginger);rect(c,-12,-9,4,3,K.ginger);
+    rect(c,-11,-7+kick,4,8,K.white);rect(c,5,-7-kick,4,8,K.white);rect(c,5,-5-kick,4,2,K.black);
+    rect(c,-12,0+kick,5,1,K.shade);rect(c,4,0-kick,6,1,K.shade);
+    face(1,-28);
+    wearAccessory(c,hat,'kot');
+  }
 }
 
 export function item(c,type,x,y,options={}){
@@ -227,7 +287,7 @@ export function spriteCanvas(id,size=48,options={}){
   const key=JSON.stringify([id,size,options]);let source=previewCache.get(key);
   if(!source){
     const scratch=document.createElement('canvas');scratch.width=192;scratch.height=192;const ctx=scratch.getContext('2d',{willReadFrequently:true});
-    if(['david','julia','monki','sernik','galgan'].includes(id))character(ctx,id,96,145,{...options,scale:1,shadow:false});else item(ctx,id,96,130,{...options,scale:1,shadow:false});
+    if(['david','julia','monki','sernik','galgan','kot'].includes(id))character(ctx,id,96,145,{...options,scale:1,shadow:false});else item(ctx,id,96,130,{...options,scale:1,shadow:false});
     const pixels=ctx.getImageData(0,0,192,192).data;let left=192,top=192,right=0,bottom=0;
     for(let y=0;y<192;y++)for(let x=0;x<192;x++)if(pixels[(y*192+x)*4+3]){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
     source=document.createElement('canvas');source.width=size;source.height=size;const c=source.getContext('2d');c.imageSmoothingEnabled=false;

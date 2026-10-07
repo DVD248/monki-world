@@ -62,7 +62,9 @@ export function adventureFor(state,actor,now=Date.now()){
   const journey={index:Math.max(0,...journeys.map(j=>j?.index||0)),lastAt:Math.max(0,...journeys.map(j=>j?.lastAt||0))};
   const index=journey.index,done=index>=TOTAL_EPISODES;
   const invitation=index>0?state.adventureInvites?.[actor]:null;
-  const chapter=ADVENTURES.find(c=>c.id===invitation?.chapter)||ADVENTURES[index%ADVENTURES.length],edition=Math.floor(index/ADVENTURES.length),variant=VARIATIONS[edition%VARIATIONS.length];
+  // Not a story about somebody who has not moved in yet (an invitation left on an older phone).
+  const lives=id=>['david','julia'].includes(id)||!Array.isArray(state.cast)||state.cast.includes(id);
+  const chapter=ADVENTURES.find(c=>c.id===invitation?.chapter&&lives(c.actor))||ADVENTURES[index%ADVENTURES.length],edition=Math.floor(index/ADVENTURES.length),variant=VARIATIONS[edition%VARIATIONS.length];
   const nextAt=(journey.lastAt||0)+CHAPTER_GAP;
   return {...chapter,index,edition,variant,from:invitation?.from,done,nextAt,ready:!done&&now>=nextAt};
 }

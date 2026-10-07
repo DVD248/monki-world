@@ -4,6 +4,7 @@ import {mkdtemp,cp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
+import {fullHouse} from './house.mjs';
 // Match the server's /shared routing without editing source imports or relying
 // on a stale dist build. Every file in this fixture is a disposable copy.
 const dir=await mkdtemp(join(tmpdir(),'monki-gestures-'));
@@ -69,7 +70,7 @@ test('tap bubbles stay small and pop on residents; only enclosing bubbles captur
   toys.update(132);assert.ok(scene.override.sernik);toys.clear();assert.deepEqual(scene.override,{});
 });
 test('a bubble leaves the wand with a brief puff and then floats, rather than flying like a dart',()=>{
-  const state=createWorld('bubble-motion');for(const actor of Object.values(state.actors))actor.room='garden';
+  const state=fullHouse('bubble-motion');for(const actor of Object.values(state.actors))actor.room='garden';
   const toys=new RoomToys({room:'house',sy:1,override:{},callbacks:{},state});
   toys.start('bubbles');toys.placeWand({x:200,y:270});
   toys.blow({dx:0,dy:-1,r:12,strength:0});const small=toys.bubbles.at(-1),smallStart=small.y;
@@ -81,7 +82,7 @@ test('a bubble leaves the wand with a brief puff and then floats, rather than fl
   assert.ok(Math.abs(large.vx)<75,'The launch impulse should dissipate');
 });
 test('a quick wand flick launches farther than a slow pull to the same point',()=>{
-  const toys=new RoomToys({room:'house',sy:2,override:{},callbacks:{},state:createWorld('bubble-flick')});
+  const toys=new RoomToys({room:'house',sy:2,override:{},callbacks:{},state:fullHouse('bubble-flick')});
   toys.start('bubbles');toys.placeWand({x:200,y:260});
   const start={x:200,y:252},end={x:280,y:202};
   toys.input('down',start,1000);toys.input('move',end,1080);toys.input('up',end,1090);const quick=toys.bubbles.at(-1);
@@ -89,7 +90,7 @@ test('a quick wand flick launches farther than a slow pull to the same point',()
   assert.equal(quick.r,slow.r);assert.ok(quick.vx>slow.vx+5,`${quick.vx} vs ${slow.vx}`);
 });
 test('the placed wand stays put; taps blow small, aiming grows bubbles, cancellation restores it',()=>{
-  const toys=new RoomToys({room:'house',sy:2,override:{},callbacks:{},state:createWorld('placed-wand')});
+  const toys=new RoomToys({room:'house',sy:2,override:{},callbacks:{},state:fullHouse('placed-wand')});
   toys.start('bubbles');toys.beginAim({x:200,y:289});toys.input('up',{x:90,y:265});
   assert.deepEqual(toys.wand,{x:90,y:265});assert.equal(toys.bubbles.length,0);
   toys.input('down',{x:90,y:259});toys.input('up',{x:90,y:259});assert.equal(toys.bubbles[0].r,12);
@@ -99,19 +100,19 @@ test('the placed wand stays put; taps blow small, aiming grows bubbles, cancella
   toys.beginAim({x:120,y:220});assert.equal(toys.wand,null);toys.cancelAim();assert.deepEqual(toys.wand,{x:90,y:265});
 });
 test('an automatic chain pop cannot strand the next resident in a dead bubble',()=>{
-  const scene={room:'house',override:{},callbacks:{},react(){},state:createWorld('bubble-chain')},toys=new RoomToys(scene);
+  const scene={room:'house',override:{},callbacks:{},react(){},state:fullHouse('bubble-chain')},toys=new RoomToys(scene);
   toys.start('bubbles');toys.bubbles=[{x:100,y:200,r:27,age:14.1,actor:'julia'},{x:109,y:204,r:27,age:1,actor:'david'}];
   toys.own('julia',{x:100,y:216,room:'house'});toys.own('david',{x:109,y:220,room:'house'});
   toys.last=100;toys.update(116);
   assert.equal(toys.bubbles.length,0);assert.equal(toys.owned.size,0);assert.deepEqual(scene.override,{});
 });
 test('clearing toys cannot erase an override belonging to a newer animation',()=>{
-  const scene={room:'house',override:{},callbacks:{},state:createWorld('bubble-owner')},toys=new RoomToys(scene);
+  const scene={room:'house',override:{},callbacks:{},state:fullHouse('bubble-owner')},toys=new RoomToys(scene);
   toys.own('julia',{x:1,y:2,room:'house'});const newer={x:70,y:200,room:'house'};scene.override.julia=newer;toys.clear();
   assert.equal(scene.override.julia,newer);
 });
 test('fetch waits for landing and physical arrival, then returns the roll and its guest dog',()=>{
-  const state=createWorld('fetch-guest');state.actors.sernik.room='garden';
+  const state=fullHouse('fetch-guest');state.actors.sernik.room='garden';
   let results=0,returned=false;
   const scene={room:'house',ox:80,override:{},callbacks:{onToyResult(){results++;},onToyDock(mode,away){if(mode==='paper'&&!away)returned=true;}},state},toys=new RoomToys(scene);
   toys.start('paper');toys.beginAim(toys.origin,0);toys.input('move',{x:80,y:220},300);toys.input('up',{x:80,y:220},420);
@@ -125,14 +126,14 @@ test('fetch waits for landing and physical arrival, then returns the roll and it
 });
 test('a fetch can be put away during flight, pickup, return or the walk home',()=>{
   for(const phase of ['chase','pickup','return','home']){
-    const state=createWorld('fetch-interruption'),scene={room:'house',override:{},callbacks:{},state},toys=new RoomToys(scene);
+    const state=fullHouse('fetch-interruption'),scene={room:'house',override:{},callbacks:{},state},toys=new RoomToys(scene);
     toys.start('paper');toys.beginAim(toys.origin,0);toys.input('move',{x:100,y:250},100);toys.input('up',{x:80,y:240},120);
     let found=false;for(let t=100;t<15100&&toys.shots.length;t+=16){toys.update(t);if(toys.shots[0]?.fetch.phase===phase){found=true;break;}}
     assert.ok(found,phase);toys.clear();assert.equal(toys.shots.length,0);assert.equal(scene.override.sernik,undefined);
   }
 });
 test('cleanup helpers return to their saved room and spot; guests walk fully out before release',()=>{
-  const before=createWorld('cleanup-guests');before.actors.monki.room='roof';before.actors.galgan.room='garden';
+  const before=fullHouse('cleanup-guests');before.actors.monki.room='roof';before.actors.galgan.room='garden';
   const after=applyOperation(before,{id:'tidy-guests',actor:'david',type:'tidy'});let stops=0;
   const scene={room:'house',ox:80,override:{},state:after,callbacks:{onTidyEnd(){stops++;}}},tidy=new Tidying(scene,before);
   tidy.update(tidy.started+tidy.duration*.4);assert.equal(scene.override.monki.room,'house');
@@ -141,7 +142,7 @@ test('cleanup helpers return to their saved room and spot; guests walk fully out
   tidy.update(tidy.started+tidy.duration+1);assert.deepEqual(scene.override,{});assert.deepEqual(after.actors,before.actors);tidy.stop();assert.equal(stops,1);
 });
 test('old piles are separated once, deterministically, without moving furniture or losing progress',()=>{
-  const old=createWorld('stacked');for(const a of Object.values(old.actors)){a.x=200;a.y=250;}
+  const old=fullHouse('stacked');for(const a of Object.values(old.actors)){a.x=200;a.y=250;}
   const repaired=prepareWorld(old),actors=Object.values(repaired.actors);
   for(let i=0;i<actors.length;i++)for(let j=i+1;j<actors.length;j++)assert.ok(Math.hypot(actors[i].x-actors[j].x,actors[i].y-actors[j].y)>=4);
   assert.deepEqual(prepareWorld(repaired),repaired);assert.deepEqual(prepareWorld(old),repaired);assert.deepEqual(old.objects,repaired.objects);
@@ -149,7 +150,7 @@ test('old piles are separated once, deterministically, without moving furniture 
   assert.deepEqual(placed.actors.david,a);assert.notDeepEqual([placed.actors.julia.x,placed.actors.julia.y],[a.x,a.y]);
 });
 test('intentional close arrangements survive reloads and unrelated actions',()=>{
-  const s=createWorld('cuddles');s.actors.david.x=200;s.actors.david.y=250;s.actors.julia.x=210;s.actors.julia.y=250;
+  const s=fullHouse('cuddles');s.actors.david.x=200;s.actors.david.y=250;s.actors.julia.x=210;s.actors.julia.y=250;
   const restored=prepareWorld(s);assert.deepEqual(restored.actors,s.actors);
   const next=applyOperation(restored,{id:'unrelated-poke',actor:'david',type:'poke',target:'monki'});
   assert.deepEqual(next.actors.david,s.actors.david);assert.deepEqual(next.actors.julia,s.actors.julia);

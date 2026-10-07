@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld} from '../shared/world.js';
 import {AmbientLife,ambientScenes} from '../public/ambient-life.js';
+import {fullHouse} from './house.mjs';
 
-const world=()=>createWorld('ambient-test',1900000000000);
+const world=()=>fullHouse('ambient-test',1900000000000);
 const fakeScene=state=>({state,room:'house',toys:{mode:null},replaying:false,tidying:null,decorEditing:false,down:null});
 
 test('available live scenes use real residents and vary with place',()=>{

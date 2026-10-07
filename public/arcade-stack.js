@@ -144,4 +144,6 @@ export default {Logic:StackRun,zones:STACK_ZONES,draw,event,hud,card,
   // The view follows the top of the tower, eased so a new pancake does not jolt it.
   camera:g=>{const L=g.logic,want=Math.max(0,StackRun.height(L.slider.n)-240),dt=Math.min(.05,g.time-(g.camT??g.time));g.camT=g.time;
     if(g.overAt===null)g.camY=(g.camY??want)+(want-(g.camY??want))*Math.min(1,dt*5);else g.endCam??=g.camY;return {x:0,y:-(g.shown??g.camY??0)};},
-  reset:g=>{g.camY=0;g.shown=0;g.endCam=null;g.camT=null;g.pieces=[];g.placedAt=null;g.glowAt=null;g.butter=false;g.pieceT=null;g.dogs=DOGS.map(d=>({...d}));}};
+  reset:g=>{g.camY=0;g.shown=0;g.endCam=null;g.camT=null;g.pieces=[];g.placedAt=null;g.glowAt=null;g.butter=false;g.pieceT=null;
+    // Sernik catches on the left once he lives here; until then it is Kot, or Monki.
+    const left=['sernik','kot','monki'].find(id=>g.cast.includes(id))||'monki';g.dogs=DOGS.map(d=>({...d,id:d.id==='sernik'?left:d.id}));}};

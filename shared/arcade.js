@@ -19,6 +19,7 @@ export const ARCADE_GAMES={
   candles:{id:'candles',title:'Candle Cake',star:'monki',one:'candle',many:'candles',short:'',news:40,hint:'Tap to put a candle in. Miss the others.',did:'put {n} on the cakes in Candle Cake'},
   snake:{id:'snake',title:"Galgan's Parade",star:'galgan',one:'treat',many:'treats',short:'',news:25,hint:'Swipe to lead Galgan. Treats bring ducklings.',did:"fed Galgan {n} in Galgan's Parade"},
   merge:{id:'merge',title:'Snack Merge',star:'sernik',one:'point',many:'points',short:'',news:2000,hint:'Swipe to slide. Two the same make the next snack.',did:'scored {n} in Snack Merge'},
+  climb:{id:'climb',title:'Kot Climb',star:'kot',one:'metre',many:'metres',short:'m',news:40,hint:'Tap the side with no shelf. Keep climbing.',did:'got Kot {n} up in Kot Climb'},
 };
 export const ARCADE_MAX=99999;
 export const amount=(game,n)=>`${n} ${n===1?ARCADE_GAMES[game].one:ARCADE_GAMES[game].many}`;

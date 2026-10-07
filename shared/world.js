@@ -7,9 +7,20 @@ import {LIFE_ITEMS,initLife,advanceLife,routines,syncSetups,applyLifeOperation,a
 import {ARCADE_GAMES,ARCADE_MAX} from './arcade.js';
 export const VERSION = 3;
 export const PEOPLE = ['david', 'julia'];
-export const ACTORS = ['david', 'julia', 'monki', 'sernik', 'galgan'];
-export const RESIDENTS = ['monki', 'sernik', 'galgan'];
-export const NAMES = { david: 'David', julia: 'Julia', monki: 'Monki', sernik: 'Sernik', galgan: 'Galgan' };
+export const ACTORS = ['david', 'julia', 'monki', 'sernik', 'galgan', 'kot'];
+export const RESIDENTS = ['monki', 'sernik', 'galgan', 'kot'];
+/** The ones you stroke rather than poke. */
+export const PETS = ['sernik', 'galgan', 'kot'];
+export const NAMES = { david: 'David', julia: 'Julia', monki: 'Monki', sernik: 'Sernik', galgan: 'Galgan', kot: 'Kot' };
+/** A new house starts with Monki. The others knock once the shared adventures have got this
+ * far, each the day their own story begins: Galgan's boat is the second adventure, Sernik's
+ * laundry the third. Kot comes after the fourth. One at a time, and only when somebody opens
+ * the door; nothing counts down to it and nobody is shown who is next. */
+export const ARRIVALS = { galgan: 1, sernik: 2, kot: 4 };
+/** Where somebody who has not moved in yet is: no room, so no room draws them. */
+export const AWAY = 'away';
+// Just inside the door to the garden, which is the way in.
+const DOOR = { x: 322, y: 186 };
 export const ITEMS = {
   ...LIFE_ITEMS,
   potato: { name: 'Potato', wearable: true }, cone: { name: 'Traffic cone', wearable: true },
@@ -35,6 +46,7 @@ const TIDY_HOMES = { couch: [118, 181], plant: [56, 199], lamp: [197, 181], bowl
  * nonsense ("of course Sernik took it") instead of random noise. */
 export const TENDENCIES = {
   monki:  { verbs: { stack: 4, climb: 3, wear: 3, steal: 2, sleep: 1 }, loves: ['potato', 'balloon', 'moon', 'star'], hates: ['fish'] },
+  kot:    { verbs: { sleep: 5, nest: 4, climb: 3, steal: 2, guard: 1 },  loves: ['fish', 'sock', 'couch', 'teacup'], hates: ['umbrella'] },
   sernik: { verbs: { steal: 5, eat: 4, nest: 3, sleep: 2, wear: 1 },    loves: ['icecream', 'fish', 'mushroom', 'bowl'], hates: ['frog'] },
   galgan: { verbs: { drag: 5, sleep: 5, dig: 4, guard: 2, steal: 1 },   loves: ['sock', 'couch'], hates: ['balloon'] },
 };
@@ -96,8 +108,9 @@ export function createWorld(seed = 'monki', now = Date.now()) {
       david: { x: 106, y: 244, room: 'house', hat: null, mood: 'idle', pokes: 0 },
       julia: { x: 292, y: 234, room: 'house', hat: null, mood: 'idle', pokes: 0 },
       monki: { x: 220, y: 200, room: 'house', hat: null, mood: 'idle', pokes: 0 },
-      sernik: { x: 306, y: 284, room: 'house', hat: null, mood: 'idle', pokes: 0 },
-      galgan: { x: 155, y: 291, room: 'house', hat: null, mood: 'sleep', pokes: 0 },
+      sernik: { x: 306, y: 284, room: AWAY, hat: null, mood: 'idle', pokes: 0 },
+      galgan: { x: 155, y: 291, room: AWAY, hat: null, mood: 'sleep', pokes: 0 },
+      kot: { x: 262, y: 300, room: AWAY, hat: null, mood: 'idle', pokes: 0 },
     },
     objects: [
       { id: 'couch', type: 'couch', room: 'house', x: 118, y: 181 },
@@ -111,6 +124,7 @@ export function createWorld(seed = 'monki', now = Date.now()) {
     changes: [], chains: [], seen: { david: now, julia: now }, best: {},
     bond: { david: {}, julia: {} }, received: { david: now, julia: now },
     catalog:{styles:clone(DEFAULT_DECOR),storage:[],hiddenDecor:[],legacyOwned:{furniture:[],finishes:[],styles:{}},arranged:true},
+    cast: ['monki'], arrivals: { ...ARRIVALS },
   };
   journeyFields(state);
   initLife(state);
@@ -152,6 +166,16 @@ function normalize(state) {
   }
   // A surface added after the save was made (trim, window view, distant view) starts at its default.
   for(const [room,surfaces] of Object.entries(DEFAULT_DECOR))state.catalog.styles[room]={...surfaces,...state.catalog.styles[room]};
+  // A house from before residents moved in one at a time keeps everyone who lives there.
+  // Kot is new to it, and knocks after its next adventure.
+  if (!Array.isArray(state.cast)) {
+    state.cast = RESIDENTS.filter(id => state.actors?.[id]);
+    const next = journeyIndex(state) + 1;
+    state.arrivals = Object.fromEntries(RESIDENTS.filter(id => !state.cast.includes(id)).map((id, i) => [id, next + i]));
+  }
+  state.cast = RESIDENTS.filter(id => state.cast.includes(id)); state.arrivals ??= {};
+  for (const id of RESIDENTS) if (!state.actors[id]) state.actors[id] = { x: 262, y: 300, room: AWAY, hat: null, mood: 'idle', pokes: 0 };
+  for (const id of RESIDENTS) if (!state.cast.includes(id)) Object.assign(state.actors[id], { room: AWAY, hat: null });
   state.recent ??= []; state.secrets ??= []; state.traces ??= []; state.log ??= [];
   state.applied ??= []; state.appliedSeries ??= {};
   state.changes ??= []; state.chains ??= []; state.best ??= {};
@@ -172,6 +196,33 @@ function normalize(state) {
 }
 export function prepareWorld(state){return normalize(clone(state));}
 
+/** How many adventures the two of you have finished, together. */
+export function journeyIndex(state) { return Math.max(0, ...Object.values(state.journeys || {}).map(j => j?.index || 0)); }
+/** Lives here: the two of you, and every resident who has moved in. */
+export function isHere(state, id) { return PEOPLE.includes(id) || !!state.cast?.includes(id); }
+/** Everyone in the house, people first. */
+export function present(state) { return ACTORS.filter(id => isHere(state, id)); }
+/** The residents who have moved in. */
+export function residentsHere(state) { return RESIDENTS.filter(id => state.cast?.includes(id)); }
+/** Everybody moved in at once: the test lab's house, and a full house for tests. */
+export function moveEveryoneIn(state) {
+  const homes = { monki: [220, 200], sernik: [306, 284], galgan: [155, 291], kot: [262, 300] };
+  for (const id of RESIDENTS) if (!state.cast?.includes(id)) Object.assign(state.actors[id], { room: 'house', x: homes[id][0], y: homes[id][1] });
+  state.cast = [...RESIDENTS];
+  return state;
+}
+function letIn(state, id, actor, now) {
+  state.cast = RESIDENTS.filter(r => r === id || state.cast.includes(r));
+  Object.assign(state.actors[id], { room: 'house', x: DOOR.x, y: DOOR.y, mood: 'happy', hat: null, movedAt: now, lastBy: actor });
+  log(state, actor, 'arrive', id, now);
+}
+/** Whoever is knocking: the first resident due by now who has not been let in yet. */
+export function atTheDoor(state) {
+  const index = journeyIndex(state);
+  const due = Object.entries(state.arrivals || {}).filter(([id, at]) => RESIDENTS.includes(id) && !state.cast?.includes(id) && index >= at).sort((a, b) => a[1] - b[1]);
+  return due[0]?.[0] || null;
+}
+
 function frame(state, def, rng, now) {
   const room = state.unlocked.includes(def.room) ? def.room : pick(state.unlocked, rng);
   return { contract: 'score', ...def, uid: `${state.seed}-${state.serial}`, seed: hash(`${state.seed}:${state.serial}:${def.id}`), room,
@@ -181,7 +232,7 @@ function frame(state, def, rng, now) {
 /** Compose a situation from who is around, what they are like, and what is lying about.
  * The same seven mechanics keep producing incidents nobody wrote down. */
 function compose(state, rng) {
-  const actor = pick([...RESIDENTS, ...RESIDENTS, 'david', 'julia'], rng);
+  const actor = pick([...residentsHere(state), ...residentsHere(state), 'david', 'julia'], rng);
   const tendency = TENDENCIES[actor];
   const kind = tendency ? VERB_GESTURE[weighted(tendency.verbs, rng)] : pick(Object.keys(GESTURES), rng);
   const gesture = GESTURES[kind];
@@ -387,7 +438,7 @@ function ambient(state, now) {
   // "wearing a fish" must not have swapped it for a star by the time she looks.
   const busy = busyResidents(state);
   for (let i = 0; i < ticks; i++) {
-    const actor = pick(RESIDENTS, rng);
+    const actor = pick(residentsHere(state), rng);
     const verb = weighted(TENDENCIES[actor].verbs, rng);
     if (busy.has(actor)) continue;
     const at = now - (ticks - i) * TICK;
@@ -439,8 +490,8 @@ function fireChains(state, rng, now) {
       }
     }
     if (chain.kind === 'thirdhat') {
-      const busy = busyResidents(state), free = RESIDENTS.filter(id => !busy.has(id));
-      const who = pick(free.length ? free : RESIDENTS, rng);
+      const busy = busyResidents(state), free = residentsHere(state).filter(id => !busy.has(id));
+      const who = pick(free.length ? free : residentsHere(state), rng);
       state.actors[who].hat = chain.data.item; discover(state, chain.data.item);
     }
     log(state, 'monki', 'chain', chain.data.item || 'potato', now);
@@ -456,8 +507,17 @@ export function applyOperation(input, operation, now = Date.now()) {
   if (serial ? (input.appliedSeries?.[serial[1]]||0)>=Number(serial[2]) : input.applied?.includes(operation.id)) return input;
   const state = normalize(clone(input)), op = operation, actor = op.actor;
   const beforeOp = snapshot(state);
+  // Nobody can be moved, dressed, poked or petted before they live here.
+  if (op.type !== 'welcome' && ACTORS.includes(op.target) && !isHere(state, op.target)) throw new Error(`${NAMES[op.target]} does not live here yet`);
   const target = (ACTORS.includes(op.target) ? state.actors[op.target] : null) || state.objects.find(o => o.id === op.target);
   switch (op.type) {
+    // Somebody new at the door, let in by whichever of you opens it first.
+    case 'welcome': {
+      const id = atTheDoor(state);
+      if (!id || op.target !== id) break; // The other phone opened it already.
+      letIn(state, id, actor, now);
+      break;
+    }
     case 'visit': {const away=now-state.lastVisit;ambient(state,now);if(away>=TICK)routines(state,now,op.hour,ITEMS);advanceLife(state,actor,now);break;}
     case 'seen': state.seen[actor] = now; break;
     // One tap back at something the other one did: a laugh, and nothing owed either way.
@@ -470,7 +530,8 @@ export function applyOperation(input, operation, now = Date.now()) {
     // Acknowledging what your person left you, separately from the room's own news.
     case 'received': state.received[actor] = now;for(const m of state.life.mail){if(m.to===actor&&m.kind!=='gift')m.opened=true;if(m.from===actor&&m.reaction)m.reactionSeen=true;}break;
     case 'inviteAdventure': {
-      if(!ADVENTURES.some(c=>c.id===op.chapter))throw new Error('Unknown adventure');
+      const invited=ADVENTURES.find(c=>c.id===op.chapter);if(!invited)throw new Error('Unknown adventure');
+      if(!isHere(state,invited.actor))throw new Error(`${NAMES[invited.actor]} does not live here yet`);
       state.adventureInvites??={};state.adventureInvites[other(actor)]={chapter:op.chapter,from:actor};
       log(state,actor,'inviteAdventure',other(actor),now);break;
     }
@@ -483,11 +544,13 @@ export function applyOperation(input, operation, now = Date.now()) {
       const chapter={...scheduled,...definition};
       // A chapter a day: a second one today is simply not accepted.
       if(!chapter.ready)break;
+      // Its star was still knocking (nobody had opened the door): the story let them in.
+      if(!isHere(state,chapter.actor)&&atTheDoor(state)===chapter.actor)letIn(state,chapter.actor,actor,now);
       for(const person of PEOPLE){state.journeys[person].index=scheduled.index+1;state.journeys[person].lastAt=now;}
       if(state.adventureInvites?.[actor]?.chapter===chapter.id)delete state.adventureInvites[actor];
       discover(state,chapter.reward);
-      const a=state.actors[chapter.actor];a.hat=chapter.reward;a.mood='happy';
-      if(chapter.id==='up'){discover(state,'icecream');state.actors.sernik.hat='icecream';state.actors.sernik.mood='happy';}
+      const a=state.actors[chapter.actor];if(isHere(state,chapter.actor)){a.hat=chapter.reward;a.mood='happy';}
+      if(chapter.id==='up'){discover(state,'icecream');if(isHere(state,'sernik')){state.actors.sernik.hat='icecream';state.actors.sernik.mood='happy';}}
       if(chapter.id==='radio-show')state.actors.galgan.mood='sleep';
       if(chapter.index===0&&!state.unlocked.includes('garden'))state.unlocked.push('garden');
       if(chapter.id==='moon-trip'&&!state.unlocked.includes('roof'))state.unlocked.push('roof');
@@ -518,6 +581,7 @@ export function applyOperation(input, operation, now = Date.now()) {
       const toy = op.toy === 'ball' ? 'paper' : op.toy;
       if (!['paper', 'bubbles'].includes(toy)) throw new Error('Unknown toy');
       const who = toy === 'paper' ? 'sernik' : 'monki';
+      if (!isHere(state, who)) throw new Error(`${NAMES[who]} does not live here yet`);
       state.actors[who].mood = 'happy';
       state.bond[actor][who] = (state.bond[actor][who] || 0) + 1;
       log(state, actor, 'toy', who, now, { item: toy }); break;
@@ -591,7 +655,7 @@ export function applyOperation(input, operation, now = Date.now()) {
       log(state,actor,'sellFurniture',object.type,now);break;
     }
     case 'pet': {
-      if(!['sernik','galgan'].includes(op.target))throw new Error('Pet one of the dogs');
+      if(!PETS.includes(op.target))throw new Error('Pet one of the animals');
       const a=state.actors[op.target];if(now-(a.petAt||0)<1000&&a.lastPetBy===actor)break;
       a.petAt=now;a.lastPetBy=actor;a.mood='happy';state.bond[actor][op.target]=(state.bond[actor][op.target]||0)+1;
       if(!state.log.some(l=>l.action==='pet'&&l.who===actor&&l.target===op.target&&now-l.at<60000))log(state,actor,'pet',op.target,now);break;
@@ -649,7 +713,7 @@ export function applyOperation(input, operation, now = Date.now()) {
       const letter=state.life.mail.find(m=>m.giftId===gift.id);if(letter)letter.opened=true;
       // Opened from the card, something to wear goes straight onto a resident who is not busy
       // in today's situation. Put on by a second operation, it was on the dog and on the floor.
-      const busy = busyResidents(state), wearer = RESIDENTS.includes(op.wearer) && ITEMS[gift.item]?.wearable ? [op.wearer, ...RESIDENTS].find(id => !busy.has(id)) : null;
+      const busy = busyResidents(state), wearer = RESIDENTS.includes(op.wearer) && ITEMS[gift.item]?.wearable ? [op.wearer, ...RESIDENTS].find(id => isHere(state, id) && !busy.has(id)) : null;
       if (wearer) { const a = state.actors[wearer]; a.hat = gift.item; a.lastBy = actor; a.mood = 'idle'; delete a.hatAt; gift.wornBy = wearer; }
       // One gift stays one gift. Opening a present never seeds unexplained copies.
       const id = `gift-${gift.item}`; const obj = state.objects.find(o => o.id === id);
@@ -783,7 +847,7 @@ export function applyOperation(input, operation, now = Date.now()) {
 export function favourite(state, actor) {
   const bonds = state.bond?.[actor] || {};
   let best = null, top = 0;
-  for (const id of RESIDENTS) if ((bonds[id] || 0) > top) { top = bonds[id]; best = id; }
+  for (const id of residentsHere(state)) if ((bonds[id] || 0) > top) { top = bonds[id]; best = id; }
   return top >= 3 ? best : null;
 }
 

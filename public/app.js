@@ -3,7 +3,7 @@ import {Scene} from './scene.js';
 import {AdventurePlayer} from './adventure-player.js';
 import {Sounds} from './audio.js';
 import {icon,spriteCanvas,character,item,rect,fillSprite} from './art.js';
-import {ACTORS,NAMES,ITEMS,other,createWorld,clamp,favourite,waitingFor} from './shared/world.js';
+import {ACTORS,NAMES,ITEMS,PETS,other,createWorld,clamp,favourite,waitingFor,present,residentsHere,isHere,atTheDoor,moveEveryoneIn} from './shared/world.js';
 import {ADVENTURES,adventureFor,featuredStepFor,VARIANT_LABELS} from './shared/adventures.js';
 import {testLab,recordCheck} from './test-lab.js';
 import {lifeUI} from './life-ui.js';
@@ -41,7 +41,7 @@ scene.callbacks.onDecorSelect=id=>decor.select(id);
 scene.callbacks.onPlace=id=>life.place(id);
 scene.callbacks.onFind=()=>{if(!payoff())life.find();};
 scene.callbacks.onPet=id=>{operate('pet',{target:id});};
-scene.callbacks.onArcade=()=>arcadeSheet();
+scene.callbacks.onArcade=()=>arcadeSheet();scene.callbacks.onKnock=()=>openDoor();
 scene.callbacks.onSound=k=>sounds.play(k);
 scene.callbacks.onTidyEnd=()=>{for(const id of ['tidy-room','play-ball','play-bubbles'])$(id).disabled=false;$('tidy-room').removeAttribute('aria-busy');};
 scene.callbacks.onToyMode=mode=>{for(const[id,toy]of [['play-ball','paper'],['play-bubbles','bubbles']])$(id).setAttribute('aria-pressed',String(mode===toy));$('toy-mode').hidden=!mode;document.documentElement.classList.toggle('has-toy',!!mode);$('toy-instruction').textContent=mode==='paper'?'Drag the roll → release':'Place the wand in the room';};
@@ -84,7 +84,7 @@ function payoff(){
 // What the other one did since you last looked is the first thing on the card, with one
 // tap to laugh back. The simulated David ended most autumns sure she never played, and
 // she saw his traces in a line that faded after five seconds.
-const WORTH={arcadePass:7,arcade:5,answer:8,wear:7,adventure:6,discovery:6,placePlay:5,place:5,hide:5,move:4,sendTo:4,plant:4,bloom:4,toy:3,tidy:3,pet:3,open:3,freezeGift:6,freeze:2,match:2,mismatch:2};
+const WORTH={arrive:9,arcadePass:7,arcade:5,answer:8,wear:7,adventure:6,discovery:6,placePlay:5,place:5,hide:5,move:4,sendTo:4,plant:4,bloom:4,toy:3,tidy:3,pet:3,open:3,freezeGift:6,freeze:2,match:2,mismatch:2};
 let news=null,reaction=null,greeted=false;
 /** The newest thing in the world, by the server's clock, which stamps everything that
  * happens. "Seen up to here" is kept in those terms: a phone clock a few seconds behind
@@ -115,7 +115,7 @@ function describe(entry){
   const a=w=>w==='something'||/^(sunglasses|headphones)$/.test(w)?w:(/^[aeiou]/.test(w)?'an ':'a ')+w;
   const who=NAMES[entry.who]||'Someone',target=NAMES[entry.target]||(ITEMS[entry.target]?'the '+ITEMS[entry.target].name.toLowerCase():null)||(FURNITURE[entry.target]?'the '+FURNITURE[entry.target].name.toLowerCase():null)||{house:'Home',garden:'Garden',roof:'Roof',cellar:'Down there'}[entry.target]||'something',thing=ITEMS[entry.item]?.name.toLowerCase()||(ITEMS[entry.target]?ITEMS[entry.target].name.toLowerCase():'something');
   const actions={gift:`left a present for ${NAMES[other(entry.who)]||'someone'}`,wear:entry.item===null?`took ${target}’s hat off`:`put ${a(thing)} on ${target}`,move:`moved ${target}`,out:`took ${target} outside`,take:`borrowed ${target}`,eat:'found a snack',sleep:'fell asleep',dig:'dug a little hole',build:'moved things around',guard:`is watching ${target}`,hide:`hid ${target}`,find:`found ${target}`,open:'opened a present',draw:'left a drawing on the wall',play:'made a small mess',match:'picked the same frog',mismatch:'picked different frogs',place:`put down ${a(thing)}`,grow:'found somewhere new',toy:entry.item==='bubbles'?'blew some bubbles':'gave Sernik the toilet paper',tidy:'put the loose things away',adventure:'added a picture to Moments',poke:`poked ${target}${entry.count>1?` ×${entry.count}`:''}`,decorate:`changed ${target}`,buyFurniture:`brought home ${FURNITURE[entry.target]?.name||target}`,storeFurniture:`stored ${FURNITURE[entry.target]?.name||target}`,placeFurniture:`put back ${FURNITURE[entry.target]?.name||target}`,sellFurniture:`removed ${FURNITURE[entry.target]?.name||target}`,refinishFurniture:`changed ${FURNITURE[entry.target]?.name||target}`};
-  Object.assign(actions,{answer:`laughed at something ${NAMES[entry.target]||'you'} did`,pet:`petted ${target}`,discovery:NAMES[entry.target]?`found ${target} in ${a(thing)}`:`found ${a(thing)}`,plant:'planted a seed',bloom:'picked something from the patch',postcard:`left a picture of ${target}`,reaction:`sent ${target} a little answer`,placePlay:`left ${a(thing)} outside`,freeze:'tried something in the freezer',freezeGift:`left ${target} a freezer experiment`,inviteAdventure:`chose ${NAMES[entry.target]||'someone'}’s next adventure`});
+  Object.assign(actions,{answer:`laughed at something ${NAMES[entry.target]||'you'} did`,pet:`petted ${target}`,discovery:NAMES[entry.target]?`found ${target} in ${a(thing)}`:`found ${a(thing)}`,plant:'planted a seed',bloom:'picked something from the patch',postcard:`left a picture of ${target}`,reaction:`sent ${target} a little answer`,placePlay:`left ${a(thing)} outside`,freeze:'tried something in the freezer',freezeGift:`left ${target} a freezer experiment`,inviteAdventure:`chose ${NAMES[entry.target]||'someone'}’s next adventure`,arrive:`let ${target} in`});
   if(Object.hasOwn(ARCADE_GAMES,entry.game||'')){const n=entry.count||0;
     actions.arcade=bragLine(entry.game,n);
     actions.arcadePass=`beat ${NAMES[other(entry.who)]||'someone'} at ${ARCADE_GAMES[entry.game].title}: ${amount(entry.game,n)}`;}
@@ -149,7 +149,7 @@ function render(){
     $('story-subtitle').textContent='It starts when you are both here.';$('start-adventure').textContent=`Invite ${NAMES[them]}`;}
   const art=$('story-art').getContext('2d');art.clearRect(0,0,105,90);
   if(held){character(art,them,51,83,{scale:1.6});pictured([{id:them}]);}
-  else if(resting){character(art,'galgan',51,83,{scale:1.6,mood:'sleep'});pictured([{id:'galgan',mood:'sleep'}]);}
+  else if(resting){const sleeper=isHere(state,'galgan')?'galgan':'monki';character(art,sleeper,51,83,{scale:1.6,mood:'sleep'});pictured([{id:sleeper,mood:'sleep'}]);}
   else{character(art,chapter.actor,51,83,{scale:1.6});item(art,chapter.item,78,34,{scale:1.15});pictured([{id:chapter.actor}],[chapter.item]);}
   featured=held?shareSheet:null;
   // Her answer to something of yours shows once, as the room opens, and is not kept waiting.
@@ -183,6 +183,11 @@ function render(){
   else if(find?.fresh&&FRESH.some(x=>x.id===find.fresh)){const sit=FRESH.find(x=>x.id===find.fresh);featured=payoff;$('story-kicker').textContent='LOOK AT THAT';$('story-title').textContent=sit.title;$('story-subtitle').textContent='';$('start-adventure').textContent='Poke';art.clearRect(0,0,105,90);art.drawImage(spriteCanvas(sit.actor,90,{hat:sit.item,mood:sit.mood}),8,0);pictured([{id:sit.actor,hat:sit.item,mood:sit.mood}]);}
   else if(find&&!find.fresh&&DISCOVERIES.some(d=>d.id===find.discovery)){const d=DISCOVERIES.find(d=>d.id===find.discovery);featured=()=>life.find();$('story-kicker').textContent='LOOK AT THAT';$('story-title').textContent=d.title;$('story-subtitle').textContent='';$('start-adventure').textContent='Look';art.clearRect(0,0,105,90);art.drawImage(spriteCanvas(find.actor,90,{hat:d.item}),8,0);pictured([{id:find.actor,hat:d.item}]);}
   else if(plantStage(state)===4&&!state.life.plant.picked){featured=()=>life.plant();$('story-kicker').textContent='IN THE GARDEN';$('story-title').textContent='Something grew.';$('story-subtitle').textContent='Your seed has become something.';$('start-adventure').textContent='Look';art.clearRect(0,0,105,90);item(art,'flower',52,78,{scale:2});pictured([],['flower']);}
+  // Somebody new at the door comes before everything else on the card: it is one tap, and
+  // whoever opens it first lets them in for both of you.
+  const door=store.actor&&!held?atTheDoor(state):null;
+  if(door){featured=openDoor;$('story-kicker').textContent='KNOCK KNOCK';$('story-title').textContent='Someone is at the door.';
+    $('story-subtitle').textContent='Somebody small, with luggage.';$('start-adventure').textContent='Open';art.clearRect(0,0,105,90);doorArt(art);pictured([],['door']);}
   $('connection').textContent=!store.actor?'a little world':store.saveError?'storage is full':store.connected?(store.online?(store.paired?'our world · saved':'saved · invite your person'):store.lastStatus===404?'not on this server':store.lastStatus===401?'needs its link again':'saved on this device'):'on this device';
   if(testMode)$('connection').textContent='TEST SANDBOX';
   $('status-dot').classList.toggle('offline',!!store.actor&&(!store.online||store.saveError));
@@ -197,10 +202,12 @@ function render(){
   }
   $('residents').replaceChildren();
   $('place-actions').replaceChildren();
+  // The toilet paper is Sernik's game: it is not in the dock until he lives here.
+  $('play-ball').hidden=!isHere(state,'sernik');
   for(const [id,label]of room==='garden'?[['farm','Growing patch'],['pool','Pond'],['hut','Little house']]:room==='roof'?[['sky','Look through the telescope']]:[]){$('place-actions').append(button(label,'quiet-action',()=>life.place(id)));}
   if(room==='house')$('place-actions').append(button('Open the fridge','quiet-action',fridgeSheet),button('Play a game','quiet-action',arcadeSheet));
   $('world').setAttribute('aria-label',`${titles[room]}. Stroke dogs to pet; pull away to move. Tap residents or sparkling objects. Equivalent controls are in Residents.`);
-  for(const id of ACTORS){const b=button('','resident'+(store.actor===id?' you':''),()=>residentSheet(id));b.title=NAMES[id];b.setAttribute('aria-label',NAMES[id]);b.append(pict(id,{hat:state.actors[id].hat}));const label=document.createElement('span');label.textContent=NAMES[id];b.append(label);$('residents').append(b);}
+  for(const id of present(state)){const b=button('','resident'+(store.actor===id?' you':''),()=>residentSheet(id));b.title=NAMES[id];b.setAttribute('aria-label',NAMES[id]);b.append(pict(id,{hat:state.actors[id].hat}));const label=document.createElement('span');label.textContent=NAMES[id];b.append(label);$('residents').append(b);}
   const incoming=pendingMail(state,store.actor)[0],last=state.log[0];
   const img=$('trace-image');
   if(incoming){img.replaceChildren(pict('present'));$('trace-label').textContent=`Mailbox · something from ${NAMES[incoming.from]}.`;}
@@ -247,6 +254,7 @@ function openingMoment(){
   // Whoever she has petted most is pleased to see her. No number, no label.
   const pal=favourite(st,store.actor);
   if(pal&&!scene.replaying)scene.react(pal);
+  if(atTheDoor(st))setTimeout(()=>sounds.play('knock'),700);
 }
 
 /** A present, opened in the one tap that the card's Open is: straight onto a resident
@@ -268,8 +276,32 @@ async function openPresent(mail){
     paragraph(`${ITEMS[item]?.name||'It'}, from ${NAMES[from]}.`);body.append(button('Look','primary-button full',()=>{closeSheet();render();}));
   }else showGiftResult(item);
 }
+/** The door on the card, with a question mark: who it is stays a surprise until it opens. */
+function doorArt(c){
+  rect(c,30,14,46,70,'#8c6f4f');rect(c,34,18,38,66,'#b88b5f');rect(c,38,23,30,24,'#a57c53');rect(c,38,52,30,27,'#a57c53');rect(c,64,50,4,4,'#e4c87a');
+  rect(c,22,82,62,4,'#9b8466');rect(c,74,8,24,22,'#fffaea');rect(c,82,30,6,4,'#fffaea');c.fillStyle='#6d7a5c';c.font='bold 16px monospace';c.textAlign='center';c.fillText('?',86,25);c.textAlign='left';
+}
+/** What each of them is like, said once as they come in. */
+const MOVING_IN={
+  galgan:'Sleeps on the sofa, moves the sofa, and has views about balloons.',
+  sernik:'Takes whatever is nearest, eats most of it, and will fetch the toilet paper.',
+  kot:'A calico. Wants the warm spot, your seat and the fish. Does not want the umbrella.',
+};
+/** Whoever is knocking comes in, on both phones, with whatever games they brought. */
+function openDoor(){
+  const st=store.state,id=st&&atTheDoor(st);if(!id)return;
+  sounds.play('knock');if(!operate('welcome',{target:id}))return;
+  if(room!=='house'){room='house';decor.roomChanged();}
+  render();scene.react(id);setTimeout(()=>sounds.play(id),380);
+  showSheet('moved-in',`${NAMES[id]} has moved in.`,'AT THE DOOR');
+  const big=pict(id,{mood:'happy'});big.className='big-item';big.dataset.picture=JSON.stringify({who:[{id,mood:'happy'}]});body.append(big);
+  paragraph(MOVING_IN[id]||'');
+  const games=Object.values(ARCADE_GAMES).filter(g=>g.star===id&&(['jump','drop'].includes(g.id)||ARCADE_VIEWS[g.id]));
+  if(games.length)paragraph(`${NAMES[id]} brought ${games.length===1?'a game':'games'} for the arcade: ${games.map(g=>g.title).join(', ')}.`,'settings-small');
+  body.append(button('Say hello','primary-button full',()=>{closeSheet();render();tip(PETS.includes(id)?`stroke ${NAMES[id]}.`:`poke ${NAMES[id]}.`,5000);}));
+}
 /** A dog to put a present on: not one busy being daft in somebody's situation today. */
-function freeWearer(){const busy=new Set(Object.values(store.state?.life?.finds||{}).filter(f=>f?.fresh).map(f=>f.actor));return ['galgan','sernik','monki'].find(id=>!busy.has(id))||'galgan';}
+function freeWearer(){const busy=new Set(Object.values(store.state?.life?.finds||{}).filter(f=>f?.fresh).map(f=>f.actor));return ['galgan','sernik','kot','monki'].filter(id=>isHere(store.state,id)).find(id=>!busy.has(id))||'monki';}
 /** One thing, from one person, taken in one tap. */
 function arrivalSheet(item){
   const from=item.from;
@@ -370,8 +402,9 @@ function hold(id,point){
 }
 
 function welcome(){
-  showSheet('welcome','Who’s here?','A SMALL PLACE FOR FIVE');
-  const canvas=document.createElement('canvas');canvas.width=220;canvas.height=82;canvas.className='welcome-scene';const c=canvas.getContext('2d');ACTORS.forEach((id,i)=>character(c,id,22+i*41,68,{scale:1.25,mood:id==='galgan'?'sleep':'idle'}));body.append(canvas);
+  showSheet('welcome','Who’s here?','A SMALL PLACE, FOR NOW');
+  // A new house is the two of you and Monki. Everybody else comes to the door later.
+  const canvas=document.createElement('canvas');canvas.width=220;canvas.height=82;canvas.className='welcome-scene';const c=canvas.getContext('2d');['david','julia','monki'].forEach((id,i)=>character(c,id,63+i*47,68,{scale:1.25}));body.append(canvas);
   paragraph('Choose yourself. Then have a look around.');
   const choices=document.createElement('div');choices.className='choice-people';
   for(const actor of ['david','julia']){const b=button('','person-choice',async()=>{
@@ -387,9 +420,10 @@ function firstVisitSheet(){
   const them=other(store.actor),gift=pendingMail(store.state,store.actor).find(m=>m.kind==='gift');
   showSheet('first-visit',`${NAMES[them]} made this for you.`,'HELLO');
   store.local.lastLook=newest(store.state);store.save();
-  const canvas=document.createElement('canvas');canvas.width=220;canvas.height=82;canvas.className='welcome-scene';const c=canvas.getContext('2d');ACTORS.forEach((id,i)=>character(c,id,22+i*41,68,{scale:1.25,mood:id==='galgan'?'sleep':'idle'}));
-  canvas.dataset.picture=JSON.stringify({who:ACTORS.map(id=>({id,mood:id==='galgan'?'sleep':undefined}))});body.append(canvas);
-  paragraph('Sernik, Galgan and Monki live here now.');
+  const here=present(store.state),gap=Math.min(41,200/here.length),canvas=document.createElement('canvas');canvas.width=220;canvas.height=82;canvas.className='welcome-scene';const c=canvas.getContext('2d');here.forEach((id,i)=>character(c,id,110-(here.length-1)*gap/2+i*gap,68,{scale:1.25,mood:id==='galgan'?'sleep':'idle'}));
+  canvas.dataset.picture=JSON.stringify({who:here.map(id=>({id,mood:id==='galgan'?'sleep':undefined}))});body.append(canvas);
+  const names=residentsHere(store.state).reverse().map(id=>NAMES[id]);
+  paragraph(`${names.length>1?`${names.slice(0,-1).join(', ')} and ${names.at(-1)} live`:`${names[0]} lives`} here now.${names.length<4?' Others will come to the door.':''}`);
   const done=()=>{closeSheet();render();tip('stroke a dog.',6000);setTimeout(openingMoment,400);};
   if(!gift){body.append(button('Look around','primary-button full',done));return;}
   const b=button(`Open ${NAMES[them]}’s present`,'primary-button full',async()=>{
@@ -462,14 +496,14 @@ function itemSheet(id){
   row.append(button('Put it here','secondary-button',()=>{operate('place',{item:id,room});closeSheet();sounds.play('tap');tip('hold + drag to move it');}));
   row.append(button(`Wrap for ${NAMES[other(store.actor)]}`,'primary-button',()=>{if(operate('gift',{item:id})){closeSheet();sounds.play('gift');toast('Left in the house.');}}));body.append(row);
   if(ITEMS[id].wearable){paragraph('Or, a hat.');const options=document.createElement('div');options.className='wear-options';
-    ACTORS.forEach(actor=>{const b=button('','',()=>{operate('wear',{target:actor,item:id});closeSheet();scene.react(actor);sounds.play('gift');});b.append(pict(actor,{hat:id}));const small=document.createElement('small');small.textContent=NAMES[actor];b.append(small);b.setAttribute('aria-label',`Put ${ITEMS[id].name} on ${NAMES[actor]}`);options.append(b);});body.append(options);}
+    present(store.state).forEach(actor=>{const b=button('','',()=>{operate('wear',{target:actor,item:id});closeSheet();scene.react(actor);sounds.play('gift');});b.append(pict(actor,{hat:id}));const small=document.createElement('small');small.textContent=NAMES[actor];b.append(small);b.setAttribute('aria-label',`Put ${ITEMS[id].name} on ${NAMES[actor]}`);options.append(b);});body.append(options);}
   body.append(button('← all little things','quiet-action',collectionSheet));
 }
 function residentSheet(id){
   if(!store.state)return;showSheet('resident',NAMES[id]+'.');
   const a=store.state.actors[id],canvas=pict(id,{hat:a.hat});canvas.className='big-item';body.append(canvas);
   const row=document.createElement('div');row.className='button-row';
-  if(['sernik','galgan'].includes(id))row.append(button('Pet','primary-button',()=>petSheet(id)));
+  if(PETS.includes(id))row.append(button('Pet','primary-button',()=>petSheet(id)));
   // The same poke as in the room: on the one in today's situation, that is the end of it.
   row.append(button('Poke','secondary-button',()=>{closeSheet();if(situation()?.sit?.actor===id&&payoff())return;operate('poke',{target:id});scene.react(id);sounds.play('tap');}));
   row.append(button('Make a postcard','secondary-button',()=>life.postcard(id)));
@@ -477,7 +511,7 @@ function residentSheet(id){
   if(a.hat)row.append(button('Hat off','secondary-button',()=>{operate('wear',{target:id,item:null});closeSheet();}));
   const ready=adventureFor(store.state,store.actor);
   if(ready.ready&&ready.actor===id&&!waitsForThem(ready))row.append(button('Play adventure','primary-button',()=>{closeSheet();startIncident();}));body.append(row);
-  const people=document.createElement('div');people.className='wear-options';for(const who of ACTORS){const b=button('','',()=>residentSheet(who));b.append(pict(who));const name=document.createElement('small');name.textContent=NAMES[who];b.append(name);people.append(b);}body.append(people);
+  const people=document.createElement('div');people.className='wear-options';for(const who of present(store.state)){const b=button('','',()=>residentSheet(who));b.append(pict(who));const name=document.createElement('small');name.textContent=NAMES[who];b.append(name);people.append(b);}body.append(people);
   const grid=document.createElement('div');grid.className='item-grid';for(const hat of store.state.inventory.filter(i=>ITEMS[i].wearable)){const b=button('','collection-item',()=>{operate('wear',{target:id,item:hat});closeSheet();sounds.play('gift');});b.append(pict(hat));const name=document.createElement('span');name.textContent=ITEMS[hat].name;b.append(name);b.title=ITEMS[hat].name;b.setAttribute('aria-label',`Wear ${ITEMS[hat].name}`);grid.append(b);}body.append(grid);
 }
 function petSheet(id){
@@ -495,7 +529,7 @@ function historySheet(){
   for(const entry of store.state.log.slice(0,18)){const row=document.createElement('div');row.className='activity-row';row.append(pict(entry.who in NAMES?entry.who:'monki'));const copy=document.createElement('span');copy.className='activity-copy';copy.textContent=describe(entry);row.append(copy);const time=document.createElement('time');time.textContent=relative(entry.at);row.append(time);body.append(row);}
 }
 function memoryArt(chapter){
-  const canvas=document.createElement('canvas');canvas.width=300;canvas.height=190;const c=canvas.getContext('2d');rect(c,0,0,300,190,chapter.color);rect(c,0,145,300,45,'#acb88e');c.drawImage(spriteCanvas(chapter.actor,150,{hat:chapter.reward,mood:'happy'}),100,10);character(c,chapter.id==='up'?'sernik':'monki',67,166,{scale:1.5,hat:chapter.id==='up'?'icecream':null});item(c,chapter.souvenir,265,167,{scale:1.15});return canvas;
+  const canvas=document.createElement('canvas');canvas.width=300;canvas.height=190;const c=canvas.getContext('2d');rect(c,0,0,300,190,chapter.color);rect(c,0,145,300,45,'#acb88e');c.drawImage(spriteCanvas(chapter.actor,150,{hat:chapter.reward,mood:'happy'}),100,10);const side=chapter.id!=='up'?'monki':isHere(store.state||{},'sernik')?'sernik':null;if(side)character(c,side,67,166,{scale:1.5,hat:chapter.id==='up'?'icecream':null});item(c,chapter.souvenir,265,167,{scale:1.15});return canvas;
 }
 function albumSheet(){
   if(!store.state)return;showSheet('album','That happened.','MOMENTS');
@@ -610,18 +644,28 @@ function arcadeBests(id){const me=store.actor||'david',them=other(me),scores=sto
 function arcadeSheet(){
   if(!store.state){welcome();return;}
   showSheet('arcade','The arcade','IN THE CORNER');
-  paragraph(`Play as long as you like. Your best runs turn up on ${NAMES[other(store.actor||'david')]}’s phone.`);
+  const me=store.actor||'david',them=other(me),games=arcadeList();
+  // Both bests on every card, theirs as plainly as yours: who is ahead is half the reason to
+  // play one more. A star marks the leader; a game they have not played says so.
+  const ahead=games.filter(g=>{const b=arcadeBests(g.id);return b.mine>b.theirs;}).length,behind=games.filter(g=>{const b=arcadeBests(g.id);return b.theirs>b.mine;}).length;
+  paragraph(ahead||behind?`You are ahead on ${ahead} ${ahead===1?'game':'games'}, ${NAMES[them]} on ${behind}.`:`Play as long as you like. Your best runs turn up on ${NAMES[them]}’s phone.`);
   const row=document.createElement('div');row.className='album-grid';
-  for(const game of arcadeList()){
-    const {mine,theirs,them}=arcadeBests(game.id),b=button('','memory-card arcade-card',()=>playArcade(game.id));
+  for(const game of games){
+    const {mine,theirs}=arcadeBests(game.id),b=button('','memory-card arcade-card',()=>playArcade(game.id));
     b.append(arcadeArt(game.id));const name=document.createElement('strong');name.textContent=game.title;b.append(name);
-    const small=document.createElement('small');small.textContent=[mine?`Your best ${scoreText(game.id,mine)}`:'Not played yet',theirs?`${NAMES[them]} ${scoreText(game.id,theirs)}`:''].filter(Boolean).join(' · ');b.append(small);
-    row.append(b);
+    const bests=document.createElement('div');bests.className='arcade-bests';
+    for(const [who,label,n,lead] of [[me,'You',mine,mine>theirs],[them,NAMES[them],theirs,theirs>mine]]){
+      const line=document.createElement('span');line.className='arcade-best'+(lead?' lead':'')+(n?'':' none');line.dataset.who=who;
+      const name_=document.createElement('b'),score=document.createElement('em');name_.textContent=label;score.textContent=n?scoreText(game.id,n):'not yet';
+      line.append(name_,score);bests.append(line);
+    }
+    b.setAttribute('aria-label',`${game.title}. Your best ${mine?scoreText(game.id,mine):'not yet'}. ${NAMES[them]}’s best ${theirs?scoreText(game.id,theirs):'not yet'}.`);
+    b.append(bests);row.append(b);
   }
   body.append(row);
 }
 /** Every game that can be played here, in the order they sit in the cabinet. */
-function arcadeList(){return Object.values(ARCADE_GAMES).filter(game=>['jump','drop'].includes(game.id)||ARCADE_VIEWS[game.id]);}
+function arcadeList(){return Object.values(ARCADE_GAMES).filter(game=>(['jump','drop'].includes(game.id)||ARCADE_VIEWS[game.id])&&(!store.state||isHere(store.state,game.star)));}
 function arcadeArt(id){
   const canvas=document.createElement('canvas');canvas.width=120;canvas.height=90;const c=canvas.getContext('2d');
   if(ARCADE_VIEWS[id]){ARCADE_VIEWS[id].card(c,{hat:store.state?.actors[ARCADE_GAMES[id].star]?.hat});return canvas;}
@@ -638,7 +682,7 @@ function playArcade(id,start=0){
   if(!$('arcade').open)$('arcade').showModal();
   scene.resting=true;
   arcade=new ArcadeGame($('arcade-canvas'),id,{sound:(k,pitch)=>sounds.play(k,pitch),reduced:scene.reduced,best:mine,
-    rival:theirs?{id:them,name:NAMES[them],best:theirs}:null,hat:store.state.actors[info.star]?.hat,start,
+    rival:theirs?{id:them,name:NAMES[them],best:theirs}:null,hat:store.state.actors[info.star]?.hat,start,cast:present(store.state),
     // Put away mid-run (a call, the phone locked), a new best so far is kept already.
     onPause:paused=>{$('arcade-resume').hidden=!paused;if(paused)keepArcadeBest();},
     onEnd:()=>keepArcadeBest(),onOver:score=>arcadeOver(id,score,mine)});
@@ -680,7 +724,7 @@ function startIncident(selected=null,segment=0){
   closeSheet();hideMenu();scene.stopTidy();scene.stopReplay();scene.toys.clear();
   $('game-chapter').textContent=(testMode?'TEST · ':previewGame?'REVISIT · ':'')+chapter.title;$('resume-game').hidden=true;$('microgame').showModal();
   $('test-controls').hidden=!testMode;
-  game=new AdventurePlayer($('micro'),chapter,{startStep:testMode?segment:featuredStepFor(chapter),singleStep:chosen&&typeof selected.singleStep==='boolean'?selected.singleStep:!testMode,sound:k=>sounds.play(k),reduced:scene.reduced,onDone:finishIncident,onStep:({step,spec,hits,goal})=>{
+  game=new AdventurePlayer($('micro'),chapter,{cast:present(store.state),startStep:testMode?segment:featuredStepFor(chapter),singleStep:chosen&&typeof selected.singleStep==='boolean'?selected.singleStep:!testMode,sound:k=>sounds.play(k),reduced:scene.reduced,onDone:finishIncident,onStep:({step,spec,hits,goal})=>{
     $('game-title').textContent=spec.title;$('game-hint').textContent=spec.hint;
     $('game-variant').textContent=VARIANT_LABELS[chapter.variant]||'';
     $('game-steps').replaceChildren();
@@ -716,7 +760,7 @@ function revisitSheet(){
 function labSheet(){
   if(!testMode){const url=new URL(location.href);url.searchParams.set('test','1');url.hash='';location.assign(url);return;}
   showSheet('test','Adventure test lab','ISOLATED SANDBOX');
-  testLab({body,store,scene,play:startIncident,arcade:playArcade,goTo,reset:()=>{scene.toys.clear();scene.ambient.reset();scene.weatherOverride=null;scene.timeOverride=null;clock();room='house';store.solo(store.actor||'david');store.state.unlocked=['house','garden','roof','cellar'];store.state.inventory=Object.keys(ITEMS).filter(i=>!['present','frame','ball'].includes(i));store.save();labSheet();}});
+  testLab({body,store,scene,play:startIncident,arcade:playArcade,goTo,reset:()=>{scene.toys.clear();scene.ambient.reset();scene.weatherOverride=null;scene.timeOverride=null;clock();room='house';store.solo(store.actor||'david');moveEveryoneIn(store.state);store.state.unlocked=['house','garden','roof','cellar'];store.state.inventory=Object.keys(ITEMS).filter(i=>!['present','frame','ball'].includes(i));store.save();labSheet();}});
   body.append(button('Exit testing · return to real world','primary-button full',()=>{const url=new URL(location.href);url.searchParams.delete('test');location.assign(url);}));
 }
 function updateSound(){$('sound').innerHTML=icon(sounds.enabled?'sound':'mute');$('sound').setAttribute('aria-label',sounds.enabled?'Turn sound off':'Turn sound on');$('sound').title=sounds.enabled?'Turn sound off':'Turn sound on';}
@@ -773,7 +817,7 @@ updateSound();render();clock();setInterval(clock,1000);setInterval(()=>{store.vi
   if(greeted&&Date.now()-lastGreeting>6*3600000){greeted=false;openingMoment();}},15000);
 
 async function boot(){
-  if(testMode){if(!store.actor)store.solo('david');store.state.unlocked=['house','garden','roof','cellar'];store.state.inventory=Object.keys(ITEMS).filter(i=>!['present','frame','ball'].includes(i));store.save();labSheet();return;}
+  if(testMode){if(!store.actor){store.solo('david');moveEveryoneIn(store.state);}store.state.unlocked=['house','garden','roof','cellar'];store.state.inventory=Object.keys(ITEMS).filter(i=>!['present','frame','ball'].includes(i));store.save();labSheet();return;}
   await store.probe();
   const invitation=location.hash.match(/^#join=([a-f0-9]{24})\.([a-f0-9]{48})$/);
   const seat=location.hash.match(/^#seat=([a-f0-9]{24})\.([a-f0-9]{48})$/);

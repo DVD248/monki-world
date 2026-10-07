@@ -34,9 +34,9 @@ async function clickText(page,text){
   const h=await page.evaluateHandle(text=>[...(document.querySelector('dialog[open]')||document).querySelectorAll('button')].find(b=>b.textContent.trim().startsWith(text)&&!b.disabled&&b.getClientRects().length),text);
   assert.ok(h.asElement(),'Missing button '+text);await h.asElement().click();
 }
-async function openArcade(page){
+async function openArcade(page,n=13){
   await page.click('#open-tools');await page.waitForFunction(()=>document.querySelector('#open-tools').getAttribute('aria-expanded')==='true');
-  await clickText(page,'Play a game');await page.waitForFunction(()=>document.querySelector('#sheet').open&&document.querySelectorAll('.arcade-card').length===12);
+  await clickText(page,'Play a game');await page.waitForFunction(n=>document.querySelector('#sheet').open&&document.querySelectorAll('.arcade-card').length===n,{},n);
 }
 async function play(page,title){
   await page.evaluate(title=>[...document.querySelectorAll('.arcade-card')].find(b=>b.textContent.includes(title)).click(),title);
@@ -80,7 +80,7 @@ try{
   await page.waitForFunction(()=>document.querySelector('#sheet').open);await page.click('#close-sheet');
   assert.ok(await page.evaluate(()=>window.__scene.hitboxes.some(h=>h.action==='onArcade')),'the cabinet can be touched');
   await openArcade(page);
-  assert.deepEqual(await page.$$eval('.arcade-card small',s=>s.map(x=>x.textContent)),Array(12).fill('Not played yet'));
+  assert.deepEqual(await page.$$eval('.arcade-best em',s=>s.map(x=>x.textContent)),Array(26).fill('not yet'));
 
   // Food Drop with a real finger: the first snack lands where the finger put Sernik.
   await play(page,'Food Drop');
@@ -189,16 +189,21 @@ try{
     ["Galgan's Parade",'Snack Merge',async()=>{await finger(page,200,420);for(let i=1;i<=6;i++){await finger(page,200,420-i*12,false);await delay(16);}await page.mouse.up();await delay(500);
       return game(page,()=>{const L=window.__game.logic;return L.state==='play'&&L.dir==='up'&&L.head.r<12;});}],
     // A drag sideways slides the tray (the other way, if everything was already over there).
-    ['Snack Merge','Sky Jump',async()=>{
+    ['Snack Merge','Kot Climb',async()=>{
       const drag=async dx=>{await finger(page,200,330);for(let i=1;i<=6;i++){await finger(page,200+dx*i/6,330,false);await delay(16);}await page.mouse.up();await delay(300);};
       await drag(130);if(!await game(page,()=>window.__game.logic.moves>0))await drag(-130);
       return game(page,()=>window.__game.logic.moves===1);}],
+    // A tap on the half with no shelf above: Kot hops to that side and one step up.
+    ['Kot Climb','Sky Jump',async()=>{
+      const side=await game(page,()=>{const L=window.__game.logic,row=L.rows[L.score+1];return row.side?-row.side:1;});
+      await finger(page,side<0?90:310,420);await page.mouse.up();await delay(200);
+      return game(page,(side)=>{const L=window.__game.logic;return L.score===1&&L.side===side&&L.started&&!L.over;},side);}],
   ];
   for(const [title,next,act] of later){
     await openArcade(page);await play(page,title);
     assert.ok(await act(),`${title} answers a finger`);
     await end(page);p=await panel(page);
-    assert.match(p.score,title==='Hill Drive'?/^\d+ m$/:/^\d+$/,`${title} shows a result`);
+    assert.match(p.score,['Hill Drive','Kot Climb'].includes(title)?/^\d+ m$/:/^\d+$/,`${title} shows a result`);
     assert.equal(await page.$eval('#arcade-other',b=>b.textContent),`Try ${next}`);
     await shot(page,`arcade-${title.toLowerCase().replace(' ','-')}-over.png`);
     await page.click('#arcade-leave');
@@ -216,7 +221,10 @@ try{
   await julia.waitForFunction(()=>[...document.querySelectorAll('dialog[open] button')].some(b=>/enter the world/i.test(b.textContent)));
   await clickText(julia,'Enter the world');await julia.waitForFunction(()=>window.__store?.local?.actor==='julia');await julia.close();
   await david.evaluate(()=>document.querySelector('#sheet').open&&document.querySelector('#close-sheet').click());
-  await openArcade(david);await play(david,'Sky Jump');
+  // A new house: only Monki lives here yet, so only Monki's games are in the cabinet.
+  await openArcade(david,4);
+  assert.deepEqual(await david.$$eval('.arcade-card strong',s=>s.map(x=>x.textContent)),['Sky Jump','Jet Monki','Fall Down','Candle Cake']);
+  await play(david,'Sky Jump');
   await david.waitForFunction(()=>window.__store.paired,{timeout:10000});
   await game(david,()=>{const L=window.__game.logic;L.high=Math.max(L.high,48*20);});await end(david);
   assert.equal((await panel(david)).sub,'Julia will see it.');
@@ -228,8 +236,10 @@ try{
   assert.equal(await julia.$eval('#story-title',e=>e.textContent),'David got Monki 48 metres up in Sky Jump.');
   assert.equal(await julia.$eval('#start-adventure',e=>e.textContent),'Ha!');
   await julia.click('#start-adventure');await julia.waitForFunction(()=>!window.__store.local.pending.length,{timeout:10000});
-  await openArcade(julia);
-  assert.equal(await julia.$eval('.arcade-card small',s=>s.textContent),'Not played yet · David 48 m');
+  await openArcade(julia,4);
+  // His best on her card as plainly as her own, and the star on it.
+  assert.deepEqual(await julia.$eval('.arcade-card',c=>[...c.querySelectorAll('.arcade-best')].map(l=>l.textContent+(l.classList.contains('lead')?'*':''))),['Younot yet','David48 m*']);
+  assert.equal(await julia.$eval('#sheet-body p',p=>p.textContent),'You are ahead on 0 games, David on 1.');
   await play(julia,'Sky Jump');assert.deepEqual(await game(julia,()=>window.__game.rival),{id:'david',name:'David',best:48});
   await shot(julia,'arcade-julia-rival.png');await julia.close();
   const back=await open(davidContext,base+'/');
@@ -237,7 +247,7 @@ try{
   assert.equal(await back.$eval('#story-title',e=>e.textContent),'Julia laughed: you got Monki 48 metres up in Sky Jump.');
 
   assert.deepEqual(errors,[]);
-  console.log('PASS: cabinet and menu entry with all twelve games, Food Drop by finger, result panel and near misses, bests kept when leaving at any moment, their best read at the end, pause, the house resting under the game, Sky Jump by finger, the sky moving after a fall, Hill Drive, Jet Monki, Cliff Jump, Water Hop, Fall Down, Match Tap, Pancake Stack, Candle Cake, Galgan\'s Parade and Snack Merge each by finger to a result, and a best reaching the other phone with a laugh back.');
+  console.log('PASS: cabinet and menu entry with all thirteen games, both bests on every card, Food Drop by finger, result panel and near misses, bests kept when leaving at any moment, their best read at the end, pause, the house resting under the game, Sky Jump by finger, the sky moving after a fall, Hill Drive, Jet Monki, Cliff Jump, Water Hop, Fall Down, Match Tap, Pancake Stack, Candle Cake, Galgan\'s Parade, Snack Merge and Kot Climb each by finger to a result, only the games of whoever lives in a new house, and a best reaching the other phone with a laugh back.');
 }finally{
   await browser?.close();server.kill();await rm(data,{recursive:true,force:true});
 }

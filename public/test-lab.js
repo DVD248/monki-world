@@ -1,5 +1,5 @@
 import {ADVENTURES,VARIATIONS,VARIANT_LABELS,featuredStepFor} from './shared/adventures.js';
-import {ITEMS,ACTORS,NAMES,applyOperation,prepareWorld} from './shared/world.js';
+import {ITEMS,ACTORS,NAMES,RESIDENTS,ARRIVALS,AWAY,applyOperation,prepareWorld,moveEveryoneIn,journeyIndex} from './shared/world.js';
 import {spriteCanvas} from './art.js';
 import {DISCOVERIES,DAY,initLife,ageSandbox} from './shared/life.js';
 import {WEATHER,PLACE_STORIES,placeStory} from './shared/places.js';
@@ -34,11 +34,16 @@ export function testLab({body,store,scene,play,arcade,reset,goTo}){
   fixture('Mailbox: drawing from partner',s=>{store.local.world=applyOperation(s,{id:crypto.randomUUID(),actor:partner(),type:'draw',lines:[[[.2,.8],[.5,.1],[.8,.8],[.2,.8]]]});});
   fixture('Mailbox: postcard from partner',s=>{store.local.world=applyOperation(s,{id:crypto.randomUUID(),actor:partner(),type:'postcard',portrait:'monki',hat:'cone',pose:'happy',scene:'night',send:true});});
   fixture('Mailbox: reaction from partner',s=>{s.life.mail.unshift({id:crypto.randomUUID(),kind:'postcard',from:store.actor,to:partner(),portrait:'sernik',hat:'bow',pose:'happy',scene:'garden',at:Date.now(),opened:true,reaction:'laugh',reactionSeen:false});});
+  fixture('Bonded Kot',s=>{s.bond[store.actor].kot=25;s.actors.kot.movedAt=0;});
   fixture('Bonded Sernik',s=>{s.bond[store.actor].sernik=25;s.actors.sernik.movedAt=0;});
-  for(const pose of ['Sleeping','Belly-up'])fixture(`Dogs: ${pose} with berets`,s=>{for(const id of ['sernik','galgan']){const a=s.actors[id];a.room=scene.room;a.hat='beret';a.petAt=0;a.mood=pose==='Sleeping'?'sleep':'happy';delete scene.petEffects[id];if(pose==='Belly-up')scene.petEffects[id]={at:performance.now(),power:1};}});
-  for(const item of ['glasses','headphones','helmet'])fixture(`Outfits: ${ITEMS[item].name} on everyone`,s=>{for(const id of ACTORS){s.actors[id].hat=item;s.actors[id].room=scene.room;}});
-  fixture('Cleanup: visiting helpers',s=>{scene.toys.clear();scene.stopTidy();const away=scene.room==='house'?'garden':'house';for(const id of ACTORS)s.actors[id].room=[store.actor,'monki'].includes(id)?scene.room:away;const couch=s.objects.find(o=>o.id==='couch');if(couch){couch.room=scene.room;couch.x=275;couch.y=275;}});
-  fixture('Residents: repair a piled-up save',s=>{scene.toys.clear();scene.stopTidy();for(const a of Object.values(s.actors)){a.room=scene.room;a.x=200;a.y=250;}store.local.world=prepareWorld(s);});
+  // Who lives here. A fresh sandbox has everybody; these put the house back to before somebody came.
+  fixture('Arrivals: a brand-new house, Monki only',s=>{for(const id of RESIDENTS.filter(id=>id!=='monki'))Object.assign(s.actors[id],{room:AWAY,hat:null});s.cast=['monki'];s.arrivals={...ARRIVALS};for(const j of Object.values(s.journeys)){j.index=0;j.lastAt=0;}});
+  for(const id of ['galgan','sernik','kot'])fixture(`Arrivals: ${NAMES[id]} at the door`,s=>{moveEveryoneIn(s);Object.assign(s.actors[id],{room:AWAY,hat:null});s.cast=s.cast.filter(r=>r!==id);s.arrivals={[id]:journeyIndex(s)};});
+  fixture('Arrivals: everybody moved in',s=>{moveEveryoneIn(s);});
+  for(const pose of ['Sleeping','Belly-up'])fixture(`Animals: ${pose} with berets`,s=>{for(const id of ['sernik','galgan','kot']){const a=s.actors[id];a.room=scene.room;a.hat='beret';a.petAt=0;a.mood=pose==='Sleeping'?'sleep':'happy';delete scene.petEffects[id];if(pose==='Belly-up')scene.petEffects[id]={at:performance.now(),power:1};}});
+  for(const item of ['glasses','headphones','helmet'])fixture(`Outfits: ${ITEMS[item].name} on everyone`,s=>{for(const id of ACTORS.filter(id=>s.actors[id].room!==AWAY)){s.actors[id].hat=item;s.actors[id].room=scene.room;}});
+  fixture('Cleanup: visiting helpers',s=>{scene.toys.clear();scene.stopTidy();const away=scene.room==='house'?'garden':'house';for(const id of ACTORS.filter(id=>s.actors[id].room!==AWAY))s.actors[id].room=[store.actor,'monki'].includes(id)?scene.room:away;const couch=s.objects.find(o=>o.id==='couch');if(couch){couch.room=scene.room;couch.x=275;couch.y=275;}});
+  fixture('Residents: repair a piled-up save',s=>{scene.toys.clear();scene.stopTidy();for(const a of Object.values(s.actors).filter(a=>a.room!==AWAY)){a.room=scene.room;a.x=200;a.y=250;}store.local.world=prepareWorld(s);});
   fixture('Residents: close together',s=>{scene.toys.clear();scene.stopTidy();Object.assign(s.actors.david,{room:scene.room,x:200,y:250});Object.assign(s.actors.julia,{room:scene.room,x:212,y:250});});
   fixture('Residents: notice new furniture',s=>{scene.ambient.active=null;s.actors.monki.room=scene.room;s.objects.push({id:`test-new-${crypto.randomUUID()}`,type:'stool',room:scene.room,x:262,y:259});});
   fixture('Residents: notice a changed surface',s=>{scene.ambient.active=null;s.actors.monki.room=scene.room;const surface=Object.keys(DECOR_STYLES[scene.room])[0],choices=DECOR_STYLES[scene.room][surface];s.catalog.styles[scene.room][surface]=choices.find(choice=>choice.id!==s.catalog.styles[scene.room][surface]).id;});
@@ -46,7 +51,7 @@ export function testLab({body,store,scene,play,arcade,reset,goTo}){
   fixture('Fridge: gift from partner',s=>{s.fridgeBox.batch={id:crypto.randomUUID(),ingredients:['fish','icecream'],result:'duck',by:partner(),for:store.actor,at:Date.now()};});
   for(const [place,stories]of Object.entries(PLACE_STORIES))for(let i=0;i<stories.length;i++)fixture(`Place: ${place} · ${i+1}`,s=>{s.life.places[place]={count:i};});
   const ambient=document.createElement('details'),ambientTitle=document.createElement('summary');ambientTitle.textContent='Live character scenes · preview every ambient event';ambient.append(ambientTitle);body.append(ambient);
-  const stage=(s,room)=>{for(const [id,y] of Object.entries({david:259,julia:253,monki:246,sernik:282,galgan:289})){s.actors[id].room=room;if(room!=='house')s.actors[id].y=y;}};
+  const stage=(s,room)=>{moveEveryoneIn(s);for(const [id,y] of Object.entries({david:259,julia:253,monki:246,sernik:282,galgan:289,kot:296})){s.actors[id].room=room;if(room!=='house')s.actors[id].y=y;}};
   for(const room of ['house','garden','roof','cellar']){
     const draft=structuredClone(store.state);stage(draft,room);
     for(const spec of ambientScenes(draft,room))ambient.append(button(`${room} · ${spec.id.replaceAll('-',' ')}`,()=>{

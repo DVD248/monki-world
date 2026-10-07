@@ -11,7 +11,7 @@ const TRIM=[[0,'#e6c3a8'],[30,'#e2bba0'],[70,'#dfb48e'],[120,'#2f3354'],[200,'#1
 const CAKES=[{top:'#f4c6cf',rim:'#e39cab',pipe:'#fbe3e8',name:'strawberry'},{top:'#8a5a44',rim:'#6e4433',pipe:'#b07a5d',name:'chocolate'},
   {top:'#fbf1d8',rim:'#e9d6a8',pipe:'#fffaf0',name:'vanilla'},{top:'#cfe6cf',rim:'#a9cfa9',pipe:'#eef7ec',name:'mint'}];
 const SPRINKLES=['#e67e7e','#f3c96b','#7fb6d9','#8fc77f','#c89be0','#fffaf0'];
-const NAMES={sernik:'Sernik',galgan:'Galgan',monki:'Monki',julia:'Julia',david:'David'};
+const NAMES={sernik:'Sernik',galgan:'Galgan',monki:'Monki',julia:'Julia',david:'David',kot:'Kot'};
 const BUNTING=['#e8a0a0','#f3d27a','#9cc7e4','#a9d39a','#d5b0e6'];
 const TAU=Math.PI*2,{cx:CX,cy:CY}=CANDLES;
 

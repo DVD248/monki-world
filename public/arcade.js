@@ -11,12 +11,13 @@ import stack from './arcade-stack.js';
 import candles from './arcade-candles.js';
 import snake from './arcade-snake.js';
 import merge from './arcade-merge.js';
+import climb from './arcade-climb.js';
 
 /** Draws and drives one arcade run on the canvas. The rules live in shared/arcade.js;
  * this is the feel: the squash on a bounce, the crumbs, the voice of whoever you just
  * overtook, and a line across the sky where your best and theirs are. Sky Jump and Food
  * Drop are drawn here; each later game brings its rules, picture and card in one file. */
-export const VIEWS={drive,jet,cliff,hop,fall,match,stack,candles,snake,merge};
+export const VIEWS={drive,jet,cliff,hop,fall,match,stack,candles,snake,merge,climb};
 export const ARCADE_ZONES={jump:JUMP_ZONES,drop:DROP_ZONES,...Object.fromEntries(Object.entries(VIEWS).map(([id,view])=>[id,view.zones]))};
 const STEP=1/120,SLIDE=1.6;
 // Sky Jump climbs from a garden afternoon, through the evening, into space.
@@ -26,7 +27,9 @@ const PADS={cloud:['#fbf8ee','#dfe2d4'],moving:['#dcebf2','#a9c6d2'],fragile:['#
 const KITCHEN=[{wall:'#eadcc0',tile:'#e2d1b1',floor:'#b9926a',line:'#a88259'},{wall:'#cfe4dc',tile:'#bcd6c8',floor:'#8fae72',line:'#7c9a61'},{wall:'#c9dcea',tile:'#b8cce0',floor:'#b06d4c',line:'#95593d'},{wall:'#2f3656',tile:'#394166',floor:'#4f4a5c',line:'#403c4c'},{wall:'#161a2c',tile:'#1f2440',floor:'#3a3350',line:'#2d2840'}];
 
 export class ArcadeGame{
-  constructor(canvas,game,{sound=()=>{},reduced=false,best=0,rival=null,hat=null,start=0,onEnd=()=>{},onOver=()=>{},onPause=()=>{}}={}){
+  /** `cast` is who lives in the house, for the games with a part for everybody (the cakes, the catchers). */
+  constructor(canvas,game,{sound=()=>{},reduced=false,best=0,rival=null,hat=null,start=0,cast=null,onEnd=()=>{},onOver=()=>{},onPause=()=>{}}={}){
+    this.cast=cast||['david','julia','monki','sernik','galgan','kot'];
     this.canvas=canvas;this.c=canvas.getContext('2d');this.game=game;this.info=ARCADE_GAMES[game];this.view=VIEWS[game]||null;this.start=start;
     this.sound=sound;this.reduced=reduced;this.best=best;this.rival=rival;this.hat=hat;this.onEnd=onEnd;this.onOver=onOver;this.onPause=onPause;
     this.keys=new Set();this.pointers=new Map();this.taps=[];this.swipes=[];this.starts=new Map();this.cleanups=[];this.last=0;this.stopped=false;
@@ -72,7 +75,7 @@ export class ArcadeGame{
   clock(){return this.logic.time+(this.overAt===null?0:this.time-this.overAt);}
   restart(){
     const seed=`${this.game}:${Date.now()}:${Math.random()}`;
-    this.logic=this.view?new this.view.Logic(seed,{start:this.start}):this.game==='jump'?new SkyJump(seed,{start:this.start}):new FoodDrop(seed,{start:this.start});
+    this.logic=this.view?new this.view.Logic(seed,{start:this.start,cast:this.cast}):this.game==='jump'?new SkyJump(seed,{start:this.start}):new FoodDrop(seed,{start:this.start});
     this.particles=[];this.texts=[];this.banner=null;this.shake=0;this.flash=0;this.time=0;this.acc=0;this.ended=0;this.reported=false;this.overAt=null;
     this.target=null;this.drag=null;this.touched=false;this.lastCam=0;this.lastView=null;this.mood=null;this.moodUntil=0;this.taps=[];this.swipes=[];this.pointers.clear();this.starts.clear();this.view?.reset?.(this);
     // Nothing to overtake on a first go; afterwards, your own best and theirs are lines to cross.

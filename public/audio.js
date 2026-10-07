@@ -131,6 +131,11 @@ export class Sounds{
                       this.hiss(c,{dur:.1,peak:.06,from:700,to:220});break;
         case 'monki': this.blip(c,{freq:w(430,.1),to:w(600,.1),type:'triangle',dur:.09,peak:.16});
                       this.blip(c,{freq:w(600,.1),to:w(450,.1),type:'triangle',dur:.1,peak:.13,at:.085});break;
+        // A small "mi-aow": up, then a longer fall.
+        case 'kot':   this.blip(c,{freq:w(620,.1),to:w(1040,.1),type:'triangle',dur:.08,peak:.13});
+                      this.blip(c,{freq:w(1080,.1),to:w(560,.1),type:'sine',dur:.2,peak:.14,at:.07});break;
+        // Someone at the door: two knocks.
+        case 'knock': this.blip(c,{freq:190,to:110,type:'triangle',dur:.07,peak:.2});this.blip(c,{freq:190,to:110,type:'triangle',dur:.07,peak:.2,at:.16});break;
         case 'david':
         case 'julia': this.blip(c,{freq:kind==='julia'?w(520):w(360),to:kind==='julia'?w(430):w(300),type:'sine',dur:.08,peak:.12});break;
 

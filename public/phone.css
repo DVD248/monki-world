@@ -58,8 +58,11 @@ button[aria-busy=true]{opacity:.65}.ending-photo{animation:postcard-in .18s ease
 #room-tools .icon-button{width:48px;min-width:48px;min-height:48px;font-size:24px}
 #room-tools .scene-footer{display:flex;flex-direction:column;gap:9px;position:static;background:none;padding:12px 0}
 #room-tools .residents{justify-content:space-around;width:100%;gap:4px}
-#room-tools .resident{width:52px;height:56px;padding:3px;background:none;border-radius:50%}
+#room-tools .resident{width:52px;height:56px;padding:3px;background:none;border-radius:50%;flex:0 1 52px;min-width:0}
 #room-tools .resident:hover{background:#dbe4d1}#room-tools .resident canvas{width:40px;height:46px}
+/* Six of you once everybody has moved in: on the narrowest phones the portraits give a little. */
+#room-tools .resident canvas{max-width:100%;object-fit:contain}
+@media(max-width:360px){#room-tools .residents{gap:1px}#room-tools .resident{font-size:12px}}
 #room-tools .room-help{display:block;max-width:none;text-align:center;font-size:14px;line-height:1.5;color:#4d6049}
 #room-tools .below-world{position:static;display:block;margin:0;border-top:1px solid #81957733}
 #room-tools .trace-card{width:100%;height:auto;min-height:68px;padding:8px 0;border:0;border-radius:0;background:none;gap:10px}
@@ -153,5 +156,10 @@ html.immersive,html.immersive body{width:100%;height:100%;overflow:hidden;oversc
 #arcade-score{font:800 40px var(--sans);letter-spacing:-1px;color:var(--ink)}
 #arcade-line{margin:0;font:650 16px var(--sans);color:#4c644b}#arcade-sub{margin:0;font:14px var(--sans);color:#7b8469}#arcade-sub:empty{display:none}
 #arcade-over .primary-button{font-size:16px;min-height:50px;margin-top:4px}#arcade-over .secondary-button{font-size:14px}
-.arcade-card small{display:block;line-height:1.35}
+.arcade-bests{display:grid;gap:3px;margin-top:5px}
+.arcade-best{display:flex;align-items:baseline;gap:6px;font:11px var(--sans);color:#59654f;line-height:16px}
+.arcade-best b{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arcade-best em{font-style:normal;font-weight:650;font-variant-numeric:tabular-nums;color:#3f4c39;white-space:nowrap}
+.arcade-best.none em{font-weight:400;color:#9aa08a}
+.arcade-best.lead em::after{content:' ★';color:#c7a03a}
 

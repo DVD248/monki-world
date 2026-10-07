@@ -46,10 +46,10 @@ test('API choices stay secret and author identity comes from credentials',async(
   assert.deepEqual(after.choices.picks,{david:4,julia:2});
 });
 test('queued retry IDs are safe to send twice',async()=>{
-  const operations=[{id:'retry-poke',type:'poke',target:'sernik'}];
+  const operations=[{id:'retry-poke',type:'poke',target:'monki'}];
   await call('/api/world',{method:'POST',identity:david,body:{operations}});
   await call('/api/world',{method:'POST',identity:david,body:{operations}});
-  const saved=(await call('/api/world',{identity:david})).data.world;assert.equal(saved.actors.sernik.pokes,1);
+  const saved=(await call('/api/world',{identity:david})).data.world;assert.equal(saved.actors.monki.pokes,1);
 });
 test('bad invitations, missing credentials, and cross-origin writes are rejected',async()=>{
   assert.equal((await call('/api/join',{method:'POST',body:{room:david.room,invite:'x'.repeat(48)}})).status,403);
