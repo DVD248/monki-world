@@ -11,13 +11,18 @@ export function shadow(c,x,y,w=12){ellipse(c,x,y,w,3,'#4a573224')}
 // Attachment points belong to the head, not to the inventory item's baseline.
 // Belly face coordinates live inside that head's upside-down transform.
 export function headProfile(id,pose='standing'){
+  if(id==='kot'){
+    if(pose==='belly-face')return{x:0,capX:0,eyeY:-2,top:-11,upper:-18,half:12,scale:.76};
+    if(pose==='belly')return{x:18,capX:18,eyeY:-10,top:-22,upper:-22,half:12,scale:.76};
+    if(pose==='sleep')return{x:15,capX:15,eyeY:-14,top:-23,upper:-30,half:12,scale:.76};
+    return{x:5,capX:5,eyeY:-24,top:-33,upper:-40,half:12,scale:.76};
+  }
   if(pose==='belly-face')return{x:.5,capX:0,eyeY:-2.5,top:-8,upper:-13,half:10,scale:.7};
   if(pose==='belly')return{x:18,capX:18,eyeY:-9.5,top:-20,upper:-20,half:10,scale:.7};
   if(pose==='sleep')return{x:15,capX:14,eyeY:-10.5,top:-18,upper:-21,half:10,scale:.7};
   if(id==='david')return{x:0,capX:0,eyeY:-27,top:-36,upper:-38,half:9,scale:.72};
   if(id==='julia')return{x:0,capX:0,eyeY:-27,top:-34,upper:-35,half:10,scale:.72};
   if(id==='monki')return{x:1,capX:0,eyeY:-30,top:-35,upper:-37,half:12,scale:.8};
-  if(id==='kot')return{x:10,capX:10,eyeY:-23,top:-28,upper:-35,half:9,scale:.68};
   return{x:10,capX:10,eyeY:-23,top:-28,upper:-35,half:10,scale:.7};
 }
 const FACE_ACCESSORIES=new Set(['glasses','headphones','bow','flower']);
@@ -143,59 +148,97 @@ export function character(c,id,x,y,options={}){
   c.restore();
 }
 
-// Kot: a calico cat. White socks and bib, a ginger face with a black patch over one eye,
-// black ears, a black saddle, a ginger tail that curls at the tip, and a black band on one
-// white front leg. Same footprint as the dogs, so hats, petting and the room treat her alike.
-const KOT={white:'#f3eee2',lit:'#fbf8ef',shade:'#ddd5c4',ginger:'#cf8a48',gingerLit:'#e0a462',black:'#3b3833',blackLit:'#4d4943',pink:'#e2a19b',ear:'#c98a86',eye:'#cdc46c',whisker:'#b9ae9c'};
+// Kot: a round calico with a cream blaze, mismatched ears and a curled ginger tail.
+// A seated silhouette keeps Kot distinct from the dogs; the same face and markings
+// carry through the tucked loaf, belly rub and moving poses.
+const KOT={white:'#f3eee2',lit:'#fbf8ef',shade:'#ddd5c4',ginger:'#cf8a48',gingerLit:'#e0a462',black:'#3b3833',blackLit:'#4d4943',pink:'#e2a19b',ear:'#c98a86',eye:'#b9c782',whisker:'#a69b88'};
 function kot(c,{frame=0,mood='idle',hat=null,pet=0,carried=false,running=false}){
   const K=KOT,closed=mood==='sleep'||pet>.1||mood==='happy';
-  // One face, drawn where each pose puts the head: (x,y) is the head's top-left corner.
+  // The head has its own stepped silhouette, so the cheeks read even at room size.
   const face=(x,y,{lying=false}={})=>{
-    rect(c,x,y,18,14,K.ginger);rect(c,x+1,y-1,16,1,K.ginger);rect(c,x-1,y+2,1,10,K.ginger);rect(c,x+18,y+2,1,10,K.black);
-    rect(c,x+10,y,8,9,K.black);rect(c,x+10,y-1,7,1,K.black);rect(c,x,y,4,4,K.black);
-    rect(c,x+8,y+1,2,6,K.gingerLit);
-    rect(c,x+4,y+9,10,5,K.white);rect(c,x+5,y+14,8,1,K.white);rect(c,x+3,y+10,1,3,K.white);
-    // Ears flatten when she is cross.
-    const drop=mood==='annoyed'?3:0;
-    poly(c,[[x,y+2],[x+1-drop,y-8+drop],[x+7,y]],K.black);poly(c,[[x+11,y],[x+18+drop,y-8+drop],[x+18,y+2]],K.black);
-    if(!drop){rect(c,x+2,y-4,2,3,K.ear);rect(c,x+15,y-4,2,3,K.ear);}
-    if(closed){const lid=mood==='sleep'||lying?0:-1;rect(c,x+3,y+6+lid,4,1,P.dark);rect(c,x+12,y+6+lid,4,1,K.eye);if(lid){rect(c,x+4,y+4,2,1,P.dark);rect(c,x+13,y+4,2,1,K.eye);}}
-    else{rect(c,x+3,y+4,4,3,K.eye);rect(c,x+12,y+4,4,3,K.eye);rect(c,x+4,y+4,2,3,P.dark);rect(c,x+13,y+4,2,3,P.dark);rect(c,x+3,y+4,1,1,K.lit);rect(c,x+12,y+4,1,1,K.lit);}
-    rect(c,x+8,y+9,3,2,K.pink);rect(c,x+9,y+11,1,1,P.ink);rect(c,x+7,y+12,2,1,P.ink);rect(c,x+10,y+12,2,1,P.ink);
-    if(mood==='happy'&&!lying)rect(c,x+9,y+13,2,1,'#c68776');
-    if(mood==='annoyed'){rect(c,x+2,y+2,5,1,P.ink);rect(c,x+11,y+2,5,1,K.whisker);}
-    rect(c,x-4,y+10,5,1,K.whisker);rect(c,x-3,y+12,4,1,K.whisker);rect(c,x+18,y+10,5,1,K.whisker);rect(c,x+18,y+12,4,1,K.whisker);
+    const cross=mood==='annoyed';
+    if(cross){
+      poly(c,[[x+2,y+5],[x-4,y-2],[x+5,y]],K.ginger);
+      poly(c,[[x+19,y],[x+28,y-2],[x+23,y+5]],K.black);
+    }else{
+      poly(c,[[x,y+5],[x,y-6],[x+2,y-6],[x+7,y-1],[x+8,y+3]],K.ginger);
+      poly(c,[[x+16,y+3],[x+17,y-1],[x+22,y-6],[x+24,y-6],[x+24,y+5]],K.black);
+      rect(c,x+2,y-3,2,5,K.pink);rect(c,x+20,y-3,2,5,K.ear);
+    }
+    // Cream cheeks, a ginger left temple and a charcoal patch around the right eye.
+    rect(c,x+4,y-1,16,1,K.white);rect(c,x+1,y,22,16,K.white);
+    rect(c,x,y+3,24,10,K.white);rect(c,x+3,y+16,18,2,K.white);rect(c,x+6,y+18,12,1,K.shade);
+    rect(c,x+1,y,8,9,K.ginger);rect(c,x,y+3,8,8,K.ginger);rect(c,x+3,y,5,2,K.gingerLit);
+    rect(c,x+15,y,8,11,K.black);rect(c,x+14,y+2,10,8,K.black);rect(c,x+17,y+11,5,2,K.black);
+    rect(c,x+16,y,5,2,K.blackLit);
+    // A narrow white blaze opens into a broad muzzle.
+    rect(c,x+10,y,3,11,K.lit);rect(c,x+8,y+10,9,5,K.lit);
+    if(closed){
+      for(const [ex,color] of [[4,P.dark],[16,K.lit]]){
+        rect(c,x+ex,y+8,5,1,color);
+        if(mood!=='sleep'&&!lying){rect(c,x+ex+1,y+7,3,1,color);rect(c,x+ex,y+8,1,2,color);rect(c,x+ex+4,y+8,1,2,color);}
+      }
+    }else{
+      for(const ex of [4,16]){
+        rect(c,x+ex,y+6,5,5,K.eye);rect(c,x+ex+1,y+6,3,5,P.dark);
+        rect(c,x+ex+1,y+6,2,2,K.lit);
+      }
+      if(cross){rect(c,x+3,y+5,6,2,K.ginger);rect(c,x+16,y+5,6,2,K.black);}
+    }
+    rect(c,x+10,y+11,4,2,K.pink);rect(c,x+11,y+13,2,1,K.ear);
+    rect(c,x+11,y+14,1,1,P.ink);rect(c,x+9,y+15,2,1,P.ink);rect(c,x+12,y+15,2,1,P.ink);
+    if(mood==='happy'&&!lying)rect(c,x+11,y+16,2,1,K.pink);
+    rect(c,x-3,y+11,4,1,K.whisker);rect(c,x-2,y+14,4,1,K.whisker);
+    rect(c,x+23,y+11,4,1,K.whisker);rect(c,x+22,y+14,4,1,K.whisker);
   };
   if(mood==='sleep'&&pet<=.1&&!carried&&!running){
-    // A loaf with the tail wrapped round the front and the chin on it.
+    // Rounded loaf, paws tucked under the chin, tail wrapped around the whole body.
     const breath=Math.sin(frame*1.5)>.1?1:0;
-    rect(c,-21,-12-breath,30,12+breath,K.white);rect(c,-19,-14-breath,26,4,K.white);
-    rect(c,-18,-15-breath,13,6,K.black);rect(c,-17,-15-breath,6,1,K.blackLit);rect(c,-5,-14-breath,9,5,K.ginger);rect(c,-22,-9,4,6,K.ginger);
-    rect(c,-20,-3,30,3,K.ginger);rect(c,-14,-3,8,3,K.black);rect(c,6,-4,5,4,K.gingerLit);
-    rect(c,-1,-6,6,3,K.white);rect(c,-1,-5,6,1,K.black);
-    face(4,-19,{lying:true});
+    rect(c,-23,-12-breath,30,10+breath,K.white);rect(c,-20,-17-breath,24,9,K.white);
+    rect(c,-17,-19-breath,17,4,K.white);rect(c,-20,-15-breath,10,7,K.ginger);
+    rect(c,-9,-18-breath,11,6,K.black);rect(c,-8,-18-breath,6,1,K.blackLit);
+    rect(c,-25,-9,4,7,K.ginger);rect(c,-23,-5,30,5,K.ginger);rect(c,-20,-5,21,1,K.gingerLit);
+    rect(c,0,-5,9,5,K.black);rect(c,8,-4,6,3,K.white);
+    face(3,-22,{lying:true});
     wearAccessory(c,hat,'kot','sleep');
   }else if(pet>.72&&!carried&&!running){
-    // Belly up, paws folded, face upside down: the dogs' trick, and she knows it.
     const kick=Math.floor(frame/2)%2;
-    rect(c,-30,-7+kick,10,3,K.ginger);rect(c,-31,-11+kick,3,5,K.ginger);rect(c,-31,-12+kick,3,2,K.black);
-    rect(c,-16,-22+kick,4,11,K.white);rect(c,1,-20-kick,4,9,K.white);rect(c,1,-16-kick,4,2,K.black);
-    rect(c,-21,-14,31,14,K.white);rect(c,-19,-16,26,4,K.white);rect(c,-21,-6,9,6,K.black);rect(c,4,-5,6,5,K.ginger);
-    rect(c,-14,-13,17,9,K.lit);rect(c,-7,-9,2,2,K.shade);
-    rect(c,-22,-19-kick,5,9,K.white);rect(c,5,-18+kick,5,8,K.white);
-    c.save();c.translate(18,-12);c.rotate(Math.PI);face(-9,-7,{lying:true});wearAccessory(c,hat,'kot','belly-face','face');c.restore();
+    rect(c,-29,-9+kick,10,4,K.ginger);rect(c,-31,-15+kick,4,8,K.ginger);
+    rect(c,-29,-18+kick,5,4,K.black);
+    rect(c,-17,-22+kick,5,10,K.white);rect(c,0,-23-kick,5,11,K.white);
+    rect(c,-17,-22+kick,5,3,K.ginger);rect(c,0,-23-kick,5,3,K.black);
+    rect(c,-22,-13,32,11,K.white);rect(c,-18,-17,25,16,K.white);rect(c,-17,-2,23,3,K.shade);
+    rect(c,-22,-10,7,8,K.ginger);rect(c,2,-14,8,8,K.black);
+    rect(c,-14,-14,16,12,K.lit);rect(c,-7,-6,2,2,K.pink);
+    rect(c,-21,-21-kick,6,10,K.white);rect(c,5,-20+kick,6,9,K.white);
+    rect(c,-19,-20-kick,2,3,K.pink);rect(c,7,-19+kick,2,3,K.pink);
+    c.save();c.translate(18,-12);c.rotate(Math.PI);face(-12,-10,{lying:true});wearAccessory(c,hat,'kot','belly-face','face');c.restore();
     wearAccessory(c,hat,'kot','belly','head');
   }else{
-    const kick=carried||running?Math.sin(frame*3)*3:0,curl=pet?Math.round(Math.sin(frame*1.6)*pet*2):0;
-    // Tail up behind her, ginger, curling forward at the tip.
-    rect(c,-16,-15,4,4,K.ginger);rect(c,-18,-25,3,11,K.ginger);rect(c,-17,-24,1,8,K.gingerLit);rect(c,-18,-30+curl,3,6,K.black);rect(c,-16,-32+curl,3,3,K.black);rect(c,-14,-31+curl,2,2,K.blackLit);
-    // Far legs, then body, then near legs: the near front one has the black band.
-    rect(c,-7,-6-kick,3,7,K.shade);rect(c,1,-6+kick,3,7,K.shade);
-    rect(c,-13,-17,25,12,K.white);rect(c,-11,-18,20,2,K.lit);
-    rect(c,-12,-18,11,6,K.black);rect(c,-11,-18,6,1,K.blackLit);rect(c,-1,-17,7,4,K.ginger);rect(c,-12,-9,4,3,K.ginger);
-    rect(c,-11,-7+kick,4,8,K.white);rect(c,5,-7-kick,4,8,K.white);rect(c,5,-5-kick,4,2,K.black);
-    rect(c,-12,0+kick,5,1,K.shade);rect(c,4,0-kick,6,1,K.shade);
-    face(1,-28);
+    const moving=carried||running,kick=moving?Math.round(Math.sin(frame*3)*3):0;
+    const curl=Math.round(Math.sin(frame*1.6)*(pet?2:1));
+    // A thick hook of a tail, visible beside the seated haunch instead of behind the face.
+    rect(c,-19,-8,11,5,K.ginger);rect(c,-23,-17,5,12,K.ginger);
+    rect(c,-24,-26+curl,5,12-curl,K.ginger);rect(c,-23,-30+curl,6,5,K.ginger);
+    rect(c,-18,-30+curl,5,4,K.black);rect(c,-15,-28+curl,4,6,K.black);
+    rect(c,-22,-24+curl,1,12,K.gingerLit);
+    if(moving){
+      // Stretch into a low four-paw scamper while climbing, running or being carried.
+      rect(c,-12,-9-kick,4,10,K.shade);rect(c,3,-9+kick,4,10,K.shade);
+      rect(c,-15,-18,29,12,K.white);rect(c,-12,-20,23,4,K.white);
+      rect(c,-14,-18,10,8,K.ginger);rect(c,-4,-20,10,6,K.black);
+      rect(c,-13,-7+kick,5,8,K.white);rect(c,9,-7-kick,5,8,K.white);
+      rect(c,-14,-1+kick,7,2,K.shade);rect(c,8,-1-kick,7,2,K.shade);
+    }else{
+      // Wide haunches and two straight front paws give the resting cat a seated outline.
+      rect(c,-10,-19,25,17,K.white);rect(c,-13,-12,29,12,K.white);
+      rect(c,-11,-16,10,15,K.ginger);rect(c,-9,-17,5,2,K.gingerLit);
+      rect(c,10,-17,6,14,K.black);rect(c,12,-12,5,10,K.black);
+      rect(c,-3,-18,12,13,K.lit);rect(c,0,-5,1,5,K.shade);rect(c,7,-5,1,5,K.shade);
+      rect(c,-12,-2,10,3,K.white);rect(c,-2,-2,7,3,K.lit);rect(c,7,-2,8,3,K.lit);
+      rect(c,-11,1,9,1,K.shade);rect(c,-1,1,5,1,K.shade);rect(c,8,1,6,1,K.shade);
+    }
+    face(-7,-32);
     wearAccessory(c,hat,'kot');
   }
 }
