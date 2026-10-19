@@ -163,3 +163,8 @@ html.immersive,html.immersive body{width:100%;height:100%;overflow:hidden;oversc
 .arcade-best.none em{font-weight:400;color:#9aa08a}
 .arcade-best.lead em::after{content:' ★';color:#c7a03a}
 
+/* The drawing pad's three buttons stay one row on the narrowest phone, and in landscape the pad
+   gives up height so that "Hang it up" is on screen without scrolling. */
+#sheet-body .draw-pad+.button-row{flex-wrap:nowrap}
+#sheet-body .draw-pad+.button-row>button{flex:1 1 auto;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap}
+@media (orientation:landscape) and (max-height:520px){#sheet-body .draw-pad{display:block;width:auto;max-width:100%;height:max(96px,calc(100dvh - 280px));margin:0 auto}}

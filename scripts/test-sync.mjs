@@ -23,7 +23,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const HOUR=3600000,DAY=24*HOUR;
 let now=Date.UTC(2026,8,24,17,0);
 const data=await mkdtemp(path.join(os.tmpdir(),'monki-sync-')),port=48000+Math.floor(Math.random()*900),base=`http://127.0.0.1:${port}`;
-const srv=fork(path.join(GAME,'server.mjs'),[],{cwd:GAME,execArgv:['--import',pathToFileURL(ROOT+'/scripts/couple/clock-preload.mjs').href],
+const srv=fork(path.join(GAME,'server.mjs'),[],{cwd:GAME,execArgv:['--import',pathToFileURL(ROOT+'/scripts/clock-preload.mjs').href],
   env:{...process.env,PORT:String(port),HOST:'127.0.0.1',MONKI_DATA_DIR:data},stdio:['ignore','ignore','inherit','ipc']});
 const clock=t=>new Promise(r=>{const on=m=>{if(m?.clock===t){srv.off('message',on);r();}};srv.on('message',on);srv.send({clock:t});});
 await clock(now);
@@ -130,14 +130,13 @@ try{
   await press('julia','Open David’s present');await wait(1800);
   say('after opening it:',await j.evaluate(()=>document.querySelector('#sheet-body h2')?.textContent));
   await press('julia','Look around');await wait(500);
-  await check('she opened his present and Galgan put it on');
-  const dg=(await drawn('david')).actors.galgan.hat;say('Galgan\'s hat on David\'s phone:',dg);
+  // A new house is the two of them and Monki, so the present goes on Monki.
+  await check('she opened his present and Monki put it on');
+  const dg=(await drawn('david')).actors.monki.hat;say('Monki\'s hat on David\'s phone:',dg);
 
   // Together, on FaceTime: each does things; the other should see them.
-  await cb('julia','onPet','galgan');await check('Julia pets Galgan');
   const couch=(await local('david')).world.objects.find(o=>o.id==='couch');
   await cb('david','onMove',{id:'couch',x:couch.x+60,y:couch.y+20},'house');await check('David drags the sofa');
-  for(let i=0;i<5;i++){await cb('david','onTap','sernik',{x:0,y:0});await wait(120);}await check('David pesters Sernik until he wanders off');
   await pages.julia.evaluate(()=>document.getElementById('open-tools')?.click());await wait(200);
   await pages.julia.evaluate(()=>[...document.querySelectorAll('#residents button')].find(b=>b.title==='Monki')?.click());await wait(500);
   say('Julia opened Monki\'s panel:',await pages.julia.evaluate(()=>document.querySelector('#sheet-body h2')?.textContent));
@@ -165,11 +164,21 @@ try{
   await wait(1500);
   await check('David plays the story to the end');
   say('after: her card',JSON.stringify(await card('julia')),'· his card',JSON.stringify(await card('david')));
+  // The first story done, Galgan knocks on both phones; she opens the door and he lives there for both.
+  {const h=await card('julia'),m=await card('david');
+   const problems=[h,m].some(c=>c.title!=='Someone is at the door.')?[`the cards say "${h.title}" and "${m.title}"`]:[];
+   results.push({label:'Galgan knocks on both phones',problems,notes:[]});console.log(`${problems.length?'✗':'✓'} Galgan knocks on both phones${problems.length?' — '+problems[0]:''}`);}
+  await pages.julia.evaluate(()=>document.getElementById('start-adventure').click());await wait(700);
+  say('Julia opened the door:',await pages.julia.evaluate(()=>document.querySelector('#sheet-body h2')?.textContent));
+  await press('julia','Say hello');await wait(400);
+  await check('Julia lets Galgan in');
+  await cb('julia','onPet','galgan');await check('Julia pets Galgan');
+  for(let i=0;i<5;i++){await cb('david','onTap','galgan',{x:0,y:0});await wait(120);}await check('David pesters Galgan until he wanders off');
   // Tidy on her side.
   await pages.julia.evaluate(()=>document.getElementById('tidy-room').click());await wait(6500);await check('Julia tidies the room');
   // Offline: she does things on the bus with no signal; they arrive when she is back.
   await pages.julia.setOfflineMode(true);
-  await cb('julia','onPet','sernik');const monki=(await local('julia')).world.actors.monki;
+  await cb('julia','onPet','galgan');const monki=(await local('julia')).world.actors.monki;
   await cb('julia','onMove',{id:'monki',x:120,y:300},'house');await wait(600);
   const waiting=(await local('julia')).pending.length;say('offline, waiting on her phone:',waiting,'changes');
   await pages.julia.setOfflineMode(false);await check('Julia\'s offline changes arrive when she is back online');

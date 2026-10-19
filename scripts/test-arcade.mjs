@@ -144,7 +144,9 @@ try{
     const at=x=>r.left+x*r.width/400,y=r.top+560*r.height/600,before=await game(page,()=>window.__game.logic.monki.x);
     await page.touchscreen.touchStart(at(250),y);await delay(150);
     assert.ok(Math.abs(await game(page,()=>window.__game.logic.monki.x)-before)<25,'a thumb going down does not pull him over to it');
-    for(let k=1;k<=6;k++){await page.touchscreen.touchMove(at(250+k*20),y);await delay(30);}await delay(500);
+    for(let k=1;k<=6;k++){await page.touchscreen.touchMove(at(250+k*20),y);await delay(30);}
+    // He runs there at his own speed; on a busy machine the frames come slower, so wait for him rather than a set time.
+    await page.waitForFunction(b=>window.__game.logic.monki.x-b>150,{timeout:3000},before).catch(()=>{});
     const after=await game(page,()=>window.__game.logic.monki.x);await page.touchscreen.touchEnd();
     assert.ok(after-before>150&&after<=388,`slid 120 to the right, Monki went ${Math.round(after-before)} from ${Math.round(before)}`);}
   // After the end the clouds and pigeons keep moving, and the panel follows.

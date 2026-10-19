@@ -194,20 +194,25 @@ function render(){
   // "Down there", as the send-to sheet already calls it: a tab and a room named "?" read
   // as missing text, not as a mystery, in five of six simulated autumns.
   const titles={house:'Home',garden:'Garden',roof:'Roof',cellar:'Down there'};
-  $('locations').replaceChildren();
+  // Each of these rows is rebuilt only when what it shows has changed. Rebuilt on every sync,
+  // a tap that landed as the other phone's change arrived hit a button that had just been
+  // replaced, and did nothing.
+  const changed=(el,key)=>{if(el.dataset.shows===key)return false;el.dataset.shows=key;el.replaceChildren();return true;};
   // Somewhere you cannot go yet is not shown at all. Nothing counts down to it.
-  for(const place of ['house','garden','roof','cellar'].filter(p=>state.unlocked.includes(p))){
+  const places=['house','garden','roof','cellar'].filter(p=>state.unlocked.includes(p));
+  if(changed($('locations'),JSON.stringify([places,room,preview?.room||null])))for(const place of places){
     const b=button('','place-tab'+(room===place?' active':'')+(preview?.room===place?' incident':''),()=>goTo(place));
     b.innerHTML=icon(place)+`<span>${titles[place]}</span>`;b.setAttribute('aria-label',titles[place]);b.setAttribute('aria-current',room===place?'location':'false');$('locations').append(b);
   }
-  $('residents').replaceChildren();
-  $('place-actions').replaceChildren();
   // The toilet paper is Sernik's game: it is not in the dock until he lives here.
   $('play-ball').hidden=!isHere(state,'sernik');
-  for(const [id,label]of room==='garden'?[['farm','Growing patch'],['pool','Pond'],['hut','Little house']]:room==='roof'?[['sky','Look through the telescope']]:[]){$('place-actions').append(button(label,'quiet-action',()=>life.place(id)));}
-  if(room==='house')$('place-actions').append(button('Open the fridge','quiet-action',fridgeSheet),button('Play a game','quiet-action',arcadeSheet));
-  $('world').setAttribute('aria-label',`${titles[room]}. Stroke dogs to pet; pull away to move. Tap residents or sparkling objects. Equivalent controls are in Residents.`);
-  for(const id of present(state)){const b=button('','resident'+(store.actor===id?' you':''),()=>residentSheet(id));b.title=NAMES[id];b.setAttribute('aria-label',NAMES[id]);b.append(pict(id,{hat:state.actors[id].hat}));const label=document.createElement('span');label.textContent=NAMES[id];b.append(label);$('residents').append(b);}
+  if(changed($('place-actions'),room)){
+    for(const [id,label]of room==='garden'?[['farm','Growing patch'],['pool','Pond'],['hut','Little house']]:room==='roof'?[['sky','Look through the telescope']]:[]){$('place-actions').append(button(label,'quiet-action',()=>life.place(id)));}
+    if(room==='house')$('place-actions').append(button('Open the fridge','quiet-action',fridgeSheet),button('Play a game','quiet-action',arcadeSheet));
+  }
+  $('world').setAttribute('aria-label',`${titles[room]}. Stroke the animals to pet; pull away to move. Tap residents or sparkling objects. Equivalent controls are in Residents.`);
+  const household=present(state);
+  if(changed($('residents'),JSON.stringify([store.actor,household.map(id=>[id,state.actors[id].hat])])))for(const id of household){const b=button('','resident'+(store.actor===id?' you':''),()=>residentSheet(id));b.title=NAMES[id];b.setAttribute('aria-label',NAMES[id]);b.append(pict(id,{hat:state.actors[id].hat}));const label=document.createElement('span');label.textContent=NAMES[id];b.append(label);$('residents').append(b);}
   const incoming=pendingMail(state,store.actor)[0],last=state.log[0];
   const img=$('trace-image');
   if(incoming){img.replaceChildren(pict('present'));$('trace-label').textContent=`Mailbox · something from ${NAMES[incoming.from]}.`;}
