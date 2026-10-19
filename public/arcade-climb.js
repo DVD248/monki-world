@@ -59,17 +59,20 @@ function shelf(g,c,k,row,t){
 }
 function kot(g,c,L,t){
   const vt=g.clock(),since=vt-(g.hopAt??-9),hop=clamp(since/.11,0,1),from=g.fromSide??L.side;
-  let x=W/2+L.side*ARM,y=KY-4,rot=0,mood=L.energy<.25?'annoyed':'happy';
-  if(hop<1){x=W/2+(from+(L.side-from)*hop)*ARM;y-=Math.sin(hop*Math.PI)*(from!==L.side?22:12);}
+  // Holding on to the post on whichever side was tapped, paws against its edge.
+  const edge=side=>W/2+side*(POST/2+17);
+  let x=edge(L.side),y=KY+22,rot=0,mood=L.energy<.25?'annoyed':'happy';
+  if(hop<1){x=edge(from)+(edge(L.side)-edge(from))*hop;y-=Math.sin(hop*Math.PI)*(from!==L.side?16:9);}
   const after=g.overAt===null?0:g.time-g.overAt;
   if(L.over){
-    if(g.endKind==='bonk'){x+=L.side*after*140;y+=after*after*900-after*160;rot=L.side*after*9;mood='annoyed';}
-    else{y+=after*after*700;mood='annoyed';}
+    mood='annoyed';
+    if(g.endKind==='bonk'){x+=L.side*after*150;y+=after*after*900-after*160;rot=L.side*after*9;}
+    else{y+=after*after*700;rot=L.side*Math.min(1,after*2)*.5;}
   }
-  if(y>H+80)return;
+  if(y>H+90)return;
   c.save();c.translate(x,y);c.rotate(rot);
-  // Holding on facing the post: on the left Kot faces right, on the right the other way.
-  character(c,'kot',0,14,{scale:1.55,flip:L.side>0,mood,running:hop<1&&!L.over,frame:vt*10,hat:g.hat,shadow:false});
+  // Drawn holding on to its right; on the right of the post it is the other way round.
+  character(c,'kot',0,0,{scale:1.3,flip:L.side>0,mood,climbing:!L.over||g.endKind==='slip',running:L.over&&g.endKind==='bonk',frame:hop<1||L.over?vt*12:0,hat:g.hat,shadow:false});
   c.restore();
 }
 function draw(g,c){
@@ -121,7 +124,7 @@ function card(c,{hat}={}){
   rect(c,52,0,16,90,'#d8c49a');for(let y=2;y<90;y+=4)rect(c,53,y,14,1,'#bfa878');
   rect(c,16,24,36,5,'#a47a52');rect(c,16,24,36,2,'#c09468');item(c,'teacup',30,24,{scale:.42});
   rect(c,68,56,36,5,'#b98d63');rect(c,68,56,36,2,'#d3a87a');item(c,'plant',88,56,{scale:.3});
-  character(c,'kot',44,66,{scale:.82,mood:'happy',shadow:false,hat});
+  character(c,'kot',43,80,{scale:.72,mood:'happy',climbing:true,shadow:false,hat});
   rect(c,10,82,100,3,'#9eb67b');rect(c,10,82,Math.round(100*.7),3,'#e4c87a');
 }
 export default {Logic:ClimbRun,zones:CLIMB_ZONES,draw,event,hud,card,

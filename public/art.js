@@ -15,6 +15,7 @@ export function headProfile(id,pose='standing'){
     if(pose==='belly-face')return{x:0,capX:0,eyeY:-2,top:-8,upper:-14,half:9,scale:.68};
     if(pose==='belly')return{x:18,capX:18,eyeY:-10,top:-20,upper:-20,half:9,scale:.68};
     if(pose==='sleep')return{x:16,capX:16,eyeY:-12,top:-19,upper:-25,half:9,scale:.68};
+    if(pose==='climb')return{x:1,capX:1,eyeY:-48,top:-54,upper:-60,half:9,scale:.68};
     return{x:6,capX:6,eyeY:-27,top:-34,upper:-40,half:9,scale:.68};
   }
   if(pose==='belly-face')return{x:.5,capX:0,eyeY:-2.5,top:-8,upper:-13,half:10,scale:.7};
@@ -50,7 +51,7 @@ export function wearAccessory(c,type,id,pose='standing',layer='all'){
 }
 
 export function character(c,id,x,y,options={}){
-  const {scale=1,frame=0,mood='idle',hat=null,flip=false,shadow:showShadow=true,pet=0,carried=false,running=false}=options;
+  const {scale=1,frame=0,mood='idle',hat=null,flip=false,shadow:showShadow=true,pet=0,carried=false,running=false,climbing=false}=options;
   c.save();c.translate(Math.round(x),Math.round(y));c.scale(flip?-scale:scale,scale);
   if(carried){c.translate(0,-20);c.rotate(Math.sin(frame*2)*.09);c.translate(0,20);c.scale(1,1+Math.sin(frame*3)*.025);}
   if(showShadow)shadow(c,0,-1,id==='monki'?13:12);
@@ -92,7 +93,7 @@ export function character(c,id,x,y,options={}){
     rect(c,-5,-16,2,4,'#ca8a52');rect(c,3,-10,2,3,'#ca8a52');
     wearAccessory(c,hat,id);
   }else if(id==='kot'){
-    kot(c,{frame,mood,hat,pet,carried,running});
+    kot(c,{frame,mood,hat,pet,carried,running,climbing});
   }else{
     const dark=id==='galgan',fur=dark?'#50554a':'#d9c18d',lit=dark?'#616758':'#ead5a5',cream=dark?'#c9b888':'#f1dfb6';
     if(mood==='sleep'&&pet<=.1&&!carried&&!running){
@@ -151,7 +152,7 @@ export function character(c,id,x,y,options={}){
 // Kot: a lean, slightly scruffy calico. Small watchful eyes, an uneven coat and a
 // low tail keep the expression understated. Mood changes come from lids and ears.
 const KOT={white:'#e5dfce',lit:'#eee8d9',shade:'#c9c2b0',ginger:'#b58253',gingerLit:'#c39260',black:'#3b3833',blackLit:'#4d4943',pink:'#ad8074',ear:'#b08b7e',eye:'#b7b17b',whisker:'#968c77'};
-function kot(c,{frame=0,mood='idle',hat=null,pet=0,carried=false,running=false}){
+function kot(c,{frame=0,mood='idle',hat=null,pet=0,carried=false,running=false,climbing=false}){
   const K=KOT,closed=mood==='sleep'||pet>.1;
   const face=(x,y)=>{
     const cross=mood==='annoyed';
@@ -177,6 +178,22 @@ function kot(c,{frame=0,mood='idle',hat=null,pet=0,carried=false,running=false})
     rect(c,x-3,y+10,5,1,K.whisker);rect(c,x-2,y+12,3,1,K.whisker);
     rect(c,x+17,y+9,5,1,K.whisker);rect(c,x+18,y+12,3,1,K.whisker);
   };
+  if(climbing){
+    // Kot Climb: upright on the post (to the right), claws in, tail hanging. The paws reach
+    // in turn as Kot goes up.
+    const reach=Math.round(Math.sin(frame*3)*2),flick=Math.round(Math.sin(frame*1.3));
+    rect(c,-11+flick,-10,3,12,K.ginger);rect(c,-11+flick,1,3,4,K.black);rect(c,-9+flick,4,3,2,K.black);
+    rect(c,1,-15+reach,9,4,K.shade);rect(c,9,-16+reach,3,5,K.white);
+    // Narrow at the shoulders, a round haunch below, the calico patches down the back.
+    rect(c,-7,-40,11,22,K.white);rect(c,-8,-36,13,16,K.white);rect(c,-11,-21,15,10,K.white);rect(c,-10,-23,13,14,K.white);rect(c,-9,-11,11,2,K.shade);
+    rect(c,-8,-33,5,9,K.ginger);rect(c,-7,-32,2,5,K.gingerLit);rect(c,-11,-19,5,7,K.black);rect(c,-7,-41,5,4,K.black);rect(c,0,-26,3,4,K.ginger);
+    rect(c,2,-13-reach,9,4,K.white);rect(c,10,-14-reach,3,5,K.shade);
+    rect(c,3,-34+reach,8,3,K.shade);rect(c,10,-36+reach,3,4,K.white);
+    rect(c,3,-41-reach,8,3,K.white);rect(c,10,-43-reach,3,4,K.white);rect(c,6,-41-reach,2,3,K.black);
+    face(-8,-54);
+    wearAccessory(c,hat,'kot','climb');
+    return;
+  }
   if(mood==='sleep'&&pet<=.1&&!carried&&!running){
     const breath=Math.sin(frame*1.5)>.1?1:0;
     rect(c,-23,-11-breath,32,10+breath,K.white);rect(c,-20,-15-breath,25,6,K.white);

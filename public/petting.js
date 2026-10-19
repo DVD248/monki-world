@@ -18,7 +18,8 @@ export function petCanvas({dog,hat,onPet,sound,isOpen}){
   canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',finish);
   const pat=()=>{pulse(.42,false);sound('pet');onPet();};canvas.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();pat();}});
   function draw(ts){if(closed)return;if(!canvas.isConnected||!isOpen()){closed=true;finish();return;}const dt=Math.min(.05,(ts-(lastFrame||ts))/1000);lastFrame=ts;energy=Math.max(0,energy-dt*(down?.035:.12));
-    rect(c,0,0,360,270,'#e0e6cd');ellipse(c,180,225,111,23,'#bdc99f');
+    // Kot's cream is nearly the pale green of the pad: a deeper green behind Kot keeps the cat in view.
+    rect(c,0,0,360,270,dog==='kot'?'#c6d0ad':'#e0e6cd');ellipse(c,180,225,111,23,dog==='kot'?'#a7b588':'#bdc99f');
     const t=reduced?0:ts/1000;character(c,dog,originX,224,{scale,hat,pet:energy,mood:energy>.05?'happy':'idle',frame:t*9});
     if(energy>.1)for(let i=0;i<4;i++){const x=75+i*65,y=80+Math.sin(t*2+i)*7;rect(c,x,y,2,7,'#fbf2c7');rect(c,x-3,y+3,8,2,'#fbf2c7');}
     if(!down&&energy<.08){const x=151+Math.sin(t)*10;c.strokeStyle='#a9b793';c.lineWidth=2;c.beginPath();c.moveTo(x,250);c.lineTo(x+58,250);c.moveTo(x+5,245);c.lineTo(x,250);c.lineTo(x+5,255);c.moveTo(x+53,245);c.lineTo(x+58,250);c.lineTo(x+53,255);c.stroke();}
