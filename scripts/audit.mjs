@@ -180,6 +180,10 @@ const GENERATORS={
   poke:(s,a,now,rng)=>({target:someone(s,rng)}),
   pet:(s,a,now,rng)=>({target:someone(s,rng,PETS)}),
   welcome:s=>{const id=atTheDoor(s);return id?{target:id}:null;},
+  // A birthday surprise left, rewritten, taken back or opened, in any order.
+  birthdaySet:(s,a,now,rng)=>({age:1+Math.floor(rng()*40),message:'Happy birthday.'.repeat(1+Math.floor(rng()*20)),signature:rng()<.5?'':'Love',showFrom:now+Math.floor((rng()-.5)*4*86400000)}),
+  birthdayClear:()=>({}),
+  birthdaySeen:()=>({}),
   move:(s,a,now,rng)=>{const t=rng()<.5?someone(s,rng):one([...ACTORS,...s.objects.map(o=>o.id)],rng);return{target:t,x:35+rng()*330,y:171+rng()*143,room:one(s.unlocked,rng)};},
   wear:(s,a,now,rng)=>{const t=someone(s,rng);if((s.stuck[t]||0)>now)return null;return{target:t,item:rng()<.15?null:one(wearables(s),rng)};},
   place:(s,a,now,rng)=>({item:one(s.inventory,rng),room:one(s.unlocked,rng)}),

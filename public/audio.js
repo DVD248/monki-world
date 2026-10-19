@@ -70,6 +70,10 @@ export class Sounds{
   notes(c,list,{type='triangle',step=.085,dur=.16,peak=.2}={}){
     list.forEach((freq,i)=>this.blip(c,{freq,to:freq,type,dur,peak,at:i*step}));
   }
+  /** A tune: [frequency, beats] pairs, played at `beat` seconds a beat. */
+  melody(c,list,{beat=.32,type='triangle',peak=.13}={}){
+    let at=0;for(const [freq,beats] of list){if(freq)this.blip(c,{freq,to:freq,type,dur:beats*beat*.92,peak,at});at+=beats*beat;}
+  }
   /** Soft, slightly rubbery double chirp for a pleased dog, rather than a UI beep. */
   petChirp(c){
     const pitch=1+(Math.random()-.5)*.12;
@@ -134,6 +138,11 @@ export class Sounds{
         // A small "mi-aow": up, then a longer fall.
         case 'kot':   this.blip(c,{freq:w(620,.1),to:w(1040,.1),type:'triangle',dur:.08,peak:.13});
                       this.blip(c,{freq:w(1080,.1),to:w(560,.1),type:'sine',dur:.2,peak:.14,at:.07});break;
+        // Happy Birthday to you, twice over: the first two lines, the rest is everybody cheering.
+        case 'birthday':this.melody(c,[[392,.75],[392,.25],[440,1],[392,1],[523,1],[494,2],[392,.75],[392,.25],[440,1],[392,1],[587,1],[523,2]]);
+                      this.melody(c,[[196,3],[262,3],[196,3],[262,3]],{type:'sine',peak:.06});break;
+        // A party blower: a reedy slide up and a little rasp.
+        case 'horn':  this.blip(c,{freq:w(330,.05),to:w(660,.05),type:'sawtooth',dur:.32,peak:.07});this.hiss(c,{dur:.3,peak:.03,from:1800,to:2600,q:2});break;
         // Someone at the door: two knocks.
         case 'knock': this.blip(c,{freq:190,to:110,type:'triangle',dur:.07,peak:.2});this.blip(c,{freq:190,to:110,type:'triangle',dur:.07,peak:.2,at:.16});break;
         case 'david':

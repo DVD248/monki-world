@@ -3,7 +3,8 @@ import {Scene} from './scene.js';
 import {AdventurePlayer} from './adventure-player.js';
 import {Sounds} from './audio.js';
 import {icon,spriteCanvas,character,item,rect,fillSprite} from './art.js';
-import {ACTORS,NAMES,ITEMS,PETS,other,createWorld,clamp,favourite,waitingFor,present,residentsHere,isHere,atTheDoor,moveEveryoneIn} from './shared/world.js';
+import {ACTORS,NAMES,ITEMS,PETS,other,createWorld,clamp,favourite,waitingFor,present,residentsHere,isHere,atTheDoor,moveEveryoneIn,birthdayWaiting,birthdayFor,BIRTHDAY_LETTER} from './shared/world.js';
+import {BirthdayParty,fillLetter} from './birthday.js';
 import {ADVENTURES,adventureFor,featuredStepFor,VARIANT_LABELS} from './shared/adventures.js';
 import {testLab,recordCheck} from './test-lab.js';
 import {lifeUI} from './life-ui.js';
@@ -84,7 +85,7 @@ function payoff(){
 // What the other one did since you last looked is the first thing on the card, with one
 // tap to laugh back. The simulated David ended most autumns sure she never played, and
 // she saw his traces in a line that faded after five seconds.
-const WORTH={arrive:9,arcadePass:7,arcade:5,answer:8,wear:7,adventure:6,discovery:6,placePlay:5,place:5,hide:5,move:4,sendTo:4,plant:4,bloom:4,toy:3,tidy:3,pet:3,open:3,freezeGift:6,freeze:2,match:2,mismatch:2};
+const WORTH={birthday:10,arrive:9,arcadePass:7,arcade:5,answer:8,wear:7,adventure:6,discovery:6,placePlay:5,place:5,hide:5,move:4,sendTo:4,plant:4,bloom:4,toy:3,tidy:3,pet:3,open:3,freezeGift:6,freeze:2,match:2,mismatch:2};
 let news=null,reaction=null,greeted=false;
 /** The newest thing in the world, by the server's clock, which stamps everything that
  * happens. "Seen up to here" is kept in those terms: a phone clock a few seconds behind
@@ -115,7 +116,7 @@ function describe(entry){
   const a=w=>w==='something'||/^(sunglasses|headphones)$/.test(w)?w:(/^[aeiou]/.test(w)?'an ':'a ')+w;
   const who=NAMES[entry.who]||'Someone',target=NAMES[entry.target]||(ITEMS[entry.target]?'the '+ITEMS[entry.target].name.toLowerCase():null)||(FURNITURE[entry.target]?'the '+FURNITURE[entry.target].name.toLowerCase():null)||{house:'Home',garden:'Garden',roof:'Roof',cellar:'Down there'}[entry.target]||'something',thing=ITEMS[entry.item]?.name.toLowerCase()||(ITEMS[entry.target]?ITEMS[entry.target].name.toLowerCase():'something');
   const actions={gift:`left a present for ${NAMES[other(entry.who)]||'someone'}`,wear:entry.item===null?`took ${target}’s hat off`:`put ${a(thing)} on ${target}`,move:`moved ${target}`,out:`took ${target} outside`,take:`borrowed ${target}`,eat:'found a snack',sleep:'fell asleep',dig:'dug a little hole',build:'moved things around',guard:`is watching ${target}`,hide:`hid ${target}`,find:`found ${target}`,open:'opened a present',draw:'left a drawing on the wall',play:'made a small mess',match:'picked the same frog',mismatch:'picked different frogs',place:`put down ${a(thing)}`,grow:'found somewhere new',toy:entry.item==='bubbles'?'blew some bubbles':'gave Sernik the toilet paper',tidy:'put the loose things away',adventure:'added a picture to Moments',poke:`poked ${target}${entry.count>1?` ×${entry.count}`:''}`,decorate:`changed ${target}`,buyFurniture:`brought home ${FURNITURE[entry.target]?.name||target}`,storeFurniture:`stored ${FURNITURE[entry.target]?.name||target}`,placeFurniture:`put back ${FURNITURE[entry.target]?.name||target}`,sellFurniture:`removed ${FURNITURE[entry.target]?.name||target}`,refinishFurniture:`changed ${FURNITURE[entry.target]?.name||target}`};
-  Object.assign(actions,{answer:`laughed at something ${NAMES[entry.target]||'you'} did`,pet:`petted ${target}`,discovery:NAMES[entry.target]?`found ${target} in ${a(thing)}`:`found ${a(thing)}`,plant:'planted a seed',bloom:'picked something from the patch',postcard:`left a picture of ${target}`,reaction:`sent ${target} a little answer`,placePlay:`left ${a(thing)} outside`,freeze:'tried something in the freezer',freezeGift:`left ${target} a freezer experiment`,inviteAdventure:`chose ${NAMES[entry.target]||'someone'}’s next adventure`,arrive:`let ${target} in`});
+  Object.assign(actions,{answer:`laughed at something ${NAMES[entry.target]||'you'} did`,pet:`petted ${target}`,discovery:NAMES[entry.target]?`found ${target} in ${a(thing)}`:`found ${a(thing)}`,plant:'planted a seed',bloom:'picked something from the patch',postcard:`left a picture of ${target}`,reaction:`sent ${target} a little answer`,placePlay:`left ${a(thing)} outside`,freeze:'tried something in the freezer',freezeGift:`left ${target} a freezer experiment`,inviteAdventure:`chose ${NAMES[entry.target]||'someone'}’s next adventure`,arrive:`let ${target} in`,birthday:'opened the birthday surprise'});
   if(Object.hasOwn(ARCADE_GAMES,entry.game||'')){const n=entry.count||0;
     actions.arcade=bragLine(entry.game,n);
     actions.arcadePass=`beat ${NAMES[other(entry.who)]||'someone'} at ${ARCADE_GAMES[entry.game].title}: ${amount(entry.game,n)}`;}
@@ -165,7 +166,7 @@ function render(){
     // On a phone the kicker is hidden, so who laughed has to be in the headline itself.
     $('story-title').textContent=fresh.action==='answer'?`${NAMES[them]} laughed: ${(fresh.line||'at something you did.').replace(new RegExp('^'+NAMES[store.actor]+'\\b'),'you')}`:describe(fresh);
     $('story-subtitle').textContent=relative(fresh.at);
-    $('start-adventure').textContent=fresh.action==='answer'?'♡':'Ha!';
+    $('start-adventure').textContent=fresh.action==='answer'||fresh.action==='birthday'?'♡':'Ha!';
     art.clearRect(0,0,105,90);character(art,them,40,81,{scale:1.6,mood:'happy'});
     const target=ACTORS.includes(fresh.target)&&fresh.target!==them?fresh.target:null,thing=!target&&ITEMS[fresh.item||fresh.target]?(fresh.item||fresh.target):null;
     // What the news says, not what they happen to have on now: "found Sernik in a sock"
@@ -241,6 +242,8 @@ function openingMoment(){
   // not have what the other one did since, and taking the greeting then used it up.
   if(store.connected&&!store.attempted)return;
   if(greeted)return;greeted=true;lastGreeting=Date.now();
+  // A birthday surprise waiting for this person is the opening, before anything else.
+  if(birthdayWaiting(st,store.actor)){birthdayParty('first').then(()=>{greeted=false;openingMoment();});return;}
   // One sign your person has been here since you last looked: the last thing they did,
   // in a line, as the room appears. Not a count and not a list — nothing to catch up on.
   // Without it, the simulated David ended every autumn sure she never played.
@@ -368,6 +371,8 @@ function goTo(place){
 function tap(id,point){
   if(!store.state){welcome();return;}
   hideMenu();
+  // The cake the party left: the party again, and the letter.
+  if(id==='decor:cake'&&[store.actor,other(store.actor)].some(who=>birthdayFor(store.state,who)?.seenAt)){selectedItem=null;sounds.play('tap');birthdayParty('replay');return;}
   if(id?.startsWith('decor:')){selectedItem=null;decor.open('placed',id);return;}
   if(!id){if(selectedItem){operate('place',{item:selectedItem,room});selectedItem=null;render();}return;}
   if(selectedItem&&ACTORS.includes(id)&&ITEMS[selectedItem]?.wearable){
@@ -422,6 +427,8 @@ function welcome(){
  * her first look was a card and a room of strangers, and "not for a long time" was the
  * most common answer afterwards in every autumn. */
 function firstVisitSheet(){
+  // Their very first look, on their birthday: the party, then the welcome and the present.
+  if(birthdayWaiting(store.state,store.actor)){birthdayParty('first').then(firstVisitSheet);return;}
   const them=other(store.actor),gift=pendingMail(store.state,store.actor).find(m=>m.kind==='gift');
   showSheet('first-visit',`${NAMES[them]} made this for you.`,'HELLO');
   store.local.lastLook=newest(store.state);store.save();
@@ -464,6 +471,71 @@ function firstGiftSheet(){
     b.append(pict(item));const name=document.createElement('span');name.textContent=ITEMS[item].name;b.append(name);row.append(b);
   }
   body.append(row);body.append(button('Later','secondary-button full',closeSheet));
+  body.append(button(`Is it ${NAMES[them]}’s birthday? Plan a surprise`,'quiet-action',birthdaySheet));
+}
+/** The birthday party, over everything. 'first' is the real one: it counts as opened when the
+ * letter is, so a phone put down before then has it all again next time. 'replay' plays it
+ * from the cake; 'preview' plays the draft for the one writing it. */
+let party=null;
+function birthdayParty(mode='first',draft=null){
+  // Played again from the cake: your own if you had one, otherwise the one you left.
+  const st=store.state,b=draft||(mode==='replay'?[birthdayFor(st,store.actor),birthdayFor(st,other(store.actor))].find(x=>x?.seenAt):birthdayFor(st,store.actor));
+  if(!st||!b||$('birthday').open)return Promise.resolve();
+  return new Promise(resolve=>{
+    closeSheet();hideMenu();scene.toys.clear();scene.stopReplay();scene.resting=true;
+    const dialog=$('birthday'),letter=$('birthday-letter');letter.hidden=true;$('birthday-close').hidden=mode==='first';
+    let opened=false;
+    const done=()=>{party?.stop();party=null;if(dialog.open)dialog.close();scene.resting=false;render();resolve();};
+    if(!dialog.open)dialog.showModal();
+    party=new BirthdayParty({canvas:$('birthday-canvas'),state:st,birthday:b,mode,sounds,reduced:scene.reduced,onDone:done,
+      onLetter:()=>{
+        fillLetter($('birthday-paper'),{birthday:b});letter.hidden=false;$('birthday-paper').scrollTop=0;
+        $('birthday-next').textContent=party.kotComing?'One more thing…':mode==='first'?'Into the house':'Close';$('birthday-next').focus();
+        if(mode==='first'&&!opened){opened=true;operate('birthdaySeen');}
+      }});
+    if(testMode)window.__party=party;
+    $('birthday-next').onclick=()=>{letter.hidden=true;party?.afterLetter();};
+    $('birthday-close').onclick=done;
+    // The real one cannot be closed by accident before the letter; after that it can.
+    dialog.oncancel=e=>{e.preventDefault();if(mode!=='first'||opened)done();};
+    $('birthday-canvas').focus();
+  });
+}
+/** Leaving a birthday surprise: how old, from which day, and the letter. Kept in your world
+ * and nowhere else; the other one sees none of it until it opens on their phone. */
+function birthdaySheet(){
+  if(!store.state||!store.actor)return;
+  // Only ever the one you are leaving for them: nothing here says whether one waits for you.
+  const them=other(store.actor),b=birthdayFor(store.state,them),mine=!!b;
+  showSheet('birthday',`A birthday surprise for ${NAMES[them]}.`,'JUST BETWEEN YOU');
+  if(mine&&b.seenAt){
+    paragraph(`${NAMES[them]} opened it on ${new Date(b.seenAt).toLocaleDateString('en-GB',{day:'numeric',month:'long'})}. The cake in the house plays it again.`);
+    body.append(button('Watch it again','primary-button full',()=>birthdayParty('replay')));return;
+  }
+  paragraph(`The first time ${NAMES[them]} opens the app, from the day you choose, the lights go down, everybody jumps out round a cake with a candle for every year, and then your letter.${store.state.cast.includes('kot')?'':' Kot comes to the door as the last guest.'} It is kept in your world only, never in the app itself.`);
+  // A letter being written is kept on this phone as it is typed (through a preview, or the
+  // sheet being closed) until it is left for them.
+  const was=store.local.birthdayDraft||(mine?b:null)||{};
+  const form=document.createElement('div');form.className='birthday-form';
+  const field=(label,el)=>{const l=document.createElement('label');l.append(document.createTextNode(label),el);return l;};
+  const age=document.createElement('input');age.type='number';age.min='1';age.max='120';age.inputMode='numeric';age.value=String(was.age||21);
+  const day=document.createElement('input');day.type='date';const local=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};day.value=local(was.showFrom||Date.now());
+  const text=document.createElement('textarea');text.maxLength=BIRTHDAY_LETTER;text.placeholder=`Dear ${NAMES[them]},`;text.value=was.message||'';text.setAttribute('aria-label','Your letter');
+  const count=document.createElement('div');count.className='birthday-count';const counted=()=>{count.textContent=`${text.value.length.toLocaleString('en')} / ${BIRTHDAY_LETTER.toLocaleString('en')}`;};text.addEventListener('input',counted);counted();
+  const sign=document.createElement('input');sign.maxLength=60;sign.value=was.signature||`Love, ${NAMES[store.actor]}`;
+  const row=document.createElement('div');row.className='birthday-row';row.append(field('How old',age),field('From',day));
+  form.append(row,field('Your letter',text),count,field('Signed',sign));body.append(form);
+  const draft=()=>({for:them,from:store.actor,age:Number(age.value),message:text.value.replace(/\r\n?/g,'\n').trim(),signature:sign.value.trim()||NAMES[store.actor],showFrom:day.value?new Date(`${day.value}T00:00`).getTime():Date.now()});
+  let keep=null;const kept=()=>{store.local.birthdayDraft={age:Number(age.value),showFrom:day.value?new Date(`${day.value}T00:00`).getTime():Date.now(),message:text.value,signature:sign.value};clearTimeout(keep);keep=setTimeout(()=>store.save(),500);};
+  for(const el of [age,day,text,sign])el.addEventListener('input',kept);
+  const valid=d=>{if(!Number.isInteger(d.age)||d.age<1||d.age>120){toast('How old will they be?');return false;}if(!d.message){toast('Write a few words first.');return false;}return true;};
+  const buttons=document.createElement('div');buttons.className='button-row';
+  buttons.append(button('Preview','secondary-button',()=>{const d=draft();if(!valid(d))return;kept();store.save();birthdayParty('preview',d).then(birthdaySheet);}));
+  buttons.append(button(mine?'Save changes':'Leave it for '+NAMES[them],'primary-button',()=>{const d=draft();if(!valid(d))return;
+    if(operate('birthdaySet',{age:d.age,message:d.message,signature:d.signature,showFrom:d.showFrom})){clearTimeout(keep);delete store.local.birthdayDraft;store.save();sounds.play('gift');closeSheet();
+      toast(d.showFrom>Date.now()?`Waiting for ${NAMES[them]} from ${new Date(d.showFrom).toLocaleDateString('en-GB',{day:'numeric',month:'long'})}.`:`Waiting for ${NAMES[them]}’s next opening.`);}}));
+  body.append(buttons);
+  if(mine)body.append(button('Take it back','quiet-action',()=>{if(operate('birthdayClear')){delete store.local.birthdayDraft;store.save();birthdaySheet();}}));
 }
 /** Everything to do with the other person lives on the other person. */
 function personSheet(){
@@ -482,6 +554,7 @@ function personSheet(){
   const links=document.createElement('div');links.className='person-links';
   links.append(button('Pick a frog together','person-link',togetherSheet));
   links.append(button(`Choose ${NAMES[them]}’s next adventure`,'person-link',adventureInviteSheet));
+  links.append(button(birthdayFor(store.state,them)&&!birthdayFor(store.state,them).seenAt?`${NAMES[them]}’s birthday surprise · ready`:`A birthday surprise for ${NAMES[them]}`,'person-link',birthdaySheet));
   body.append(links);
   if(store.local.invite&&!store.paired)body.append(button(`Invite ${NAMES[them]}`,'primary-button full person-invite',shareSheet));
 }

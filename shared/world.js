@@ -19,6 +19,13 @@ export const NAMES = { david: 'David', julia: 'Julia', monki: 'Monki', sernik: '
 export const ARRIVALS = { galgan: 1, sernik: 2, kot: 4 };
 /** Where somebody who has not moved in yet is: no room, so no room draws them. */
 export const AWAY = 'away';
+/** The longest birthday letter, in characters. */
+export const BIRTHDAY_LETTER = 3000;
+/** The birthday surprise left for this person, if there is one ({for, from, age, message, …}).
+ * One each, so neither can see, spoil or overwrite the one waiting for them. */
+export const birthdayFor = (state, actor) => { const b = state?.birthdays?.[actor]; return b ? { ...b, for: actor } : null; };
+/** Whether it is waiting for this person to open it, now. */
+export const birthdayWaiting = (state, actor, now = Date.now()) => { const b = birthdayFor(state, actor); return !!b && !b.seenAt && now >= (b.showFrom || 0); };
 // Just inside the door to the garden, which is the way in.
 const DOOR = { x: 322, y: 186 };
 export const ITEMS = {
@@ -29,7 +36,7 @@ export const ITEMS = {
   sock: { name: 'Sock', wearable: true }, frog: { name: 'Frog', wearable: true },
   icecream: { name: 'Ice cream', wearable: true }, fish: { name: 'Fish', wearable: true }, balloon: { name: 'Balloon' },
   duck: { name: 'Duck', wearable: true }, mushroom: { name: 'Mushroom',wearable:true }, moon: { name: 'Moon', wearable: true },
-  star: { name: 'Star', wearable: true }, key: { name: 'Key' }, plant: { name: 'Plant' }, yarn: { name: 'Ball of wool' },
+  star: { name: 'Star', wearable: true }, key: { name: 'Key' }, plant: { name: 'Plant' }, yarn: { name: 'Ball of wool' }, cake: { name: 'Birthday cake' },
   lamp: { name: 'Lamp' }, couch: { name: 'Sofa' }, bowl: { name: 'Bowl' }, present: { name: 'Present' },
   frame: { name: 'Drawing' }, radio: { name: 'Radio' }, fridge: { name: 'Fridge' }, paper: { name: 'Toilet paper' },
   ball:{name:'Ball'},bubbles:{name:'Bubbles'},boat:{name:'Tiny boat'},kite:{name:'Kite'},
@@ -124,7 +131,7 @@ export function createWorld(seed = 'monki', now = Date.now()) {
     changes: [], chains: [], seen: { david: now, julia: now }, best: {},
     bond: { david: {}, julia: {} }, received: { david: now, julia: now },
     catalog:{styles:clone(DEFAULT_DECOR),storage:[],hiddenDecor:[],legacyOwned:{furniture:[],finishes:[],styles:{}},arranged:true},
-    cast: ['monki'], arrivals: { ...ARRIVALS },
+    cast: ['monki'], arrivals: { ...ARRIVALS }, birthdays: {},
   };
   journeyFields(state);
   initLife(state);
@@ -173,7 +180,7 @@ function normalize(state) {
     const next = journeyIndex(state) + 1;
     state.arrivals = Object.fromEntries(RESIDENTS.filter(id => !state.cast.includes(id)).map((id, i) => [id, next + i]));
   }
-  state.cast = RESIDENTS.filter(id => state.cast.includes(id)); state.arrivals ??= {};
+  state.cast = RESIDENTS.filter(id => state.cast.includes(id)); state.arrivals ??= {}; state.birthdays ??= {};
   for (const id of RESIDENTS) if (!state.actors[id]) state.actors[id] = { x: 262, y: 300, room: AWAY, hat: null, mood: 'idle', pokes: 0 };
   for (const id of RESIDENTS) if (!state.cast.includes(id)) Object.assign(state.actors[id], { room: AWAY, hat: null });
   state.recent ??= []; state.secrets ??= []; state.traces ??= []; state.log ??= [];
@@ -512,6 +519,34 @@ export function applyOperation(input, operation, now = Date.now()) {
   if (op.type !== 'welcome' && ACTORS.includes(op.target) && !isHere(state, op.target)) throw new Error(`${NAMES[op.target]} does not live here yet`);
   const target = (ACTORS.includes(op.target) ? state.actors[op.target] : null) || state.objects.find(o => o.id === op.target);
   switch (op.type) {
+    // A birthday surprise, left by one of you for the first time the other one opens the app
+    // (from a chosen day). Not news on their card: it is a surprise until it is opened.
+    case 'birthdaySet': {
+      const them = other(actor);
+      if (state.birthdays[them]?.seenAt) throw new Error(`${NAMES[them]} has opened it already`);
+      const age = Number(op.age), message = String(op.message ?? '').replace(/\r\n?/g, '\n').trim(), signature = String(op.signature ?? '').trim().slice(0, 60) || NAMES[actor];
+      if (!Number.isInteger(age) || age < 1 || age > 120) throw new Error('How old will they be?');
+      if (!message) throw new Error('Write a few words first.');
+      if (message.length > BIRTHDAY_LETTER) throw new Error(`That is a long letter: keep it under ${BIRTHDAY_LETTER.toLocaleString('en')} characters.`);
+      const showFrom = Number.isFinite(op.showFrom) ? op.showFrom : now;
+      state.birthdays[them] = { from: actor, age, message, signature, showFrom, setAt: now, seenAt: null };
+      break;
+    }
+    case 'birthdayClear': {
+      const them = other(actor);
+      if (!state.birthdays[them] || state.birthdays[them].seenAt) throw new Error('There is no surprise of yours waiting');
+      delete state.birthdays[them]; break;
+    }
+    // Opened: the cake stays in the house, Kot comes as the last guest if Kot has not
+    // moved in yet, and the one who left it hears it was opened.
+    case 'birthdaySeen': {
+      const b = state.birthdays[actor];
+      if (!b || b.seenAt) break;
+      b.seenAt = now; discover(state, 'cake'); if (!state.decor.includes('cake')) state.decor.push('cake');
+      if (!isHere(state, 'kot')) letIn(state, 'kot', actor, now);
+      log(state, actor, 'birthday', b.from, now);
+      break;
+    }
     // Somebody new at the door, let in by whichever of you opens it first.
     case 'welcome': {
       const id = atTheDoor(state);

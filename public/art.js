@@ -248,6 +248,7 @@ export function item(c,type,x,y,options={}){
   c.save();c.translate(Math.round(x),Math.round(y));c.scale(scale,scale);
   if(showShadow)shadow(c,0,0,type==='couch'?32:10);
   switch(type){
+    case 'cake':rect(c,-18,-2,36,3,'#e2ddd0');rect(c,-15,-13,30,11,'#f2c1bb');rect(c,-15,-13,4,11,'#f6d1cc');ellipse(c,0,-13,15,4,'#fbeee6');for(const x of [-11,-4,3,10])rect(c,x,-12,3,3+(x&3),'#fbeee6');for(const x of [-10,-3,4,11])ellipse(c,x,-4,1.8,1.8,'#c96f72');for(const x of [-7,0,7]){rect(c,x-1,-22,2,8,'#f8f2e2');rect(c,x-1,-19,2,1,'#83b8bd');ellipse(c,x,-25,1.6,2.6,'#f5a640');}break;
     case 'yarn':ellipse(c,0,-9,9,9,'#c56b5a');c.strokeStyle='#e39a86';c.lineWidth=1.2;for(const a of [-.7,0,.7]){c.beginPath();c.ellipse(0,-9,7.5,3.5,a,0,Math.PI*2);c.stroke();}c.strokeStyle='#c56b5a';c.beginPath();c.moveTo(7,-4);c.quadraticCurveTo(13,1,20,-1);c.stroke();rect(c,-4,-15,3,2,'#e39a86');break;
     case 'ball':ellipse(c,0,-12,12,12,'#cf7759');rect(c,-8,-18,6,5,'#f3c982');rect(c,2,-10,6,5,'#f3c982');rect(c,-6,-22,3,2,'#fbe4a4');break;
     case 'arcade':
