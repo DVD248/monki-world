@@ -248,6 +248,7 @@ export function item(c,type,x,y,options={}){
   c.save();c.translate(Math.round(x),Math.round(y));c.scale(scale,scale);
   if(showShadow)shadow(c,0,0,type==='couch'?32:10);
   switch(type){
+    case 'yarn':ellipse(c,0,-9,9,9,'#c56b5a');c.strokeStyle='#e39a86';c.lineWidth=1.2;for(const a of [-.7,0,.7]){c.beginPath();c.ellipse(0,-9,7.5,3.5,a,0,Math.PI*2);c.stroke();}c.strokeStyle='#c56b5a';c.beginPath();c.moveTo(7,-4);c.quadraticCurveTo(13,1,20,-1);c.stroke();rect(c,-4,-15,3,2,'#e39a86');break;
     case 'ball':ellipse(c,0,-12,12,12,'#cf7759');rect(c,-8,-18,6,5,'#f3c982');rect(c,2,-10,6,5,'#f3c982');rect(c,-6,-22,3,2,'#fbe4a4');break;
     case 'arcade':
       // A small cabinet in the corner of the house. Monki is on the screen.

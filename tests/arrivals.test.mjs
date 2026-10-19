@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,applyOperation,prepareWorld,atTheDoor,present,residentsHere,ARRIVALS,RESIDENTS,AWAY,journeyIndex} from '../shared/world.js';
-import {adventureFor,CHAPTER_GAP} from '../shared/adventures.js';
+import {adventureFor,CHAPTER_GAP,ADVENTURES} from '../shared/adventures.js';
 import {advanceLife,routines,FRESH} from '../shared/life.js';
 import {placeStory} from '../shared/places.js';
 import {fullHouse} from './house.mjs';
@@ -103,4 +103,18 @@ test('daily situations, routines, behaviour and garden stories leave out whoever
     s.life.places[place]={count:round};assert.ok(['monki','galgan','david','julia'].includes(placeStory(s,place).actor),`${place} ${round}`);
   }
   assert.ok(FRESH.some(f=>f.actor==='kot'),'Kot has situations of its own once moved in');
+});
+
+test('Kot has a story at the end of the first round, and knocks first if it comes round before Kot has moved in',()=>{
+  assert.equal(ADVENTURES.findIndex(c=>c.actor==='kot'),ADVENTURES.length-1,'appended: the first round of a house part-way through keeps its order');
+  // An older house one story before Kot's, Kot not yet knocking by the count.
+  const old=fullHouse('wool',NOW);delete old.cast;delete old.arrivals;delete old.actors.kot;
+  old.journeys.david.index=old.journeys.julia.index=ADVENTURES.length-1;old.journeys.david.lastAt=old.journeys.julia.lastAt=NOW-CHAPTER_GAP;
+  let s=prepareWorld(old);
+  assert.equal(adventureFor(s,'david',NOW).id,'wool');
+  assert.equal(atTheDoor(s),'kot','the next story is Kot\u2019s, so Kot knocks now');
+  assert.throws(()=>op(s,'inviteAdventure',{chapter:'wool'}),/does not live here yet/);
+  s=op(s,'welcome',{target:'kot'});
+  s=op(s,'adventureComplete',{chapter:'wool',index:ADVENTURES.length-1},'david',NOW);
+  assert.equal(s.actors.kot.hat,'bow');assert.ok(s.decor.includes('yarn'));assert.ok(s.inventory.includes('bow'));
 });

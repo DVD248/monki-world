@@ -140,7 +140,7 @@ export const SOUVENIR_SPOTS={
   snowflake:['house',138,131,.7],duck:['garden',260,249,.85],clock:['house',226,110,.35],
   mushroom:['garden',245,298,.85],fish:['house',114,190,.85],present:['house',68,264,.9],
   boat:['garden',267,252,.8],kite:['house',180,134,.8],lily:['garden',300,255,.9],
-  rainbow:['house',116,111,.9],
+  rainbow:['house',116,111,.9],yarn:['house',156,304,.8],
 };
 export const decorOption=(state,room,surface)=>{
   const options=DECOR_STYLES[room]?.[surface]||[];

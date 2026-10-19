@@ -7,10 +7,10 @@ let n=0;
 const now=1900000000000;
 const op=(s,type,fields={},actor='david',at=now)=>applyOperation(s,{id:`adventure-test-${n++}`,type,actor,...fields},at);
 
-test('24 stories have visible goals across 14 mechanics',()=>{
+test('25 stories have visible goals across 14 mechanics',()=>{
   const gestures=new Set();
   for(const c of ADVENTURES){assert.equal(c.steps.length,3);assert.ok(c.title&&c.ending&&c.detail);for(const s of c.steps){assert.ok(s.title&&s.hint&&s.goal>0);gestures.add(s.kind);}}
-  assert.equal(gestures.size,14);assert.equal(ADVENTURES.length,24);assert.equal(TOTAL_EPISODES,144);
+  assert.equal(gestures.size,14);assert.equal(ADVENTURES.length,25);assert.equal(TOTAL_EPISODES,150);
 });
 test('the featured interaction is a playable action, not a dressing chore',()=>{
   for(const chapter of ADVENTURES){const step=chapter.steps[featuredStepFor(chapter)];assert.ok(step);assert.notEqual(step.kind,'dress',chapter.id);}
@@ -46,7 +46,7 @@ test('older two-counter saves keep the furthest chapter and both seats agree',()
 test('the full season has six explained variations and a finite, honest ending',()=>{
   let s=fullHouse('season',now);const seen=new Set();
   for(let i=0;i<TOTAL_EPISODES;i++){const at=now+i*CHAPTER_GAP,c=adventureFor(s,'david',at);assert.ok(c.ready);assert.ok(Number.isFinite(c.edition));seen.add(c.variant);s=op(s,'adventureComplete',{chapter:c.id,index:c.index},'david',at);}
-  assert.deepEqual([...seen],VARIATIONS);assert.equal(s.moments.length,144);assert.ok(adventureFor(s,'david',now+200*CHAPTER_GAP).done);
+  assert.deepEqual([...seen],VARIATIONS);assert.equal(s.moments.length,150);assert.ok(adventureFor(s,'david',now+200*CHAPTER_GAP).done);
 });
 test('partner invitations survive offline completions and never skip the opening',()=>{
   let s=op(fullHouse('invites',now),'inviteAdventure',{chapter:'pizza'},'julia');assert.equal(adventureFor(s,'david',now).id,'up');

@@ -29,7 +29,7 @@ export const ITEMS = {
   sock: { name: 'Sock', wearable: true }, frog: { name: 'Frog', wearable: true },
   icecream: { name: 'Ice cream', wearable: true }, fish: { name: 'Fish', wearable: true }, balloon: { name: 'Balloon' },
   duck: { name: 'Duck', wearable: true }, mushroom: { name: 'Mushroom',wearable:true }, moon: { name: 'Moon', wearable: true },
-  star: { name: 'Star', wearable: true }, key: { name: 'Key' }, plant: { name: 'Plant' },
+  star: { name: 'Star', wearable: true }, key: { name: 'Key' }, plant: { name: 'Plant' }, yarn: { name: 'Ball of wool' },
   lamp: { name: 'Lamp' }, couch: { name: 'Sofa' }, bowl: { name: 'Bowl' }, present: { name: 'Present' },
   frame: { name: 'Drawing' }, radio: { name: 'Radio' }, fridge: { name: 'Fridge' }, paper: { name: 'Toilet paper' },
   ball:{name:'Ball'},bubbles:{name:'Bubbles'},boat:{name:'Tiny boat'},kite:{name:'Kite'},
@@ -218,8 +218,9 @@ function letIn(state, id, actor, now) {
 }
 /** Whoever is knocking: the first resident due by now who has not been let in yet. */
 export function atTheDoor(state) {
-  const index = journeyIndex(state);
-  const due = Object.entries(state.arrivals || {}).filter(([id, at]) => RESIDENTS.includes(id) && !state.cast?.includes(id) && index >= at).sort((a, b) => a[1] - b[1]);
+  // Due by the count of adventures, or because the next one is their own story.
+  const index = journeyIndex(state), next = ADVENTURES[index % ADVENTURES.length]?.actor;
+  const due = Object.entries(state.arrivals || {}).filter(([id, at]) => RESIDENTS.includes(id) && !state.cast?.includes(id) && (index >= at || id === next)).sort((a, b) => a[1] - b[1]);
   return due[0]?.[0] || null;
 }
 
