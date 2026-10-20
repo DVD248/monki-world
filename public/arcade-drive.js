@@ -15,7 +15,8 @@ const SX=W*.3,SY=H*.56;
 /** Where the camera is and how far out: it leads the car and pulls back with speed. */
 function view(g){
   const L=g.logic,t=g.time,dt=Math.min(.05,t-(g.viewT??t));g.viewT=t;
-  const speed=Math.hypot(L.vx,L.vy),z=clamp(1.1-(speed/DRIVE.top)*.35,.75,1.1);
+  // Further out in the air too, so the landing is in sight before it comes.
+  const speed=Math.hypot(L.vx,L.vy),z=clamp(1.1-(speed/DRIVE.top)*.35-(L.air>.15?.1:0),.7,1.1);
   g.zoom=(g.zoom??z)+(z-(g.zoom??z))*Math.min(1,dt*1.5);
   const cx=L.x+L.vx*.3,cy=L.y+10;g.cx=(g.cx??cx)+(cx-(g.cx??cx))*Math.min(1,dt*5);g.cy=(g.cy??cy)+(cy-(g.cy??cy))*Math.min(1,dt*4);
 }
@@ -65,11 +66,12 @@ function car(g,c,L,t,z){
   c.restore();
   if(L.over&&after<1.2){c.globalAlpha=clamp(1.2-after,0,1);for(let i=0;i<3;i++){const a=t*4+i*2.1;rect(c,p.x+Math.cos(a)*14,p.y-30*z+Math.sin(a)*5,3,3,'#fbe4a4');}c.globalAlpha=1;}
 }
-/** The two pedals, drawn where the thumbs go. */
+/** The two pedals, drawn where the thumbs go. In the air they say what they do there. */
 function pedals(c,L){
-  for(const [x,label,on] of [[16,'◀ Brake',L.brake&&!L.over],[W-126,'Gas ▶',L.gas&&!L.over]]){
+  const air=L.air>.12&&!L.over;
+  for(const [x,label,tip,on] of [[16,'◀ Brake','◀ Nose down',L.brake&&!L.over],[W-126,'Gas ▶','Nose up ▶',L.gas&&!L.over]]){
     c.globalAlpha=on?.75:.38;c.fillStyle=on?'#fbf8ee':'rgba(38,48,36,.55)';c.beginPath();c.roundRect?c.roundRect(x,H-66,110,50,14):c.rect(x,H-66,110,50);c.fill();c.globalAlpha=1;
-    c.font=`800 15px ${SANS}`;c.textAlign='center';c.fillStyle=on?'#3a3f38':'#fffdf3';c.fillText(label,x+55,H-36);
+    c.font=`800 ${air?13:15}px ${SANS}`;c.textAlign='center';c.fillStyle=on?'#3a3f38':'#fffdf3';c.fillText(air?tip:label,x+55,H-36);
   }
 }
 function hud(g,c){
@@ -83,6 +85,9 @@ function event(g,e){
   switch(e.type){
     case 'fuel':s('fuel');g.say('Fuel!',p.x,p.y-60,{color:'#fbe4a4',size:18,life:.9});g.burst(p.x,p.y-20,10,{colors:['#e4c87a','#fbe4a4','#c9553f'],speed:120,up:60,size:3,life:.6});break;
     case 'land':s('land');if(e.hard){g.shake=4;g.burst(p.x,p.y+14,8,{colors:['#c9b58f','#a88259'],speed:90,up:40,size:3,life:.5});}break;
+    case 'flip':s('best',1+Math.min(.3,(e.turns-1)*.15));s('fuel');g.say(e.turns>1?`${e.turns===2?'Double':'Triple'} flip!`:e.back?'Backflip!':'Front flip!',p.x,p.y-70,{color:'#fbe4a4',size:24,life:1.4});
+      g.say('+fuel',p.x,p.y-44,{color:'#e4c87a',size:14,life:1});g.burst(p.x,p.y-20,18,{colors:['#e4c87a','#fbe4a4','#fbf8ee','#c96b5a'],speed:180,up:90,size:4,life:.9});break;
+    case 'air':s('whoosh');g.say('Big air!',p.x,p.y-60,{color:'#fffdf3',size:18,life:1});break;
     case 'hundred':s('point',1.2);g.say(`${e.metres} m`,W/2,H*.3,{color:'#fffdf3',size:22,life:1});break;
     case 'crash':s('bonk');setTimeout(()=>{if(!g.stopped)s('fall');},120);g.shake=7;g.flash=.35;g.say('Ouch!',p.x,p.y-40,{size:20});break;
     case 'empty':s('fall');g.say('Out of fuel',W/2,H*.35,{size:22,color:'#f3c0b0'});break;

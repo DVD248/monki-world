@@ -11,6 +11,13 @@ export function shadow(c,x,y,w=12){ellipse(c,x,y,w,3,'#4a573224')}
 // Attachment points belong to the head, not to the inventory item's baseline.
 // Belly face coordinates live inside that head's upside-down transform.
 export function headProfile(id,pose='standing'){
+  if(id==='kot'){
+    if(pose==='belly-face')return{x:0,capX:0,eyeY:-2,top:-8,upper:-14,half:9,scale:.68};
+    if(pose==='belly')return{x:18,capX:18,eyeY:-10,top:-20,upper:-20,half:9,scale:.68};
+    if(pose==='sleep')return{x:16,capX:16,eyeY:-12,top:-19,upper:-25,half:9,scale:.68};
+    if(pose==='climb')return{x:1,capX:1,eyeY:-48,top:-54,upper:-60,half:9,scale:.68};
+    return{x:6,capX:6,eyeY:-27,top:-34,upper:-40,half:9,scale:.68};
+  }
   if(pose==='belly-face')return{x:.5,capX:0,eyeY:-2.5,top:-8,upper:-13,half:10,scale:.7};
   if(pose==='belly')return{x:18,capX:18,eyeY:-9.5,top:-20,upper:-20,half:10,scale:.7};
   if(pose==='sleep')return{x:15,capX:14,eyeY:-10.5,top:-18,upper:-21,half:10,scale:.7};
@@ -44,7 +51,7 @@ export function wearAccessory(c,type,id,pose='standing',layer='all'){
 }
 
 export function character(c,id,x,y,options={}){
-  const {scale=1,frame=0,mood='idle',hat=null,flip=false,shadow:showShadow=true,pet=0,carried=false,running=false}=options;
+  const {scale=1,frame=0,mood='idle',hat=null,flip=false,shadow:showShadow=true,pet=0,carried=false,running=false,climbing=false}=options;
   c.save();c.translate(Math.round(x),Math.round(y));c.scale(flip?-scale:scale,scale);
   if(carried){c.translate(0,-20);c.rotate(Math.sin(frame*2)*.09);c.translate(0,20);c.scale(1,1+Math.sin(frame*3)*.025);}
   if(showShadow)shadow(c,0,-1,id==='monki'?13:12);
@@ -85,6 +92,8 @@ export function character(c,id,x,y,options={}){
     if(mood==='annoyed'){rect(c,-6,-34,5,1,P.ink);rect(c,2,-34,5,1,P.ink);}
     rect(c,-5,-16,2,4,'#ca8a52');rect(c,3,-10,2,3,'#ca8a52');
     wearAccessory(c,hat,id);
+  }else if(id==='kot'){
+    kot(c,{frame,mood,hat,pet,carried,running,climbing});
   }else{
     const dark=id==='galgan',fur=dark?'#50554a':'#d9c18d',lit=dark?'#616758':'#ead5a5',cream=dark?'#c9b888':'#f1dfb6';
     if(mood==='sleep'&&pet<=.1&&!carried&&!running){
@@ -140,11 +149,115 @@ export function character(c,id,x,y,options={}){
   c.restore();
 }
 
+// Kot: a lean, slightly scruffy calico. Small watchful eyes, an uneven coat and a
+// low tail keep the expression understated. Mood changes come from lids and ears.
+const KOT={white:'#e5dfce',lit:'#eee8d9',shade:'#c9c2b0',ginger:'#b58253',gingerLit:'#c39260',black:'#3b3833',blackLit:'#4d4943',pink:'#ad8074',ear:'#b08b7e',eye:'#b7b17b',whisker:'#968c77'};
+function kot(c,{frame=0,mood='idle',hat=null,pet=0,carried=false,running=false,climbing=false}){
+  const K=KOT,closed=mood==='sleep'||pet>.1;
+  const face=(x,y)=>{
+    const cross=mood==='annoyed';
+    // Narrow, uneven ears and tapered cheeks; no large muzzle or eye highlights.
+    poly(c,cross?[[x+1,y+4],[x-3,y-2],[x+6,y+1]]:[[x,y+4],[x,y-6],[x+2,y-5],[x+6,y+1]],K.ginger);
+    poly(c,cross?[[x+12,y+1],[x+21,y-1],[x+17,y+5]]:[[x+12,y+1],[x+17,y-5],[x+18,y-4],[x+18,y+5]],K.black);
+    if(!cross){rect(c,x+1,y-3,1,4,K.ear);rect(c,x+16,y-2,1,3,K.ear);}
+    rect(c,x+2,y,14,14,K.white);rect(c,x,y+3,18,8,K.white);
+    rect(c,x+4,y+14,10,1,K.shade);
+    rect(c,x+1,y+1,7,8,K.ginger);rect(c,x+2,y,5,2,K.gingerLit);
+    rect(c,x+11,y,6,10,K.black);rect(c,x+10,y+2,8,6,K.black);rect(c,x+14,y+9,3,3,K.black);
+    // The two eyes sit under flat lids, even when Kot is pleased.
+    for(const [ex,lid]of [[3,P.dark],[11,K.eye]]){
+      if(closed){rect(c,x+ex,y+6,4,1,lid);}
+      else{
+        const depth=cross||mood==='happy'?1:2;
+        rect(c,x+ex,y+6,4,depth,K.eye);rect(c,x+ex+2,y+6,1,depth,P.dark);
+        rect(c,x+ex,y+5,4,1,ex===3?K.ginger:K.black);
+      }
+    }
+    rect(c,x+8,y+9,2,1,K.pink);rect(c,x+9,y+10,1,2,P.ink);
+    rect(c,x+8,y+12,3,1,K.shade);
+    rect(c,x-3,y+10,5,1,K.whisker);rect(c,x-2,y+12,3,1,K.whisker);
+    rect(c,x+17,y+9,5,1,K.whisker);rect(c,x+18,y+12,3,1,K.whisker);
+  };
+  if(climbing){
+    // Kot Climb: upright on the post (to the right), claws in, tail hanging. The paws reach
+    // in turn as Kot goes up.
+    const reach=Math.round(Math.sin(frame*3)*2),flick=Math.round(Math.sin(frame*1.3));
+    rect(c,-11+flick,-10,3,12,K.ginger);rect(c,-11+flick,1,3,4,K.black);rect(c,-9+flick,4,3,2,K.black);
+    rect(c,1,-15+reach,9,4,K.shade);rect(c,9,-16+reach,3,5,K.white);
+    // Narrow at the shoulders, a round haunch below, the calico patches down the back.
+    rect(c,-7,-40,11,22,K.white);rect(c,-8,-36,13,16,K.white);rect(c,-11,-21,15,10,K.white);rect(c,-10,-23,13,14,K.white);rect(c,-9,-11,11,2,K.shade);
+    rect(c,-8,-33,5,9,K.ginger);rect(c,-7,-32,2,5,K.gingerLit);rect(c,-11,-19,5,7,K.black);rect(c,-7,-41,5,4,K.black);rect(c,0,-26,3,4,K.ginger);
+    rect(c,2,-13-reach,9,4,K.white);rect(c,10,-14-reach,3,5,K.shade);
+    rect(c,3,-34+reach,8,3,K.shade);rect(c,10,-36+reach,3,4,K.white);
+    rect(c,3,-41-reach,8,3,K.white);rect(c,10,-43-reach,3,4,K.white);rect(c,6,-41-reach,2,3,K.black);
+    face(-8,-54);
+    wearAccessory(c,hat,'kot','climb');
+    return;
+  }
+  if(mood==='sleep'&&pet<=.1&&!carried&&!running){
+    const breath=Math.sin(frame*1.5)>.1?1:0;
+    rect(c,-23,-11-breath,32,10+breath,K.white);rect(c,-20,-15-breath,25,6,K.white);
+    rect(c,-19,-14-breath,10,8,K.ginger);rect(c,-7,-15-breath,11,7,K.black);
+    rect(c,-24,-5,32,4,K.ginger);rect(c,-20,-5,14,1,K.gingerLit);rect(c,5,-5,8,4,K.black);
+    rect(c,12,-3,11,3,K.white);rect(c,20,-2,5,2,K.shade);
+    face(7,-18);
+    wearAccessory(c,hat,'kot','sleep');
+  }else if(pet>.72&&!carried&&!running){
+    const kick=Math.floor(frame/2)%2;
+    // A loose sprawl with bent paws, without decorative pads or a pink tummy.
+    rect(c,-32,-5+kick,13,3,K.ginger);rect(c,-33,-8+kick,5,4,K.black);
+    rect(c,-16,-20+kick,4,9,K.white);rect(c,-16,-22+kick,7,3,K.ginger);
+    rect(c,0,-19-kick,4,8,K.white);rect(c,-2,-21-kick,6,3,K.black);
+    rect(c,-22,-12,33,11,K.white);rect(c,-18,-15,27,6,K.white);
+    rect(c,-22,-10,9,8,K.ginger);rect(c,3,-13,8,7,K.black);
+    rect(c,-13,-12,14,10,K.lit);rect(c,-6,-5,2,1,K.shade);
+    rect(c,-20,-19-kick,4,9,K.white);rect(c,-20,-20-kick,7,3,K.white);
+    rect(c,7,-17+kick,4,7,K.white);rect(c,4,-19+kick,7,3,K.white);
+    c.save();c.translate(18,-12);c.rotate(Math.PI);face(-9,-8);wearAccessory(c,hat,'kot','belly-face','face');c.restore();
+    wearAccessory(c,hat,'kot','belly','head');
+  }else{
+    const moving=carried||running,kick=moving?Math.round(Math.sin(frame*3)*3):0;
+    const flick=Math.round(Math.sin(frame*1.6)*(pet?2:1));
+    // Resting on the floor, with just the end of the tail moving.
+    rect(c,-28,-3,20,3,K.ginger);rect(c,-31,-6+flick,5,5-flick,K.ginger);
+    rect(c,-31,-10+flick,3,5,K.black);rect(c,-26,-3,10,1,K.gingerLit);
+    if(moving){
+      rect(c,-12,-8-kick,3,9,K.shade);rect(c,4,-8+kick,3,9,K.shade);
+      rect(c,-16,-19,29,11,K.white);rect(c,-12,-21,22,4,K.white);
+      rect(c,-15,-18,10,7,K.ginger);rect(c,-3,-21,12,5,K.black);
+      rect(c,-13,-9+kick,4,10,K.white);rect(c,10,-9-kick,3,10,K.white);
+      rect(c,-14,0+kick,6,1,K.shade);rect(c,9,0-kick,6,1,K.shade);
+    }else{
+      // Sloped back, narrow shoulders and long front legs rather than a plush torso.
+      poly(c,[[-13,-1],[-14,-8],[-9,-19],[-3,-25],[9,-24],[12,-16],[12,-1]],K.white);
+      poly(c,[[-13,-2],[-14,-8],[-9,-19],[-5,-20],[-5,-6],[-2,-2]],K.ginger);
+      rect(c,-8,-17,3,3,K.gingerLit);rect(c,5,-23,6,10,K.black);rect(c,9,-17,4,8,K.black);
+      rect(c,0,-19,4,19,K.white);rect(c,8,-15,3,15,K.white);
+      rect(c,4,-8,1,8,K.shade);rect(c,-11,-2,9,3,K.white);
+      rect(c,-1,-1,6,2,K.white);rect(c,7,-1,6,2,K.white);
+      rect(c,-10,1,8,1,K.shade);rect(c,0,1,5,1,K.shade);rect(c,8,1,5,1,K.shade);
+      rect(c,-4,-22,2,2,K.white);rect(c,-6,-19,2,2,K.white);
+    }
+    face(-3,-33);
+    wearAccessory(c,hat,'kot');
+  }
+}
+
 export function item(c,type,x,y,options={}){
   const {scale=1,shadow:showShadow=false,variant=0}=options;
   c.save();c.translate(Math.round(x),Math.round(y));c.scale(scale,scale);
   if(showShadow)shadow(c,0,0,type==='couch'?32:10);
   switch(type){
+    // The party's cake, small: two tiers on a gold-rimmed plate, pink with white icing, cream with pink.
+    case 'cake':ellipse(c,0,-1.5,19,3,'#e3c779');ellipse(c,0,-2,18,2.4,'#fbf7ef');
+      rect(c,-15,-12,30,10,'#f0b4ac');rect(c,-15,-12,4,10,'#f6c7c0');rect(c,11,-12,4,10,'#d98f88');
+      ellipse(c,0,-12,15,3,'#fff6ef');for(const [x,h] of [[-13,3],[-8,5],[-3,3],[2,6],[7,3],[11,4]])rect(c,x,-12,3,h,'#fff6ef');
+      for(const x of [-12,-6,0,6,12])ellipse(c,x,-3.2,1.4,1.4,'#fff1e8');
+      rect(c,-10,-20,20,8,'#f8ece0');rect(c,-10,-20,3,8,'#fdf6ee');rect(c,7,-20,3,8,'#e6d3c0');
+      ellipse(c,0,-20,10,2.6,'#eea7a0');for(const [x,h] of [[-9,2],[-5,4],[-1,2],[3,3],[7,2]])rect(c,x,-20,2.5,h,'#eea7a0');
+      for(const [x,col] of [[-5,'#8dc0c2'],[0,'#e8bd5c'],[5,'#e2958d']]){rect(c,x-1,-28,2,8,col);rect(c,x-1,-26,2,1,'#fffaf0');rect(c,x-1,-23,2,1,'#fffaf0');ellipse(c,x,-30.5,1.5,2.4,'#f5a640');ellipse(c,x,-30,.7,1.2,'#fff1b8');}
+      break;
+    case 'yarn':ellipse(c,0,-9,9,9,'#c56b5a');c.strokeStyle='#e39a86';c.lineWidth=1.2;for(const a of [-.7,0,.7]){c.beginPath();c.ellipse(0,-9,7.5,3.5,a,0,Math.PI*2);c.stroke();}c.strokeStyle='#c56b5a';c.beginPath();c.moveTo(7,-4);c.quadraticCurveTo(13,1,20,-1);c.stroke();rect(c,-4,-15,3,2,'#e39a86');break;
     case 'ball':ellipse(c,0,-12,12,12,'#cf7759');rect(c,-8,-18,6,5,'#f3c982');rect(c,2,-10,6,5,'#f3c982');rect(c,-6,-22,3,2,'#fbe4a4');break;
     case 'arcade':
       // A small cabinet in the corner of the house. Monki is on the screen.
@@ -227,7 +340,7 @@ export function spriteCanvas(id,size=48,options={}){
   const key=JSON.stringify([id,size,options]);let source=previewCache.get(key);
   if(!source){
     const scratch=document.createElement('canvas');scratch.width=192;scratch.height=192;const ctx=scratch.getContext('2d',{willReadFrequently:true});
-    if(['david','julia','monki','sernik','galgan'].includes(id))character(ctx,id,96,145,{...options,scale:1,shadow:false});else item(ctx,id,96,130,{...options,scale:1,shadow:false});
+    if(['david','julia','monki','sernik','galgan','kot'].includes(id))character(ctx,id,96,145,{...options,scale:1,shadow:false});else item(ctx,id,96,130,{...options,scale:1,shadow:false});
     const pixels=ctx.getImageData(0,0,192,192).data;let left=192,top=192,right=0,bottom=0;
     for(let y=0;y<192;y++)for(let x=0;x<192;x++)if(pixels[(y*192+x)*4+3]){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
     source=document.createElement('canvas');source.width=size;source.height=size;const c=source.getContext('2d');c.imageSmoothingEnabled=false;

@@ -2,22 +2,30 @@ import {ease,seeded,zoneAt,clamp,lerp} from './arcade.js';
 
 // Match Tap: Pou's Match Tap. A shelf of snacks; tap three or more of the same that touch
 // and Sernik has them, the rest drop down and more come in from the top. The clock runs
-// down all the while and every group puts some back, a big group a lot more. Seven or more
-// leave a star, which takes its whole row and column. Later on there are more kinds of
-// snack, the clock runs faster and gives back less, all of it levelling off. There is
-// always a group to tap: a shelf with none is shaken up for free.
-export const MATCH={width:400,height:600,cols:8,rows:10,cell:46,x0:16,y0:118,min:3,full:12,start:10,star:7,fall:70};
+// down all the while and every group puts some back: a three hardly any, a big group a lot
+// more. Quick hands pay: the quicker the last few matches came, the more each gives back, up
+// to double, so the game is a quick eye as much as a good one. A tap on a snack with no group
+// costs a second, so tapping anywhere fast runs the clock out instead of keeping it going.
+// Seven or more leave a star, which takes its whole row and column. Later on there are more
+// kinds of snack, the clock runs faster and gives back less, all of it levelling off where
+// quick, careful hands keep up. There is always a group to tap: a shelf with none is shaken
+// up for free.
+export const MATCH={width:400,height:600,cols:8,rows:10,cell:46,x0:16,y0:118,min:3,full:15,start:10,star:7,fall:70,miss:1,
+  scale:450,kinds:[150,550],drain:[1.3,1.95],bonus:[.5,1.45,.7],paceSlow:1.35,paceGain:1.1,paceMax:2,paceMix:.35};
 export const MATCH_FOODS=['icecream','fish','pizza','donut','carrot','mushroom'];
 export const MATCH_ZONES=[[0,'Snack time'],[80,'Lunch'],[200,'Tea'],[400,'Dinner'],[650,'Midnight feast']];
-export const matchDifficulty=score=>ease(score,350);
-export const matchKinds=score=>score<80?4:score<400?5:6;
-export const matchDrain=d=>lerp(.8,1.7,d);
-/** Seconds back for a group of n: more than a line for bigger groups, less later on. */
-export const matchBonus=(n,d)=>(.3*n+.07*n*n)*lerp(1,.55,d);
+export const matchDifficulty=score=>ease(score,MATCH.scale);
+export const matchKinds=score=>score<MATCH.kinds[0]?4:score<MATCH.kinds[1]?5:6;
+export const matchDrain=d=>lerp(...MATCH.drain,d);
+/** Seconds back for a group of n: half a second for three, far more for bigger groups
+ * (1.4 for four, 2.5 for five, 3.7 for six), a little less later on. */
+/** What quick hands are worth: a pace (seconds a match, recently) to a multiple of the time back. */
+export const matchPace=pace=>clamp(1+(MATCH.paceSlow-pace)*MATCH.paceGain,1,MATCH.paceMax);
+export const matchBonus=(n,d)=>MATCH.bonus[0]*Math.pow(Math.max(0,n-2),MATCH.bonus[1])*lerp(1,MATCH.bonus[2],d);
 
 export class MatchRun{
   constructor(seed,{start=0}={}){
-    this.rng=seeded(seed);this.score=start;this.time=0;this.clock=MATCH.start;this.state='ready';this.events=[];this.zone=0;this.serial=0;this.moves=0;
+    this.rng=seeded(seed);this.score=start;this.time=0;this.clock=MATCH.start;this.pace=MATCH.paceSlow+.3;this.mult=1;this.lastMatch=-9;this.state='ready';this.events=[];this.zone=0;this.serial=0;this.moves=0;
     this.grid=Array.from({length:MATCH.cols},()=>Array.from({length:MATCH.rows},(_,r)=>this.tile(r-MATCH.rows-1)));
     this.settle(true);
   }
@@ -50,15 +58,23 @@ export class MatchRun{
     // Only what is sitting still can be picked, so what is tapped is what was seen.
     const t=this.grid[c][r];if(t.y!==r)return;
     const star=t.kind==='star',cells=star?this.cross(c,r):this.group(c,r);
-    if(!star&&cells.length<MATCH.min){this.emit('nope',x,y,{kind:t.kind});return;}
+    if(!star&&cells.length<MATCH.min){
+      // Free before the clock starts; after that, a guess costs time.
+      const lost=this.state==='play'?Math.min(this.clock,MATCH.miss):0;this.clock-=lost;
+      this.emit('nope',x,y,{kind:t.kind,lost});return;
+    }
     if(this.state==='ready')this.state='play';
     const n=cells.length,d=matchDifficulty(this.score);this.moves++;
-    this.score+=n;this.clock=Math.min(MATCH.full,this.clock+matchBonus(n,d));
+    // Quick hands pay: the time back grows with the pace of the last few matches, smoothly,
+    // from as it is for an unhurried tapper to double for a very quick one.
+    if(this.lastMatch>0)this.pace=this.pace*(1-MATCH.paceMix)+Math.min(3,this.time-this.lastMatch)*MATCH.paceMix;this.lastMatch=this.time;
+    const was=this.mult,mult=this.mult=matchPace(this.pace),bonus=matchBonus(n,d)*mult;
+    this.score+=n;this.clock=Math.min(MATCH.full,this.clock+bonus);
     const kinds=cells.map(([cc,rr])=>this.grid[cc][rr].kind);
     for(const [cc,rr] of cells)this.grid[cc][rr]=null;
     const leaveStar=!star&&n>=MATCH.star;
     if(leaveStar)this.grid[c][r]={id:this.serial++,kind:'star',y:r,vy:0};
-    this.emit(star?'star':'match',x,y,{n,cells,kinds,kind:t.kind,bonus:matchBonus(n,d),leaveStar});
+    this.emit(star?'star':'match',x,y,{n,cells,kinds,kind:t.kind,bonus,leaveStar,mult,quicker:Math.floor(mult*4)>Math.floor(was*4)&&mult>=1.25});
     this.drop();
   }
   /** The star's row and column. */

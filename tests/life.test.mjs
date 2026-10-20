@@ -4,9 +4,10 @@ import {createWorld,applyOperation,visibleWorld,prepareWorld,ITEMS} from '../sha
 import {DAY,plantStage,routines,ageSandbox,FRESH,freshSpot} from '../shared/life.js';
 import {PLACE_STORIES,placeStory,weatherFor,WEATHER} from '../shared/places.js';
 import {difficultyFor} from '../shared/adventures.js';
+import {fullHouse} from './house.mjs';
 const now=1900000000000;let serial=0;
 const op=(s,type,fields={},actor='david',at=now)=>applyOperation(s,{id:`life-${serial++}`,type,actor,...fields},at);
-const world=()=>{const s=createWorld('life',now);s.unlocked=['house','garden','roof'];s.journeys.david.index=1;return s;};
+const world=()=>{const s=fullHouse('life',now);s.unlocked=['house','garden','roof'];s.journeys.david.index=1;return s;};
 test('a daft situation lasts a day, is replaced when untouched, and is never owed',()=>{
   let s=op(world(),'visit');const f=s.life.finds.david;assert.ok(f?.fresh);
   // Still the same one a few hours later.
@@ -127,7 +128,7 @@ test('entering a room does not cover a dog already standing at the doorway',()=>
 });
 test('all four places rotate three stories and retain a shared, idempotent aftermath',()=>{
   for(const place of Object.keys(PLACE_STORIES)){let s=world();const stories=new Set();for(let i=0;i<7;i++){const c=placeStory(s,place);stories.add(c.id);assert.equal(c.steps.length,3);assert.ok(ITEMS[c.reward]);s=op(s,'placeComplete',{place,round:c.round});assert.ok(s.inventory.includes(c.reward));const again=op(s,'placeComplete',{place,round:c.round});assert.equal(again.life.places[place].count,i+1);}assert.equal(stories.size,3);}
-  assert.throws(()=>op(createWorld('new',now),'placeComplete',{place:'sky',round:0}));
+  assert.throws(()=>op(fullHouse('new',now),'placeComplete',{place:'sky',round:0}));
 });
 test('weather is shared and predictable for a time block, with all five possibilities',()=>{
   const s=world(),kinds=new Set();for(let i=0;i<100;i++){const at=now+i*10800000;const w=weatherFor(s,at);assert.ok(WEATHER.includes(w));assert.equal(w,weatherFor(structuredClone(s),at));kinds.add(w);}assert.equal(kinds.size,5);
@@ -156,7 +157,7 @@ test('walking into the garden puts you and your dog in front of the pond and the
 });
 test('the one in a daily situation stays as staged through time away and a walk',()=>{
   for(let n=0;n<30;n++){
-    let s=createWorld(`staged-${n}`,now);s.unlocked=['house','garden','roof'];s.journeys.david.index=1;
+    let s=fullHouse(`staged-${n}`,now);s.unlocked=['house','garden','roof'];s.journeys.david.index=1;
     s=op(s,'visit');const sit=FRESH.find(x=>x.id===s.life.finds.david.fresh),a=s.actors[sit.actor],staged={room:a.room,x:a.x,y:a.y,hat:a.hat};
     s.bond.david[sit.actor]=30;
     s=op(s,'walkWith',{room:'garden'},'david',now+3600000);

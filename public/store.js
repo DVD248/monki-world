@@ -2,8 +2,9 @@ import {createWorld,applyOperation,visibleWorld,prepareWorld} from './shared/wor
 import {centralTime} from './shared/ambience.js';
 import {decorProgress} from './shared/decor.js';
 const KEY='monki-world-v1';
-// Served by the Mac on home Wi-Fi, or by the online copy: what to check when it cannot be reached differs.
-const LAN=/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)|\.local$/.test(globalThis.location?.hostname||'localhost');
+// Served by the Mac on home Wi-Fi, or by the online copy: what to check when it cannot be reached differs,
+// and the testing sandbox exists only on the Mac.
+export const LAN=/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)|\.local$/.test(globalThis.location?.hostname||'localhost');
 const uid=()=>globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const sessionId=()=>globalThis.crypto?.randomUUID?.().replaceAll('-','').slice(0,24)
   ||`${Math.random().toString(16).slice(2).padEnd(12,'0')}${Math.random().toString(16).slice(2).padEnd(12,'0')}`.slice(0,24);

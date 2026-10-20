@@ -35,6 +35,8 @@ function draw(g,c){
   const bx=150,bw=156,frac=L.clock/MATCH.full,low=L.clock<3&&L.state==='play';
   rect(c,bx,24,bw,16,'rgba(38,48,36,.3)');rect(c,bx+2,26,(bw-4)*frac,12,low?(Math.sin(t*12)>0?'#d8847a':'#e6a092'):frac>.5?'#9eb67b':'#e4c87a');
   item(c,'clock',bx-14,42,{scale:.6});
+  // Quick hands: the multiple the next match will give back, by the clock.
+  if(L.state==='play'&&L.mult>=1.1)g.text(c,`×${L.mult.toFixed(1)}`,bx+bw+8,38,13,L.mult>=1.6?'#fbe4a4':'#cfe3b8');
   if(L.state==='ready'){c.globalAlpha=.9;g.text(c,'The clock starts with your first match',W/2,70,13,'#fffdf3','center');c.globalAlpha=1;}
   const eating=t-(g.chompAt??-9)<.3;
   character(c,'sernik',MOUTH.x+8,gy-10,{scale:1.5,flip:true,mood:L.over?'sleep':eating?'happy':low?'annoyed':'idle',frame:eating?t*12:t*2,hat:g.hat,shadow:false});
@@ -48,7 +50,8 @@ function event(g,e){
   const s=g.sound,t=g.time;
   switch(e.type){
     case 'match':case 'star':{
-      s('match',1+Math.min(.8,(e.n-3)*.08));
+      s('match',1+Math.min(.8,(e.n-3)*.08+(e.mult-1)*.25));
+      if(e.quicker){s('point',1+e.mult*.2);g.say(`Quick hands ×${e.mult.toFixed(1)}`,W/2,96,{color:'#fbe4a4',size:16,life:1});}
       g.flyers=(g.flyers||[]).concat(e.cells.map(([c,r],i)=>({...MatchRun.centre(c,r),kind:e.kinds[i]==='star'?'star':e.kinds[i],at:t+i*.025})));
       const land=t+.38+e.cells.length*.025;setTimeout(()=>{if(!g.stopped){s('chomp');g.chompAt=g.time;}},(land-t)*1000);
       g.say(`+${e.n}`,e.x,e.y-20,{color:e.n>=MATCH.star?'#e4c87a':'#fffdf3',size:e.n>=MATCH.star?26:18,life:.8});
@@ -57,7 +60,8 @@ function event(g,e){
       if(e.type==='star'){g.shake=4;g.flash=.25;s('whoosh');}
       break;
     }
-    case 'nope':{s('boop');const L=g.logic,c=Math.floor((e.x-MATCH.x0)/MATCH.cell),r=Math.floor((e.y-MATCH.y0)/MATCH.cell);g.nope={id:L.grid[c]?.[r]?.id,at:t};break;}
+    case 'nope':{s('boop');const L=g.logic,c=Math.floor((e.x-MATCH.x0)/MATCH.cell),r=Math.floor((e.y-MATCH.y0)/MATCH.cell);g.nope={id:L.grid[c]?.[r]?.id,at:t};
+      if(e.lost)g.say(`−${e.lost%1?e.lost.toFixed(1):e.lost}s`,e.x,e.y-16,{color:'#e6a092',size:14,life:.7});break;}
     case 'shuffle':s('shuffle');g.say('Shaken up',W/2,MATCH.y0+MATCH.rows*MATCH.cell/2,{size:20,life:1.1});break;
     case 'over':s('fall');g.say('Time!',W/2,MATCH.y0+120,{size:30,life:1.4,color:'#fbe4a4'});break;
   }

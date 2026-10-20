@@ -9,17 +9,22 @@ const data=await mkdtemp(path.join(os.tmpdir(),'monki-paper-')),port=58000+Math.
 const output=process.env.MONKI_ARTIFACT_DIR||path.join(data,'screens');await mkdir(output,{recursive:true});
 const server=spawn(process.execPath,['server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),HOST:'127.0.0.1',MONKI_DATA_DIR:data},stdio:'ignore'});
 let browser,page,cdp;const errors=[];
-async function touch(type,p){await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:p?[{x:p.x,y:p.y,radiusX:7,radiusY:7,force:1,id:1}]:[]});}
+// A gesture's touches carry the times they are meant to happen at, not whenever the busy test
+// machine got round to sending them: the throw is measured from those times, so a fast flick is
+// the same fast flick on every run. (A late send made the "fast" one slow now and then.)
+let virtual=null;
+async function touch(type,p){await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:p?[{x:p.x,y:p.y,radiusX:7,radiusY:7,force:1,id:1}]:[],...(virtual===null?{}:{timestamp:virtual})});}
+async function wait(ms){if(virtual!==null)virtual+=ms/1000;await delay(ms);}
 async function at(p){return page.evaluate(p=>sc.screenPoint(p),p);}
 async function gesture({duration=90,hold=0,left=false}={}){
   const start=await page.$eval('#play-ball',b=>{const r=b.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};});
   const stage=await at({x:left?260:150,y:245}),end=await at({x:210,y:245});
-  await touch('touchStart',start);
-  for(let i=1;i<=9;i++){await delay(18);await touch('touchMove',{x:start.x+(stage.x-start.x)*i/9,y:start.y+(stage.y-start.y)*i/9});}
-  await delay(150);
-  for(let i=1;i<=6;i++){await delay(duration/6);await touch('touchMove',{x:stage.x+(end.x-stage.x)*i/6,y:stage.y});}
-  if(hold)await delay(hold);
-  const hand=await page.evaluate(()=>({x:sc.toys.pointer.x,y:sc.toys.pointer.y}));await touch('touchEnd');
+  virtual=Date.now()/1000;await touch('touchStart',start);
+  for(let i=1;i<=9;i++){await wait(18);await touch('touchMove',{x:start.x+(stage.x-start.x)*i/9,y:start.y+(stage.y-start.y)*i/9});}
+  await wait(150);
+  for(let i=1;i<=6;i++){await wait(duration/6);await touch('touchMove',{x:stage.x+(end.x-stage.x)*i/6,y:stage.y});}
+  if(hold)await wait(hold);
+  const hand=await page.evaluate(()=>({x:sc.toys.pointer.x,y:sc.toys.pointer.y}));await touch('touchEnd');virtual=null;
   const initial=await page.evaluate(()=>{const s=sc.toys.shots[0];return{origin:s.origin,vx:s.vx,vy:s.vy};});
   // Touch moves can be coalesced until pointerup; release must use its final
   // coordinate, not the preceding painted frame's finger position.

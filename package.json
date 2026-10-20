@@ -24,14 +24,15 @@
     "upload-world": "node scripts/upload-world.mjs",
     "audit": "node scripts/audit.mjs",
     "audit:ui": "node scripts/audit-ui.mjs",
-    "check": "npm test && npm run audit && npm run audit:ui && npm run test:browser && npm run test:flow && npm run test:gestures && npm run test:decor && npm run test:ambient && npm run test:arcade",
+    "check": "npm test && npm run audit && npm run audit:ui && npm run test:browser && npm run test:flow && npm run test:gestures && npm run test:decor && npm run test:ambient && npm run test:arcade && npm run test:birthday",
     "audit:julia": "node scripts/audit-julia.mjs",
     "probe": "node scripts/probe.mjs",
     "compare": "node scripts/compare.mjs",
     "measure": "node scripts/measure.mjs",
     "test:gestures": "node scripts/test-gestures.mjs",
     "couple": "node scripts/couple/grid.mjs",
-    "couple:report": "node scripts/couple/report.mjs"
+    "couple:report": "node scripts/couple/report.mjs",
+    "test:birthday": "node scripts/test-birthday.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -4,6 +4,9 @@ html.night{--dock:#342c3b;--dock-ink:#fff0d8;--selected:#edc990;--selected-ink:#
 body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 button,a{touch-action:manipulation}canvas,#play-ball,#play-bubbles{touch-action:none}
+/* A picture on a card or in a sheet is not something to drag: a swipe that starts on one scrolls the sheet.
+   Only the canvases that are played with (adventure, arcade, petting, drawing) keep every touch to themselves. */
+dialog canvas:not(#micro):not(#arcade-canvas):not(.pet-pad):not([aria-label^="Draw"]){touch-action:manipulation}
 button:focus-visible,a:focus-visible{outline:3px solid #dcaa68;outline-offset:2px}
 .brand img{width:42px;height:42px;image-rendering:pixelated;border-radius:0}.brand-dot{color:inherit}
 .status-stack{display:grid;gap:3px;text-align:left;flex:1}#world-clock{font:14px var(--mono);color:#34422e}.status-stack .status{font-size:12px}
@@ -55,8 +58,11 @@ button[aria-busy=true]{opacity:.65}.ending-photo{animation:postcard-in .18s ease
 #room-tools .icon-button{width:48px;min-width:48px;min-height:48px;font-size:24px}
 #room-tools .scene-footer{display:flex;flex-direction:column;gap:9px;position:static;background:none;padding:12px 0}
 #room-tools .residents{justify-content:space-around;width:100%;gap:4px}
-#room-tools .resident{width:52px;height:56px;padding:3px;background:none;border-radius:50%}
+#room-tools .resident{width:52px;height:56px;padding:3px;background:none;border-radius:50%;flex:0 1 52px;min-width:0}
 #room-tools .resident:hover{background:#dbe4d1}#room-tools .resident canvas{width:40px;height:46px}
+/* Six of you once everybody has moved in: on the narrowest phones the portraits give a little. */
+#room-tools .resident canvas{max-width:100%;object-fit:contain}
+@media(max-width:360px){#room-tools .residents{gap:1px}#room-tools .resident{font-size:12px}}
 #room-tools .room-help{display:block;max-width:none;text-align:center;font-size:14px;line-height:1.5;color:#4d6049}
 #room-tools .below-world{position:static;display:block;margin:0;border-top:1px solid #81957733}
 #room-tools .trace-card{width:100%;height:auto;min-height:68px;padding:8px 0;border:0;border-radius:0;background:none;gap:10px}
@@ -150,5 +156,60 @@ html.immersive,html.immersive body{width:100%;height:100%;overflow:hidden;oversc
 #arcade-score{font:800 40px var(--sans);letter-spacing:-1px;color:var(--ink)}
 #arcade-line{margin:0;font:650 16px var(--sans);color:#4c644b}#arcade-sub{margin:0;font:14px var(--sans);color:#7b8469}#arcade-sub:empty{display:none}
 #arcade-over .primary-button{font-size:16px;min-height:50px;margin-top:4px}#arcade-over .secondary-button{font-size:14px}
-.arcade-card small{display:block;line-height:1.35}
+.arcade-bests{display:grid;gap:3px;margin-top:5px}
+.arcade-best{display:flex;align-items:baseline;gap:6px;font:11px var(--sans);color:#59654f;line-height:16px}
+.arcade-best b{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arcade-best em{font-style:normal;font-weight:650;font-variant-numeric:tabular-nums;color:#3f4c39;white-space:nowrap}
+.arcade-best.none em{font-weight:400;color:#9aa08a}
+.arcade-best.lead em::after{content:' ★';color:#c7a03a}
 
+/* The drawing pad's three buttons stay one row on the narrowest phone, and in landscape the pad
+   gives up height so that "Hang it up" is on screen without scrolling. */
+#sheet-body .draw-pad+.button-row{flex-wrap:nowrap}
+#sheet-body .draw-pad+.button-row>button{flex:1 1 auto;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap}
+@media (orientation:landscape) and (max-height:520px){#sheet-body .draw-pad{display:block;width:auto;max-width:100%;height:max(96px,calc(100dvh - 280px));margin:0 auto}}
+
+/* The birthday surprise fills the screen; the letter is real text, on paper, over the party. */
+#birthday{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;background:#0b0912;overflow:hidden;scrollbar-gutter:auto;box-shadow:none}
+#birthday::backdrop{background:#0b0912}
+.birthday-wrap{position:relative;width:100%;height:100%;line-height:0}
+#birthday-canvas{display:block;width:100%;height:100%;touch-action:none;outline:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#birthday-letter{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:calc(20px + env(safe-area-inset-top,0px)) 18px calc(22px + env(safe-area-inset-bottom,0px));line-height:1.5}
+#birthday-letter[hidden]{display:none}
+.birthday-paper{position:relative;display:flex;flex-direction:column;width:min(100%,420px);min-height:0;flex:0 1 auto;background:#fcf4e4 radial-gradient(130% 80% at 50% 0%,#fffdf6 0%,#fbf2e0 60%,#f3e3c7 100%);border-radius:4px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.6),0 2px 0 #e2cfae,0 28px 60px rgba(8,4,12,.6);animation:birthday-letter .75s cubic-bezier(.2,.85,.3,1.12) both}
+.birthday-paper::before{content:'';position:absolute;inset:9px;border:1px solid rgba(186,114,104,.4);border-radius:2px;pointer-events:none}
+.birthday-scroll{min-height:0;overflow:auto;overscroll-behavior:contain;padding:34px 30px;font:17px/1.7 Georgia,'Iowan Old Style',Palatino,serif;color:#3b2f27;outline:none;-webkit-mask-image:linear-gradient(#000 calc(100% - 26px),transparent);mask-image:linear-gradient(#000 calc(100% - 26px),transparent)}
+.birthday-to{margin:0;text-align:center}
+.birthday-to span{display:block;font:italic 30px/1.15 Georgia,'Iowan Old Style',Palatino,serif;color:#97454f}
+.birthday-to small{display:block;margin-top:7px;font:700 10.5px/1.4 var(--sans);letter-spacing:2.6px;text-transform:uppercase;color:#b9847a}
+.birthday-flourish{display:flex;align-items:center;gap:10px;margin:16px 4px 20px;color:#d39b92;font-size:11px;line-height:1}
+.birthday-flourish::before,.birthday-flourish::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,currentColor)}
+.birthday-flourish::after{background:linear-gradient(270deg,transparent,currentColor)}
+.birthday-text p{margin:0 0 1em;overflow-wrap:anywhere}.birthday-text p:last-child{margin-bottom:0}
+.birthday-from{margin:22px 0 0;text-align:right;font-style:italic;font-size:19px;color:#6d4b40;white-space:pre-line}
+.birthday-button{flex:none;min-height:52px;padding:0 30px;border-radius:999px;background:linear-gradient(#f7d27b,#e3a94b);color:#4b2d10;font:700 16px var(--sans);letter-spacing:.2px;box-shadow:0 4px 0 #b47a2b,0 12px 28px rgba(0,0,0,.4);animation:birthday-button .5s .5s both}
+.birthday-button:active{transform:translateY(3px);box-shadow:0 1px 0 #b47a2b,0 6px 16px rgba(0,0,0,.35)}
+.birthday-button:focus-visible{outline:3px solid #fff3d6;outline-offset:3px}
+#birthday-close{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));width:42px;height:42px;background:rgba(255,250,240,.88);color:#4b3a32;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+#birthday-close:hover{background:#fffaf0}
+@keyframes birthday-letter{from{transform:translateY(90px) scale(.55) rotate(-2deg);opacity:0}40%{opacity:1}to{transform:none;opacity:1}}
+@keyframes birthday-button{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.birthday-paper,.birthday-button{animation:none}}
+/* Planning it: a picture of the party, what happens, and the letter on the paper she will read it on. */
+.birthday-picture{display:block;width:100%;aspect-ratio:400/262;border-radius:12px;margin:2px 0 14px;background:#f1d6c2;box-shadow:0 6px 18px rgba(80,50,30,.16)}
+.birthday-steps{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:step}
+.birthday-steps li{counter-increment:step;display:flex;gap:10px;align-items:baseline;font-size:13px;line-height:1.45;color:#56604b}
+.birthday-steps li::before{content:counter(step);flex:none;width:20px;height:20px;border-radius:50%;background:#f4e0d4;color:#a2525b;font:700 11px/20px var(--sans);text-align:center;transform:translateY(-1px)}
+.immersive #sheet-body .birthday-note,#sheet-body .birthday-note{font-size:12px;line-height:1.6;color:#969b87;margin:12px 0 0}
+.birthday-form{display:grid;gap:12px;margin-top:16px}
+.birthday-form label{display:grid;gap:5px;font:600 12px var(--sans);color:#5d6e51;letter-spacing:.2px}
+.birthday-form .birthday-row{display:grid;grid-template-columns:1fr 1.4fr;gap:10px}
+.birthday-form input,.birthday-form textarea{font:16px var(--sans);color:#3d3328;background:#fffdf7;border:1px solid #dcdcca;border-radius:10px;padding:11px 12px;width:100%;box-sizing:border-box;user-select:text;-webkit-user-select:text;outline:none;transition:border-color .15s,box-shadow .15s}
+.birthday-form input:focus,.birthday-form textarea:focus,.birthday-letterbox:focus-within{border-color:#cf9c8f;box-shadow:0 0 0 3px rgba(207,156,143,.22)}
+.birthday-letterbox{border:1px solid #e6d7bd;border-radius:10px;background:#fcf4e4 radial-gradient(130% 70% at 50% 0%,#fffdf7,#fbf2e0);overflow:hidden;transition:border-color .15s,box-shadow .15s}
+#sheet-body .birthday-letterbox .birthday-to{padding:18px 16px 2px;line-height:1.3}
+.birthday-letterbox .birthday-to span{font-size:23px}
+.birthday-letterbox .birthday-to small{font-size:9.5px;letter-spacing:2.2px}
+.birthday-form .birthday-letterbox textarea,.birthday-form .birthday-letterbox textarea:focus{border:0;background:transparent;box-shadow:none;border-radius:0;min-height:210px;resize:vertical;padding:12px 18px 16px;font:17px/1.65 Georgia,'Iowan Old Style',Palatino,serif}
+.birthday-form .birthday-sign{font:italic 17px Georgia,'Iowan Old Style',Palatino,serif;color:#6d4b40}
+.birthday-count{font:11px var(--sans);color:#9aa08c;text-align:right;margin-top:-6px}

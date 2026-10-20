@@ -1,14 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,applyOperation,visibleWorld,INCIDENTS,makeIncident,TENDENCIES,GESTURES,CONTRACTS,favourite,waitingFor} from '../shared/world.js';
+import {fullHouse} from './house.mjs';
 
 const NOW=Date.parse('2026-09-20T12:00:00Z');
 let sequence=0;
 const op=(state,type,fields={},now=NOW,actor='david')=>applyOperation(state,{type,actor,id:`test-${++sequence}`,...fields},now);
 
-test('a fresh world has five residents, a physical home and one discoverable incident',()=>{
+test('a fresh world is the two of you and Monki, a physical home and one discoverable incident',()=>{
   const state=createWorld('test',NOW);
-  assert.equal(Object.keys(state.actors).length,5);
+  assert.deepEqual(state.cast,['monki']);
+  assert.deepEqual(Object.keys(state.actors).filter(id=>state.actors[id].room==='house'),['david','julia','monki']);
   assert.deepEqual(state.unlocked,['house']);
   assert.equal(state.incident.id,'balloons');
   assert.ok(state.objects.find(o=>o.type==='couch'));
@@ -16,7 +18,7 @@ test('a fresh world has five residents, a physical home and one discoverable inc
 });
 
 test('moves preserve independent actions, clamp bounds, and reject malformed targets',()=>{
-  const first=createWorld('test',NOW);
+  const first=fullHouse('test',NOW);
   const second=op(first,'move',{target:'couch',x:900,y:-40,room:'house'});
   const third=op(second,'wear',{target:'monki',item:'cone'},NOW,'julia');
   assert.equal(first.objects[0].x,118);
@@ -29,14 +31,14 @@ test('moves preserve independent actions, clamp bounds, and reject malformed tar
 });
 
 test('network retries are idempotent',()=>{
-  const first=createWorld('test',NOW),operation={id:'once',actor:'david',type:'poke',target:'monki'};
+  const first=fullHouse('test',NOW),operation={id:'once',actor:'david',type:'poke',target:'monki'};
   const saved=applyOperation(first,operation,NOW);
   assert.equal(applyOperation(saved,operation,NOW+100),saved);
   assert.equal(saved.actors.monki.pokes,1);
 });
 
 test('a delayed phone retry stays idempotent after hundreds of newer actions',()=>{
-  let state=createWorld('delayed',NOW);
+  let state=fullHouse('delayed',NOW);
   const client='a'.repeat(24),first={id:`m2:${client}:1`,actor:'david',type:'poke',target:'monki'};
   state=applyOperation(state,first,NOW);
   for(let i=2;i<=750;i++)state=applyOperation(state,{id:`m2:${client}:${i}`,actor:'david',type:'seen'},NOW+i);
@@ -51,7 +53,7 @@ test('a delayed phone retry stays idempotent after hundreds of newer actions',()
 });
 
 test('an older shared save accepts new sequenced actions without losing its retry history',()=>{
-  const old=createWorld('old-client',NOW);
+  const old=fullHouse('old-client',NOW);
   delete old.appliedSeries;
   const legacy={id:'old-pending',actor:'julia',type:'poke',target:'sernik'};
   const first=applyOperation(old,legacy,NOW);
@@ -63,14 +65,14 @@ test('an older shared save accepts new sequenced actions without losing its retr
 });
 
 test('both players finishing the same incident only advances the world once',()=>{
-  let state=createWorld('test',NOW);const uid=state.incident.uid;
+  let state=fullHouse('test',NOW);const uid=state.incident.uid;
   state=op(state,'resolve',{target:uid,score:9});
   state=op(state,'resolve',{target:uid,score:10},NOW,'julia');
   assert.equal(state.completed,1);assert.equal(state.serial,1);assert.equal(state.traces.length,1);
 });
 
 test('situations are composed, varied, and never repeat a recent one',()=>{
-  let state=createWorld('test',NOW),now=NOW;
+  let state=fullHouse('test',NOW),now=NOW;
   const visited=[],kinds=new Set();
   for(let i=0;i<15;i++){
     const e=state.incident;assert.ok(e,`no incident on round ${i}`);
@@ -88,20 +90,20 @@ test('situations are composed, varied, and never repeat a recent one',()=>{
 
 test('places open because a resident made them, not because a counter reached a number',()=>{
   // Galgan digs; two holes at the house are a way out. Nothing announces it.
-  let state=createWorld('dig-seed',NOW);
+  let state=fullHouse('dig-seed',NOW);
   state.actors.galgan.room='house';
   let now=NOW,guard=0;
   while(!state.unlocked.includes('garden')&&guard++<40){now+=6*3600000;state=op(state,'visit',{},now);}
   assert.ok(state.unlocked.includes('garden'),'the garden never opened');
   assert.ok(state.digs>=2,'the garden opened without anyone digging');
   // Finishing incidents alone does not hand out places.
-  let counted=createWorld('count-seed',NOW),t=NOW;
+  let counted=fullHouse('count-seed',NOW),t=NOW;
   for(let i=0;i<10;i++){const e=counted.incident;if(!e)break;counted=op(counted,'resolve',{target:e.uid,score:e.goal},t);t+=25*60000;counted=op(counted,'visit',{},t);}
   assert.ok(counted.completed>=5,'did not complete enough to test the old gate');
 });
 
 test('gifts are sealed for their recipient and only the recipient can open them',()=>{
-  let state=op(createWorld('test',NOW),'gift',{item:'potato'});const id=state.gifts[0].id;
+  let state=op(fullHouse('test',NOW),'gift',{item:'potato'});const id=state.gifts[0].id;
   assert.equal(visibleWorld(state,'julia').gifts[0].item,undefined);
   assert.throws(()=>op(state,'openGift',{target:id}));
   const optimistic=op(visibleWorld(state,'julia'),'openGift',{target:id},NOW,'julia');
@@ -112,7 +114,7 @@ test('gifts are sealed for their recipient and only the recipient can open them'
 });
 
 test('secret choices do not leak before both players choose, and cannot be replaced',()=>{
-  let state=op(createWorld('test',NOW),'pick',{round:0,choice:3});
+  let state=op(fullHouse('test',NOW),'pick',{round:0,choice:3});
   assert.equal(visibleWorld(state,'julia').choices.picks.david,undefined);
   assert.equal(visibleWorld(state,'julia').choices.partnerReady,true);
   assert.throws(()=>op(state,'pick',{round:0,choice:1}));
@@ -124,7 +126,7 @@ test('secret choices do not leak before both players choose, and cannot be repla
 });
 
 test('a partner surprise is used up by that player, not the sender',()=>{
-  let state=op(createWorld('test',NOW),'chaos',{modifier:'windy'});
+  let state=op(fullHouse('test',NOW),'chaos',{modifier:'windy'});
   state=op(state,'resolve',{target:state.incident.uid,score:12});
   assert.equal(state.chaos.julia.modifier,'windy');
   state=op(state,'visit',{},NOW+25*60000);
@@ -134,7 +136,7 @@ test('a partner surprise is used up by that player, not the sender',()=>{
 });
 
 test('time away changes the house without removing belongings or imposing care',()=>{
-  const first=createWorld('test',NOW),next=op(first,'visit',{},NOW+8*86400000);
+  const first=fullHouse('test',NOW),next=op(first,'visit',{},NOW+8*86400000);
   // Nothing is taken away and nothing is owed; the place simply moved on without you.
   assert.ok(next.inventory.length>=first.inventory.length);
   assert.ok(next.log.length>0);assert.ok(next.log.length<=3);
@@ -142,13 +144,13 @@ test('time away changes the house without removing belongings or imposing care',
 });
 
 test('a week away leaves a few readable changes, not an avalanche',()=>{
-  const counts=[20*60000,8*3600000,6*86400000].map(ms=>op(createWorld('away',NOW),'visit',{},NOW+ms).log.length);
+  const counts=[20*60000,8*3600000,6*86400000].map(ms=>op(fullHouse('away',NOW),'visit',{},NOW+ms).log.length);
   assert.ok(counts[0]<counts[1],`${counts[0]} not fewer than ${counts[1]}`);
   assert.ok(counts[1]<=3);assert.ok(counts[2]<=3);
 });
 
 test('a long absence does not manufacture floor clutter',()=>{
-  const before=createWorld('build',NOW);
+  const before=fullHouse('build',NOW);
   const after=op(before,'visit',{},NOW+5*86400000);
   assert.ok(after.objects.length<=before.objects.length,'objects multiplied');
   assert.ok(!after.traces.some(v=>v.type==='tower'));
@@ -158,7 +160,7 @@ test('each resident behaves like itself rather than at random',()=>{
   // Over many absences Galgan should move furniture far more than Monki does.
   const movers={};
   for(let seed=0;seed<12;seed++){
-    const state=op(createWorld('who'+seed,NOW),'visit',{},NOW+4*86400000);
+    const state=op(fullHouse('who'+seed,NOW),'visit',{},NOW+4*86400000);
     for(const entry of state.log)if(entry.action==='move'||entry.action==='out')movers[entry.who]=(movers[entry.who]||0)+1;
   }
   assert.ok((movers.galgan||0)>(movers.sernik||0),`galgan ${movers.galgan} vs sernik ${movers.sernik}`);
@@ -166,7 +168,7 @@ test('each resident behaves like itself rather than at random',()=>{
 });
 
 test('a hat someone stuck on you cannot come off until tomorrow',()=>{
-  let state=op(createWorld('test',NOW),'stick',{target:'julia',item:'cone'});
+  let state=op(fullHouse('test',NOW),'stick',{target:'julia',item:'cone'});
   assert.equal(state.actors.julia.hat,'cone');
   assert.throws(()=>op(state,'wear',{target:'julia',item:null},NOW+3600000,'julia'));
   state=op(state,'wear',{target:'julia',item:null},NOW+86400001,'julia');
@@ -174,7 +176,7 @@ test('a hat someone stuck on you cannot come off until tomorrow',()=>{
 });
 
 test('something hidden stays hidden until it is found',()=>{
-  let state=op(createWorld('test',NOW),'hide',{target:'lamp'});
+  let state=op(fullHouse('test',NOW),'hide',{target:'lamp'});
   assert.ok(state.hidden.lamp);
   state=op(state,'found',{target:'lamp'},NOW+1000,'julia');
   assert.equal(state.hidden.lamp,undefined);
@@ -182,14 +184,14 @@ test('something hidden stays hidden until it is found',()=>{
 });
 
 test('the refrigerated potato has a persistent, delayed secret',()=>{
-  let state=op(createWorld('test',NOW),'fridge');
+  let state=op(fullHouse('test',NOW),'fridge');
   state=op(state,'visit',{},NOW+2*86400000);assert.ok(!state.unlocked.includes('cellar'));
   state=op(state,'visit',{},NOW+3*86400000+1);assert.ok(state.unlocked.includes('cellar'));
   state=op(state,'visit',{},NOW+4*86400000);assert.equal(state.unlocked.filter(s=>s==='cellar').length,1);
 });
 
 test('drawings are bounded strokes, not executable or unlimited content',()=>{
-  let state=createWorld('test',NOW);
+  let state=fullHouse('test',NOW);
   state=op(state,'draw',{lines:[[[.2,.3],[.4,.5]]]});assert.equal(state.drawing.length,1);
   assert.throws(()=>op(state,'draw',{lines:'<script>'}));
   assert.throws(()=>op(state,'draw',{lines:[[[2,.1]]]}));
@@ -198,7 +200,7 @@ test('drawings are bounded strokes, not executable or unlimited content',()=>{
 
 test('every content definition can be constructed and resolved',()=>{
   for(const definition of INCIDENTS){
-    let state=createWorld('test',NOW);state.incident=makeIncident(state,NOW,definition.id);
+    let state=fullHouse('test',NOW);state.incident=makeIncident(state,NOW,definition.id);
     state=op(state,'resolve',{target:state.incident.uid,score:definition.goal});
     assert.ok(state.inventory.includes(definition.reward));
     // 'hat' and 'sofa' are things you can already see happen. A mark for them would
@@ -210,7 +212,7 @@ test('every content definition can be constructed and resolved',()=>{
 });
 
 test('what happened while you were away is recorded in a replayable form',()=>{
-  const state=op(createWorld('replay',NOW),'visit',{},NOW+3*86400000);
+  const state=op(fullHouse('replay',NOW),'visit',{},NOW+3*86400000);
   assert.ok(state.changes.length>0&&state.changes.length<=3,`${state.changes.length} change records`);
   const moves=state.changes.flatMap(c=>c.moves);
   assert.ok(moves.length,'nothing moved');
@@ -223,7 +225,7 @@ test('what happened while you were away is recorded in a replayable form',()=>{
 });
 
 test('each person is shown only what they personally missed',()=>{
-  let state=createWorld('seen',NOW);
+  let state=fullHouse('seen',NOW);
   const t=NOW+60000;
   state=op(state,'move',{target:'lamp',x:300,y:250,room:'house'},t,'david');
   const missed=c=>state.changes.filter(x=>x.at>state.seen[c]).length;
@@ -238,7 +240,7 @@ test('each person is shown only what they personally missed',()=>{
 });
 
 test('what a short game asks of you varies, not just the gesture',()=>{
-  let state=createWorld('shape',NOW),t=NOW;
+  let state=fullHouse('shape',NOW),t=NOW;
   const seen=new Set();
   for(let i=0;i<50;i++){
     const e=state.incident;if(!e)break;
@@ -253,7 +255,7 @@ test('what a short game asks of you varies, not just the gesture',()=>{
 });
 
 test('something you did days ago comes back without explanation',()=>{
-  let state=op(createWorld('chain',NOW),'hide',{target:'lamp'});
+  let state=op(fullHouse('chain',NOW),'hide',{target:'lamp'});
   assert.equal(state.chains.length,1);
   const lampBefore={...state.objects.find(o=>o.id==='lamp')};
   state=op(state,'visit',{},NOW+6*86400000);
@@ -264,7 +266,7 @@ test('something you did days ago comes back without explanation',()=>{
 });
 
 test('a ghost game is played against their own previous best',()=>{
-  let state=createWorld('ghost',NOW);
+  let state=fullHouse('ghost',NOW);
   state.best={tap:20};
   let found=null;
   for(let i=0;i<80&&!found;i++){const e=makeIncident({...state,serial:i},NOW);if(e.contract==='ghost'&&e.kind==='tap')found=e;}
@@ -272,7 +274,7 @@ test('a ghost game is played against their own previous best',()=>{
 });
 
 test('petting builds a bond that belongs to one person only',()=>{
-  let state=createWorld('bond',NOW);
+  let state=fullHouse('bond',NOW);
   for(let i=0;i<4;i++)state=op(state,'poke',{target:'sernik'},NOW+i*1000,'julia');
   state=op(state,'poke',{target:'galgan'},NOW+9000,'david');
   assert.equal(favourite(state,'julia'),'sernik');
@@ -282,7 +284,7 @@ test('petting builds a bond that belongs to one person only',()=>{
 });
 
 test('what your person left you is handed over, once',()=>{
-  let state=op(createWorld('hand',NOW),'draw',{lines:[[[.2,.3],[.5,.6]]]},NOW+60000,'david');
+  let state=op(fullHouse('hand',NOW),'draw',{lines:[[[.2,.3],[.5,.6]]]},NOW+60000,'david');
   // Addressed to her, so she is the one who gets handed it.
   assert.equal(waitingFor(state,'julia').length,1);
   assert.equal(waitingFor(state,'david').length,0);
@@ -291,7 +293,7 @@ test('what your person left you is handed over, once',()=>{
 });
 
 test('an unopened present is waiting for its recipient and nobody else',()=>{
-  let state=op(createWorld('present',NOW),'gift',{item:'potato'},NOW,'david');
+  let state=op(fullHouse('present',NOW),'gift',{item:'potato'},NOW,'david');
   assert.equal(waitingFor(state,'julia')[0].kind,'gift');
   assert.equal(waitingFor(state,'david').length,0);
   state=op(state,'openGift',{target:state.gifts[0].id},NOW+1000,'julia');
@@ -300,7 +302,7 @@ test('an unopened present is waiting for its recipient and nobody else',()=>{
 
 test('a frog pair is news for whoever picked first, whichever of them completes it',()=>{
   for(const [first,second] of [['david','julia'],['julia','david']]){
-    let state=op(createWorld('frogs',NOW),'pick',{round:0,choice:2},NOW,first);
+    let state=op(fullHouse('frogs',NOW),'pick',{round:0,choice:2},NOW,first);
     state=op(state,'pick',{round:0,choice:2},NOW+1000,second);
     assert.equal(state.log[0].action,'match');assert.equal(state.log[0].who,second);assert.equal(state.log[0].target,first);
   }

@@ -1,5 +1,5 @@
 import {character,item,rect,poly,ellipse} from './art.js';
-import {FallRun,FALL,FALL_ZONES} from './shared/arcade-fall.js';
+import {FallRun,FALL,FALL_ZONES,fallRun,fallDifficulty} from './shared/arcade-fall.js';
 import {W,H,along,noise,clamp,mix} from './arcade-kit.js';
 
 // Fall Down: through the cellar floor, under the house, past the roots and the caves, to
@@ -28,6 +28,8 @@ function draw(g,c){
   }
   monki(g,c,L,t);
   roots(c,s,t,L);
+  // Dust off his heels when he runs flat out: the deeper, the quicker that is.
+  if(L.standing&&!L.over&&!g.reduced&&Math.abs(L.vx)>fallRun(fallDifficulty(L.score))*.8&&t-(g.dustAt??-9)>.07){g.dustAt=t;g.burst(L.x-Math.sign(L.vx)*9,L.y-2,1,{colors:[mix(along(EDGE,s),'#ffffff',.3),along(LEDGE,s)],speed:30,up:25,g:80,size:3,life:.32});}
 }
 /** The top: roots and rock hanging down. His head in them ends the run. */
 function roots(c,s,t,L){

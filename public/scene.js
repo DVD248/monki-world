@@ -1,5 +1,5 @@
 import {character,item,rect,poly,ellipse,shadow} from './art.js';
-import {random,clamp,ACTORS} from './shared/world.js';
+import {random,clamp,ACTORS,PETS,atTheDoor} from './shared/world.js';
 import {RoomToys} from './room-toys.js';
 import {weatherFor} from './shared/places.js';
 import {plantStage,DISCOVERIES} from './shared/life.js';
@@ -17,6 +17,7 @@ const REACTIONS={
   monki:['hop','spin','tumble','squash','spin'],
   sernik:['hop','shake','hop','spin','tumble'],
   galgan:['shake','squash','flop','shake','flop'],
+  kot:['squash','hop','spin','shake','tumble'],
   david:['hop','shake','squash'],
   julia:['hop','shake','squash'],
 };
@@ -75,7 +76,7 @@ export class Scene {
     // chapter; a stroke on a dog underneath should still reach the dog.
     let dogUnder=null;
     if(hit?.action==='onIncident'){
-      dogUnder=[...this.hitboxes].reverse().find(h=>['sernik','galgan'].includes(h.id)&&p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h)||null;
+      dogUnder=[...this.hitboxes].reverse().find(h=>PETS.includes(h.id)&&p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h)||null;
       if(dogUnder){const a=this.position(dogUnder.id);dogUnder.offsetY=a.y-p.y;dogUnder.offsetX=a.x-p.x;}
     }
     this.down={...p,hit,dogUnder,time:performance.now(),last:p,travel:0,petting:false};}
@@ -86,7 +87,7 @@ export class Scene {
       d.preTravel=(d.preTravel||0)+Math.hypot(q.x-from.x,q.y-from.y);d.preLast=q;
       if(d.preTravel>7){d.hit=d.dogUnder;d.dogUnder=null;d.travel=d.preTravel;d.last=q;}}
     if(!this.down?.hit?.movable)return;const p=this.at(e),d=this.down;
-    const distance=Math.hypot(p.x-d.x,p.y-d.y),dog=['sernik','galgan'].includes(d.hit.id);
+    const distance=Math.hypot(p.x-d.x,p.y-d.y),dog=PETS.includes(d.hit.id);
     const outsideDog=dog&&(p.x<d.hit.x-6||p.x>d.hit.x+d.hit.w+6||p.y<d.hit.y-6||p.y>d.hit.y+d.hit.h+6);
     d.travel+=Math.hypot(p.x-d.last.x,p.y-d.last.y);d.last=p;
     // Spatial intent, not a race against a timer: a local stroke pets, pulling
@@ -258,7 +259,7 @@ export class Scene {
         if(entity.mood==='sleep'&&Math.sin(t*1.5)>-.5){c.save();c.translate(x,y);c.scale(s,up);c.fillStyle='#8d967e';c.font='8px monospace';c.fillText('z',15,-30-(t%2)*3);c.restore();}
         if(entity.mood==='annoyed'){c.save();c.translate(x,y);c.scale(s,up);rect(c,-2,-47,11,7,'#a8b295');rect(c,1,-48,5,1,'#a8b295');c.fillStyle='#627152';c.font='6px monospace';c.fillText('...',0,-42);c.restore();}
         c.restore();
-        const dog=['sernik','galgan'].includes(id);
+        const dog=PETS.includes(id);
         const scale=this.actorScale;this.hit(id,x-(dog?31:20)*scale,y-42*scale/this.sy,(dog?62:40)*scale,46*scale/this.sy,{movable:true});
       }else{
         this.item(c,entity.type,x,y-lift,{shadow:true,finish:entity.finish});
@@ -420,11 +421,19 @@ export class Scene {
     c.restore();this.hit('frame',264-25*this.propScale,115-40*this.propScale/this.sy,50*this.propScale,42*this.propScale/this.sy,{action:'onFrame'});
     // Door becomes a real route as the world grows.
     const doorOpen=this.state.unlocked.includes('garden');
-    c.save();c.translate(333,170);c.scale(this.propScale,this.propScale/this.sy);c.translate(-333,-170);
+    // Somebody new is knocking: the door rattles now and then, and a tap on it opens it.
+    const knocking=!this.replaying&&!!atTheDoor(this.state),rattle=knocking&&!this.reduced&&t%2.6<.4?Math.round(Math.sin(t*55)):0;
+    c.save();c.translate(333,170);c.scale(this.propScale,this.propScale/this.sy);c.translate(-333+rattle,-170);
     rect(c,316,105,33,65,trim.accent);rect(c,319,109,27,58,doorOpen?'#91ad7c':trim.color);
     if(doorOpen){rect(c,320,111,22,21,'#c4d7b6');rect(c,320,132,22,34,'#adc18f');rect(c,320,163,22,4,'#879b68');poly(c,[[321,109],[333,114],[333,170],[321,166]],trim.color);}
     else{rect(c,322,114,20,20,trim.color);rect(c,322,140,20,22,trim.color);rect(c,339,136,3,3,trim.accent);}
+    if(knocking){
+      const up=t%2.6<1.1?0:1;
+      rect(c,300,82+up,40,17,'#fffaea');rect(c,302,80+up,36,21,'#fffaea');poly(c,[[322,99+up],[330,99+up],[328,106+up]],'#fffaea');
+      c.fillStyle='#6d7a5c';c.font='bold 7px monospace';c.textAlign='center';c.fillText('knock',320,89+up);c.fillText('knock',320,97+up);c.textAlign='left';
+    }
     c.restore();this.hit('garden',333-20*this.propScale,170-69*this.propScale/this.sy,40*this.propScale,70*this.propScale/this.sy,{action:'onDoor'});
+    if(knocking)this.hit('knock',333-22*this.propScale,170-92*this.propScale/this.sy,44*this.propScale,93*this.propScale/this.sy,{action:'onKnock'});
     this.item(c,'fridge',284,180);this.hit('fridge',284-19*this.propScale,180-56*this.propScale/this.sy,38*this.propScale,58*this.propScale/this.sy,{action:'onFridge'});
     // The arcade stands in the corner left of the window, where nothing else goes.
     this.item(c,'arcade',26,182);this.hit('arcade',26-14*this.propScale,182-53*this.propScale/this.sy,28*this.propScale,54*this.propScale/this.sy,{action:'onArcade'});

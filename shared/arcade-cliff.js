@@ -5,9 +5,9 @@ import {ease,seeded,zoneAt,clamp,lerp} from './arcade.js';
 // on, dead centre for a Perfect: two points, three for each more in a row. The rocks narrow,
 // spread and rise and fall as you go, levelling off; the far edge of the next one is always
 // within a full leap from the near edge of this one, and the arc clears its near edge.
-export const CLIFF={width:400,height:600,water:500,gravity:1500,angle:58*Math.PI/180,charge:1.05,near:24,far:330,perfect:5,feet:7};
+export const CLIFF={width:400,height:600,water:500,gravity:1500,angle:52*Math.PI/180,charge:1.45,near:20,far:290,perfect:7,feet:7};
 export const CLIFF_ZONES=[[0,'The garden wall'],[15,'The rocks'],[40,'The sea cliffs'],[80,'Evening'],[130,'Night'],[200,'The lighthouse']];
-export const cliffDifficulty=n=>ease(n,40);
+export const cliffDifficulty=n=>ease(n,30);
 /** How far across flat ground a leap goes, for a charge from 0 to 1: straight in the time. */
 export const cliffFlat=charge=>lerp(CLIFF.near,CLIFF.far,clamp(charge,0,1));
 /** The launch for a charge: the speed that carries that far on the flat. */
@@ -33,7 +33,7 @@ export function cliffHeight(charge,dx){const {vx,vy}=cliffLaunch(charge),t=dx/vx
 
 export class CliffRun{
   constructor(seed,{start=0}={}){
-    this.rng=seeded(seed);this.score=start;this.count=start;this.time=0;this.events=[];this.zone=0;this.streak=0;
+    this.rng=seeded(seed);this.start=start;this.score=start;this.count=start;this.time=0;this.lastCharge=null;this.events=[];this.zone=0;this.streak=0;
     this.rocks=[{id:0,x:-60,w:170,h:250}];this.serial=1;
     this.x=60;this.y=250;this.vx=0;this.vy=0;this.state='stand';this.on=this.rocks[0];this.charge=0;this.chargeAt=0;this.wasHeld=false;
     while(this.rocks.length<5)this.addRock();
@@ -42,8 +42,8 @@ export class CliffRun{
   emit(type,x,y,extra={}){this.events.push({type,x,y,...extra});}
   addRock(){
     const r=this.rng,prev=this.rocks.at(-1),d=cliffDifficulty(this.count+this.rocks.length-1);
-    const w=clamp(lerp(92,36,d)*(.8+r()*.4),30,110);
-    let rise=clamp(prev.h+(r()*2-1)*lerp(0,80,d),170,380)-prev.h,gap=lerp(lerp(26,60,d),lerp(110,190,d),r());
+    const w=clamp(lerp(96,40,d)*(.8+r()*.4),32,110);
+    let rise=clamp(prev.h+(r()*2-1)*lerp(0,80,d),170,380)-prev.h,gap=lerp(lerp(26,55,d),lerp(100,160,d),r());
     // Whether he stands at the back of this rock or on its lip, a leap to the middle of the
     // next must come down on it, and over its near edge rather than into it.
     for(let tries=0;tries<12&&!this.fair(prev,gap,w,rise);tries++){rise*=.7;gap=gap<60?gap+14:gap*.9;}
@@ -71,7 +71,7 @@ export class CliffRun{
     const zone=zoneAt(CLIFF_ZONES,this.score)[2];
     if(zone>this.zone){this.zone=zone;this.emit('zone',this.x,this.y,{name:CLIFF_ZONES[zone][1]});}
   }
-  leap(){const {vx,vy}=cliffLaunch(this.charge);this.vx=vx;this.vy=vy;this.state='air';this.from=this.on;this.on=null;this.emit('leap',this.x,this.y,{charge:this.charge});}
+  leap(){this.lastCharge=this.charge;const {vx,vy}=cliffLaunch(this.charge);this.vx=vx;this.vy=vy;this.state='air';this.from=this.on;this.on=null;this.emit('leap',this.x,this.y,{charge:this.charge});}
   fly(dt){
     const px=this.x,py=this.y;this.x+=this.vx*dt;this.vy-=CLIFF.gravity*dt;this.y+=this.vy*dt;
     if(this.state==='air')for(const rock of this.rocks){
@@ -94,6 +94,7 @@ export class CliffRun{
     this.score+=points;
     this.emit('land',this.x,this.y,{perfect,streak:this.streak,points});
     while(this.rocks[0].x+this.rocks[0].w<this.x-500)this.rocks.shift();
-    while(this.rocks.length<6)this.addRock();
+    // Always a few rocks ahead of the one he is on, however far he jumped to reach it.
+    while(this.rocks.length-this.rocks.indexOf(rock)<5)this.addRock();
   }
 }

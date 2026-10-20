@@ -1,6 +1,6 @@
 import {rect,ellipse} from './art.js';
 
-const ACTORS=['david','julia','monki','sernik','galgan'];
+const ACTORS=['david','julia','monki','sernik','galgan','kot'];
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 const ease=v=>{const p=clamp(v,0,1);return p*p*(3-2*p);};
 const near=(n,a,b)=>clamp(n,a,b);
@@ -43,6 +43,11 @@ export function ambientScenes(state,room){
     const p=state.actors[person],dir=p.x>195?-1:1;
     add(`${dog}-follows-${person}`,[person,dog],{[person]:goal(p.x+dir*66,p.y+2),[dog]:goal(p.x+dir*39,p.y+16)},'paw',5500);
   }
+  // Kot gets to the warm spot first, bats at whatever a dog is carrying, and weaves round legs.
+  const couch=objects.find(o=>o.type==='couch');
+  if(couch&&pair(state,room,'kot','galgan'))add('kot-takes-the-sofa',['kot','galgan'],{kot:goal(couch.x+14,couch.y+14),galgan:goal(couch.x+52,couch.y+22)},'nap',6900);
+  if(pair(state,room,'kot','sernik')){const d=state.actors.sernik,side=d.x>200?-1:1;add('kot-bats-the-sock',['kot','sernik'],{sernik:goal(d.x,d.y),kot:goal(d.x+side*34,d.y+4)},'sock',6200);}
+  for(const person of ['david','julia'])if(pair(state,room,person,'kot')){const p=state.actors[person],dir=p.x>195?-1:1;add(`kot-weaves-${person}`,[person,'kot'],{[person]:goal(p.x+dir*20,p.y+2),kot:goal(p.x+dir*20,p.y+12)},'paw',5600);}
   const radio=objects.find(o=>o.type==='radio');
   if(radio&&here.length>=2){const roles=here.filter(id=>id==='julia'||id==='david'||id==='monki').slice(0,2);if(roles.length>=2)add('private-concert',roles,{[roles[0]]:goal(radio.x-42,radio.y+34),[roles[1]]:goal(radio.x-12,radio.y+35)},'music',6200);}
   const plant=objects.find(o=>['plant','planter','cactus'].includes(o.type));
@@ -112,8 +117,10 @@ export class AmbientLife{
       if(a.effect==='committee'&&id==='sernik')x+=Math.sin(beat*1.3)*5;
       if(a.effect==='splash'&&p>.47)y-=Math.abs(Math.sin(beat*1.8))*10;
       if(a.id==='potato-audience'&&id==='monki')y-=Math.abs(Math.sin(beat*.8))*3;
+      if(a.id==='kot-bats-the-sock'&&id==='kot')y-=Math.abs(Math.sin(beat*1.7))*7;
+      if(a.id.startsWith('kot-weaves')&&id==='kot')x+=Math.sin(beat*.8)*16;
     }
-    const mood=!action?home.mood:a.mood|| (a.effect==='nap'&&id==='galgan'?'sleep':a.effect==='committee'?(id==='sernik'?'annoyed':'sleep'):a.effect==='audience'&&id!=='monki'?'sleep':a.effect==='block'?(id==='julia'?'idle':'happy'):a.effect==='sidestep'?'idle':a.effect==='copy'?(id==='julia'?'idle':'happy'):a.id==='sock-dispute'?'annoyed':a.id==='monki-sneaks'&&id==='galgan'?(p<.53?'sleep':'annoyed'):'happy');
+    const mood=!action?home.mood:a.mood|| (a.id==='kot-takes-the-sofa'?(id==='kot'?'sleep':'annoyed'):a.effect==='nap'&&id==='galgan'?'sleep':a.effect==='committee'?(id==='sernik'?'annoyed':'sleep'):a.effect==='audience'&&id!=='monki'?'sleep':a.effect==='block'?(id==='julia'?'idle':'happy'):a.effect==='sidestep'?'idle':a.effect==='copy'?(id==='julia'?'idle':'happy'):a.id==='sock-dispute'?'annoyed':a.id==='monki-sneaks'&&id==='galgan'?(p<.53?'sleep':'annoyed'):'happy');
     const direction=p<.72?target.x-home.x:home.x-target.x;
     return{x,y,room:home.room,mood,running:!action&&weight>.04,flip:Math.abs(direction)>3&&direction<0,ambient:true};
   }

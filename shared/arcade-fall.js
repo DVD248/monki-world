@@ -1,15 +1,19 @@
 import {ease,seeded,zoneAt,clamp,lerp} from './arcade.js';
 
 // Fall Down: Pou's game of the same name. Floors rise from below, each with one hole; Monki
-// drops through the holes and rides the floors up while he looks for the next one. Touch
-// the roots at the top and he is out. The floors rise faster and the holes narrow as he
-// goes down, both levelling off; the next hole is never further along than he can run in
-// the time the floors give him, over the run.
-export const FALL={width:400,height:600,top:46,floor:588,spacing:108,thick:14,speed:420,gravity:1700,fall:760,halfW:11,body:34};
+// drops through the holes and rides the floors up while he runs for the next one. Touch the
+// roots at the top and he is out. He starts slow and gets quicker the deeper he goes, and the
+// floors rise faster with him, so from the first floor it is a race to the next hole and never
+// a stroll; the holes narrow as well, all levelling off. The next hole is never further along
+// than he can run at his speed then in the time the floors give him, over the run.
+export const FALL={width:400,height:600,top:46,floor:588,spacing:108,thick:14,scale:115,rise:[104,222],run:[145,365],hole:[96,58],gravity:1700,fall:760,halfW:11,body:34};
 export const FALL_ZONES=[[0,'The cellar'],[25,'Under the house'],[60,'Roots'],[110,'Caves'],[170,'Crystals'],[250,'Deep down']];
-export const fallDifficulty=n=>ease(n,80);
-export const fallRise=d=>lerp(60,245,d);
-export const fallHole=d=>lerp(104,56,d);
+export const fallDifficulty=n=>ease(n,FALL.scale);
+/** How fast the floors rise, px a second. */
+export const fallRise=d=>lerp(...FALL.rise,d);
+/** How fast Monki runs: slow to begin with, quicker the deeper he gets. */
+export const fallRun=d=>lerp(...FALL.run,d);
+export const fallHole=d=>lerp(...FALL.hole,d);
 
 export class FallRun{
   constructor(seed,{start=0}={}){
@@ -28,7 +32,7 @@ export class FallRun{
   addFloor(y){
     const r=this.rng,n=this.depth++,d=fallDifficulty(n),rise=fallRise(d),hole=fallHole(d)*(.94+r()*.12);
     const interval=FALL.spacing/rise,slack=(FALL.height-FALL.top-FALL.body)/rise,limit=slack*.35;
-    const lo=hole/2+8,hi=FALL.width-hole/2-8,run=FALL.speed*.7;
+    const lo=hole/2+8,hi=FALL.width-hole/2-8,run=fallRun(d)*.7;
     const cost=x=>Math.max(0,this.debt+Math.abs(x-this.lastHole)/run+.12-interval);
     let x=lerp(lo,hi,r());
     if(cost(x)>limit){const room=Math.max(0,(limit-this.debt-.12+interval)*run);x=clamp(this.lastHole+Math.sign(x-this.lastHole)*room,lo,hi);}
@@ -41,10 +45,10 @@ export class FallRun{
   step(dt,input={}){
     if(this.over)return;
     dt=Math.min(dt,1/30);this.time+=dt;
-    const target=input.target,dir=input.dir||0,rise=fallRise(fallDifficulty(this.score))*dt;
+    const target=input.target,dir=input.dir||0,d=fallDifficulty(this.score),rise=fallRise(d)*dt,speed=fallRun(d);
     for(const f of this.floors)f.y-=rise;
     this.travel+=rise;
-    const want=dir?dir*FALL.speed:target==null?0:clamp((target-this.x)*10,-FALL.speed,FALL.speed);
+    const want=dir?dir*speed:target==null?0:clamp((target-this.x)*10,-speed,speed);
     this.vx+=(want-this.vx)*Math.min(1,dt*18);this.x=clamp(this.x+this.vx*dt,FALL.halfW,FALL.width-FALL.halfW);if(Math.abs(this.vx)>25)this.face=Math.sign(this.vx);
     // Standing, he rides his floor up until it has a hole under him.
     if(this.standing&&!this.solidAt(this.standing,this.x))this.standing=null;

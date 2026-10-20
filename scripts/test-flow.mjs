@@ -38,7 +38,7 @@ try{
   const invited=await local(page);
   await partner.goto(`${base}/#join=${invited.room}.${invited.invite}`,{waitUntil:'networkidle0'});await clickText(partner,'Enter the world');await partner.waitForFunction(()=>JSON.parse(localStorage.getItem('monki-world-v1'))?.actor==='david');
   await partner.waitForFunction(()=>document.querySelector('#sheet-body h2')?.textContent==='Julia made this for you.',{timeout:5000});
-  assert.equal(await partner.$eval('#sheet-body p',e=>e.textContent),'Sernik, Galgan and Monki live here now.','his first look says who made it and whose dogs these are');
+  assert.equal(await partner.$eval('#sheet-body p',e=>e.textContent),'Monki lives here now. Others will come to the door.','his first look says who made it and who lives there');
   assert.equal(await partner.$eval('#story-title',e=>e.textContent),'Monki is leaving.','his first look has the story in it');
   // Coming back later through the same link in the chat is simply coming back: no "Come in",
   // no first visit again, the same seat, and the link is not left in the address bar.
@@ -65,8 +65,19 @@ try{
   let saved=await local(page);assert.equal(saved.world.journeys.julia.index,1);assert.equal(saved.world.journeys.david.index,1);
   assert.equal(saved.world.actors.monki.hat,'cone');assert.ok(saved.world.unlocked.includes('garden'));
   assert.ok(await page.$('#open-tools.new-decor'),'The player who finished the adventure can find her new decor');
-  // Already in: he sees her finished story arrive, not a second copy of it.
+  // The first story done, Galgan knocks: on both phones, and whoever opens the door lets him in for both.
+  assert.equal(await page.$eval('#story-title',e=>e.textContent),'Someone is at the door.');
+  assert.ok(await page.evaluate(()=>window.__scene.hitboxes.some(h=>h.action==='onKnock')),'the door in the room can be tapped too');
+  await partner.waitForFunction(()=>document.getElementById('story-title').textContent==='Someone is at the door.',{timeout:9000});
+  await page.click('#start-adventure');
+  assert.equal(await page.$eval('#sheet-body h2',e=>e.textContent),'Galgan has moved in.');
+  assert.match(await page.$eval('#sheet-body',e=>e.textContent),/Galgan brought games for the arcade: Hill Drive, Water Hop, Pancake Stack, Galgan's Parade\./);
+  await shot('monki-galgan-moved-in.png');await clickText(page,'Say hello');
+  assert.ok((await local(page)).world.cast.includes('galgan'));
+  assert.deepEqual(await page.$$eval('#residents .resident',b=>b.map(x=>x.title)),['David','Julia','Monki','Galgan']);
+  // Already in: he sees her finished story arrive, not a second copy of it, and Galgan in the house.
   await partner.waitForFunction(()=>document.getElementById('story-title').textContent==='The house is yours.',{timeout:9000});
+  assert.deepEqual(await partner.$$eval('#residents .resident',b=>b.map(x=>x.title)),['David','Julia','Monki','Galgan']);
   await partner.waitForFunction(()=>document.querySelector('#open-tools.new-decor'),{timeout:9000});
   assert.equal(await partner.$eval('#microgame',e=>e.open),false);
   assert.equal((await local(partner)).world.journeys.david.index,1,'the partner must not replay Monki’s resolved balloons');
@@ -78,9 +89,8 @@ try{
   await page.evaluate(()=>document.querySelector('[aria-label="Garden"]').click());await tool(page,'#decorate');await page.click('[aria-label="Place House plant"]');
   const chairSpot=await page.evaluate(()=>window.__scene.screenPoint({x:188,y:270}));await page.mouse.click(chairSpot.x,chairSpot.y);await pressEditor(page,'Done');await page.evaluate(()=>document.querySelector('[aria-label="Home"]').click());
   await partner.waitForFunction(()=>{const world=JSON.parse(localStorage.getItem('monki-world-v1'))?.world;return world?.catalog?.styles?.house?.wall==='butter'&&world.objects.some(object=>object.type==='plant'&&object.room==='garden');},{timeout:9000});
-  await page.click('#play-ball');assert.equal(await page.evaluate(()=>window.__scene.toys.shots.length),0);
-  await dockDrag(page,'#play-ball',{x:70,y:232});await delay(650);assert.equal(await page.evaluate(()=>window.__scene.toys.shots.length),1);await shot('monki-paper-fetch.png');
-  await page.waitForFunction(()=>window.__scene.toys.shots.length===0);assert.equal(await page.evaluate(()=>window.__scene.override.sernik),undefined);saved=await local(page);assert.ok(saved.world.log.some(l=>l.action==='toy'&&l.item==='paper'));assert.ok(!saved.world.traces.some(t=>t.type==='paper'));
+  // The toilet paper is Sernik's game, and Sernik has not moved in yet.
+  assert.equal(await page.$eval('#play-ball',b=>b.hidden),true,'no toilet paper before Sernik lives here');
   await page.click('#play-bubbles');const a=await page.evaluate(()=>window.__scene.state.actors.monki),sy=await page.evaluate(()=>window.__scene.sy);await dockDrag(page,'#play-bubbles',{x:a.x,y:a.y+100/sy+22});
   const wand=await page.evaluate(()=>window.__scene.toys.wand);await drag(page,'#world',{x:wand.x,y:wand.y-12/sy+22},{x:wand.x,y:wand.y-185/sy+22});
   await page.waitForFunction(()=>window.__scene.toys.bubbles.some(b=>b.actor),{timeout:7000});await shot('monki-bubble-capture.png');const bubble=await page.evaluate(()=>window.__scene.toys.bubbles.find(b=>b.actor));await clickCanvas(page,'#world',bubble.x,bubble.y+22);
@@ -109,6 +119,11 @@ try{
   // A fresh sandbox cannot send anything to the real room or alter its save.
   const realBefore=await page.evaluate(()=>localStorage.getItem('monki-world-v1')),apiWrites=[];
   await page.goto(base+'/?test=1',{waitUntil:'networkidle0'});await hooks(page);page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/api/'))apiWrites.push(r.url());});await page.click('#close-sheet');
+  // Everybody lives in the sandbox: the toilet paper goes out, and Sernik brings it back.
+  await page.click('#play-ball');assert.equal(await page.evaluate(()=>window.__scene.toys.shots.length),0);
+  await dockDrag(page,'#play-ball',{x:70,y:232});await delay(650);assert.equal(await page.evaluate(()=>window.__scene.toys.shots.length),1);await shot('monki-paper-fetch.png');
+  await page.waitForFunction(()=>window.__scene.toys.shots.length===0);assert.equal(await page.evaluate(()=>window.__scene.override.sernik),undefined);
+  {const box=await page.evaluate(()=>JSON.parse(localStorage.getItem('monki-world-sandbox-v1')).world);assert.ok(box.log.some(l=>l.action==='toy'&&l.item==='paper'));assert.ok(!box.traces.some(t=>t.type==='paper'));}
   await page.click('[aria-label="Garden"]');await shot('monki-garden.png');
   for(const w of ['rain','snow','wind','cloudy','clear']){await fixture(`Weather: ${w}`);assert.equal(await page.evaluate(()=>window.__scene.weatherOverride),w);await delay(90);}
   await fixture('Weather: rain');await shot('monki-garden-rain.png');await page.click('[aria-label="Roof"]');await fixture('Weather: clear');await shot('monki-roof.png');
@@ -131,7 +146,7 @@ try{
   await page.select('#test-pace','1');await page.click('[data-test-chapter="pizza"][data-test-step="2"]');assert.equal(await page.evaluate(()=>window.__game.difficulty),1);await shot('monki-later-throw.png');
   assert.ok(await page.$eval('#microgame',e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.height<=innerHeight;}));
   assert.equal(await page.evaluate(()=>localStorage.getItem('monki-world-v1')),realBefore);assert.deepEqual(apiWrites,[]);assert.deepEqual(errors,[]);
-  console.log('PASS: room-first onboarding, pause/resume/reload without chapter debt, one-step encounter, shared progress and decor across two phones, fetch return, aimed bubble capture, shared freezer mixing/reservation/wearing, two-player drawings/postcards/reactions, PNG download, 12 discoveries, plant bloom, weather, outdoor entry, roof clipping, 320px/landscape fridge, sandbox isolation.');
+  console.log('PASS: room-first onboarding with Monki alone, pause/resume/reload without chapter debt, one-step encounter, Galgan at the door on both phones, shared progress and decor across two phones, fetch return, aimed bubble capture, shared freezer mixing/reservation/wearing, two-player drawings/postcards/reactions, PNG download, 12 discoveries, plant bloom, weather, outdoor entry, roof clipping, 320px/landscape fridge, sandbox isolation.');
 }catch(e){if(page)await page.screenshot({path:path.join(output,'monki-flow-failure.png'),fullPage:true});throw e;}
 finally{for(const b of browsers){await Promise.race([b.close().catch(()=>{}),delay(2500)]);if(b.process()?.exitCode===null)b.process().kill('SIGTERM');await b.disconnect();}server.kill();await delay(100);if(path.basename(data).startsWith('monki-flow-'))await rm(data,{recursive:true,force:true});}
 // Some Chrome builds retain a pipe after closing a download-enabled browser.

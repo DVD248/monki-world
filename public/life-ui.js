@@ -1,5 +1,5 @@
 import {character,item,rect,spriteCanvas} from './art.js';
-import {NAMES,ITEMS,ACTORS,other} from './shared/world.js';
+import {NAMES,ITEMS,present,other} from './shared/world.js';
 import {DISCOVERIES,plantStage,pendingMail} from './shared/life.js';
 import {placeStory} from './shared/places.js';
 
@@ -68,7 +68,7 @@ export function lifeUI({store,showSheet,body,button,paragraph,closeSheet,operate
     const card=existing||{portrait,hat:state().actors[portrait].hat,pose:'idle',scene:'house'};
     const preview=document.createElement('div');preview.className='postcard-preview';body.append(preview);const redraw=()=>preview.replaceChildren(postcardArt(card));redraw();
     if(!existing){
-      for(const [key,values,labels]of [['portrait',ACTORS,NAMES],['scene',['house','garden','night'],{house:'Home',garden:'Garden',night:'Night'}],['pose',['idle','happy','sleep'],{idle:'…',happy:':D',sleep:'zZ'}],['hat',[null,...state().inventory.filter(i=>ITEMS[i]?.wearable)],null]]){
+      for(const [key,values,labels]of [['portrait',present(state()),NAMES],['scene',['house','garden','night'],{house:'Home',garden:'Garden',night:'Night'}],['pose',['idle','happy','sleep'],{idle:'…',happy:':D',sleep:'zZ'}],['hat',[null,...state().inventory.filter(i=>ITEMS[i]?.wearable)],null]]){
         const label=document.createElement('label');label.className='postcard-control';label.textContent={portrait:'Who',scene:'Where',pose:'Face',hat:'Hat'}[key];const select=document.createElement('select');select.setAttribute('aria-label',label.textContent);
         for(const v of values){const option=document.createElement('option');option.value=v||'';option.textContent=labels?.[v]||ITEMS[v]?.name||'No hat';option.selected=card[key]===v;select.append(option);}select.onchange=()=>{card[key]=select.value||null;redraw();};label.append(select);body.append(label);
       }

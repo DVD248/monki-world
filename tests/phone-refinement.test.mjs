@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {centralTime,ambienceAt} from '../shared/ambience.js';
 import {matchFaces} from '../shared/adventures.js';
 import {createWorld,applyOperation} from '../shared/world.js';
+import {fullHouse} from './house.mjs';
 
 const NOW=Date.parse('2026-09-21T10:00:00Z');let sequence=0;
 const op=(s,type,fields={},now=NOW)=>applyOperation(s,{id:`phone-${sequence++}`,actor:'david',type,...fields},now);
@@ -34,7 +35,7 @@ test('memory cards always have distinct visual pairs, including socks and flower
 });
 
 test('tidy restores displaced furniture and stores loose things without losing gifts or drawings',()=>{
-  let s=createWorld('tidy-phone',NOW);s.unlocked.push('garden');
+  let s=fullHouse('tidy-phone',NOW);s.unlocked.push('garden');
   s=op(s,'move',{target:'couch',x:300,y:290,room:'garden'});
   s=op(s,'place',{item:'potato',room:'house',x:70,y:290});
   s=op(s,'gift',{item:'cone'});s=op(s,'draw',{lines:[[[.1,.1],[.9,.9]]]});
@@ -48,12 +49,12 @@ test('tidy restores displaced furniture and stores loose things without losing g
 
 test('petting both dogs is persistent, gentle and throttled without annoyance',()=>{
   for(const target of ['sernik','galgan']){
-    let s=createWorld('pet-phone',NOW);s.actors[target].mood='sleep';
+    let s=fullHouse('pet-phone',NOW);s.actors[target].mood='sleep';
     s=op(s,'pet',{target});const bond=s.bond.david[target];
     assert.equal(s.actors[target].mood,'happy');assert.equal(s.actors[target].pokes,0);assert.equal(s.actors[target].petAt,NOW);
     s=op(s,'pet',{target},NOW+100);assert.equal(s.bond.david[target],bond);
     s=op(s,'pet',{target},NOW+2000);assert.equal(s.bond.david[target],bond+1);
     assert.equal(s.log.filter(l=>l.action==='pet').length,1);
   }
-  assert.throws(()=>op(createWorld('pet-phone',NOW),'pet',{target:'monki'}));
+  assert.throws(()=>op(fullHouse('pet-phone',NOW),'pet',{target:'monki'}));
 });

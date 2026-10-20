@@ -4,10 +4,12 @@ import {ease,seeded,zoneAt,clamp,lerp} from './arcade.js';
 // rest is falling. Chimneys stand up from the roofs and storm clouds hang down from the
 // sky, with a way through each pair. The way through narrows and moves further from the
 // last one as you go, never further than a steady tapper can climb in the time between.
-export const JET={width:400,height:600,x:120,top:20,ground:548,gravity:1300,flap:410,fall:720,col:62,hitW:12,hitH:14};
+// Sized for a person's timing, which is off by a few hundredths of a second on every tap:
+// even at the narrowest, a tap a little early or late still gets through.
+export const JET={width:400,height:600,x:120,top:20,ground:548,gravity:1300,flap:410,fall:720,col:62,hitW:11,hitH:12};
 export const JET_ZONES=[[0,'Over the garden'],[10,'Over the roofs'],[25,'The storm'],[50,'Evening'],[85,'Night'],[130,'The stars']];
-export const jetDifficulty=n=>ease(n,45);
-export const jetSpeed=d=>lerp(150,205,d);
+export const jetDifficulty=n=>ease(n,60);
+export const jetSpeed=d=>lerp(140,195,d);
 /** How far up a tapper gets in `time` seconds tapping about four times a second. */
 export const jetClimb=time=>(JET.flap-JET.gravity*.24/2)*time;
 /** How far below the point of a tap he is `time` seconds later: the worst way to leave a
@@ -27,14 +29,14 @@ export class JetRun{
   emit(type,x,y,extra={}){this.events.push({type,x,y,...extra});}
   addColumn(){
     const r=this.rng,n=this.score+this.columns.length,d=jetDifficulty(n),speed=jetSpeed(d);
-    const gap=lerp(205,150,d)*(.95+r()*.1),spacing=lerp(250,210,d)*(.9+r()*.2),x=this.lastX+spacing;
+    const gap=lerp(240,185,d)*(.95+r()*.1),spacing=lerp(250,210,d)*(.9+r()*.2),x=this.lastX+spacing;
     // A sway later on, taken off what the next way through is allowed to move.
     const amp=d>.35&&r()<lerp(0,.4,d)?lerp(10,30,d)*(.5+r()*.5):0;
     const time=(spacing-JET.col-JET.hitW*2)/speed;
     // Measured edge to edge: from the bottom of this way through, just after a tap, to the
     // top of the next, and the same upwards with a steady tapper.
     const room=(this.lastGap+gap)/2-JET.hitH*2-12,sway=(amp+this.lastAmp)*2;
-    const up=Math.max(0,Math.min(jetClimb(time)*.62,lerp(90,190,d))-sway),down=Math.max(0,Math.min(room+jetSink(time),lerp(90,230,d))-sway);
+    const up=Math.max(0,Math.min(jetClimb(time)*.62,lerp(60,150,d))-sway),down=Math.max(0,Math.min(room+jetSink(time),lerp(60,180,d))-sway);
     const lo=JET.top+gap/2+amp+26,hi=JET.ground-gap/2-amp-26;
     const cy=clamp(this.lastY+(r()<.5?-up:down)*r(),lo,hi);
     this.columns.push({id:this.serial++,x,cy,gap,amp,omega:amp?.8+r()*.6:0,phase:r()*Math.PI*2,passed:false});
