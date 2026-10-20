@@ -248,7 +248,15 @@ export function item(c,type,x,y,options={}){
   c.save();c.translate(Math.round(x),Math.round(y));c.scale(scale,scale);
   if(showShadow)shadow(c,0,0,type==='couch'?32:10);
   switch(type){
-    case 'cake':rect(c,-18,-2,36,3,'#e2ddd0');rect(c,-15,-13,30,11,'#f2c1bb');rect(c,-15,-13,4,11,'#f6d1cc');ellipse(c,0,-13,15,4,'#fbeee6');for(const x of [-11,-4,3,10])rect(c,x,-12,3,3+(x&3),'#fbeee6');for(const x of [-10,-3,4,11])ellipse(c,x,-4,1.8,1.8,'#c96f72');for(const x of [-7,0,7]){rect(c,x-1,-22,2,8,'#f8f2e2');rect(c,x-1,-19,2,1,'#83b8bd');ellipse(c,x,-25,1.6,2.6,'#f5a640');}break;
+    // The party's cake, small: two tiers on a gold-rimmed plate, pink with white icing, cream with pink.
+    case 'cake':ellipse(c,0,-1.5,19,3,'#e3c779');ellipse(c,0,-2,18,2.4,'#fbf7ef');
+      rect(c,-15,-12,30,10,'#f0b4ac');rect(c,-15,-12,4,10,'#f6c7c0');rect(c,11,-12,4,10,'#d98f88');
+      ellipse(c,0,-12,15,3,'#fff6ef');for(const [x,h] of [[-13,3],[-8,5],[-3,3],[2,6],[7,3],[11,4]])rect(c,x,-12,3,h,'#fff6ef');
+      for(const x of [-12,-6,0,6,12])ellipse(c,x,-3.2,1.4,1.4,'#fff1e8');
+      rect(c,-10,-20,20,8,'#f8ece0');rect(c,-10,-20,3,8,'#fdf6ee');rect(c,7,-20,3,8,'#e6d3c0');
+      ellipse(c,0,-20,10,2.6,'#eea7a0');for(const [x,h] of [[-9,2],[-5,4],[-1,2],[3,3],[7,2]])rect(c,x,-20,2.5,h,'#eea7a0');
+      for(const [x,col] of [[-5,'#8dc0c2'],[0,'#e8bd5c'],[5,'#e2958d']]){rect(c,x-1,-28,2,8,col);rect(c,x-1,-26,2,1,'#fffaf0');rect(c,x-1,-23,2,1,'#fffaf0');ellipse(c,x,-30.5,1.5,2.4,'#f5a640');ellipse(c,x,-30,.7,1.2,'#fff1b8');}
+      break;
     case 'yarn':ellipse(c,0,-9,9,9,'#c56b5a');c.strokeStyle='#e39a86';c.lineWidth=1.2;for(const a of [-.7,0,.7]){c.beginPath();c.ellipse(0,-9,7.5,3.5,a,0,Math.PI*2);c.stroke();}c.strokeStyle='#c56b5a';c.beginPath();c.moveTo(7,-4);c.quadraticCurveTo(13,1,20,-1);c.stroke();rect(c,-4,-15,3,2,'#e39a86');break;
     case 'ball':ellipse(c,0,-12,12,12,'#cf7759');rect(c,-8,-18,6,5,'#f3c982');rect(c,2,-10,6,5,'#f3c982');rect(c,-6,-22,3,2,'#fbe4a4');break;
     case 'arcade':

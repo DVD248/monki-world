@@ -45,7 +45,7 @@ export class Sounds{
     return this.noiseBuffer;
   }
   /** A pitched blip with a short envelope. */
-  blip(c,{freq,to=freq,type='sine',dur=.1,peak=.25,at=0,curve='exp'}){
+  blip(c,{freq,to=freq,type='sine',dur=.1,peak=.25,at=0,curve='exp',out=this.master}){
     const t=c.currentTime+at,o=c.createOscillator(),g=c.createGain();
     o.type=type;o.frequency.setValueAtTime(freq,t);
     if(to!==freq){
@@ -55,7 +55,7 @@ export class Sounds{
     g.gain.setValueAtTime(.0001,t);
     g.gain.exponentialRampToValueAtTime(peak,t+Math.min(.012,dur*.25));
     g.gain.exponentialRampToValueAtTime(.0001,t+dur);
-    o.connect(g);g.connect(this.master);o.start(t);o.stop(t+dur+.02);
+    o.connect(g);g.connect(out);o.start(t);o.stop(t+dur+.02);
   }
   /** Filtered noise: paper, fur, thuds, whooshes. */
   hiss(c,{dur=.2,peak=.15,from=2200,to=600,q=.8,at=0,type='bandpass'}){
@@ -71,9 +71,11 @@ export class Sounds{
     list.forEach((freq,i)=>this.blip(c,{freq,to:freq,type,dur,peak,at:i*step}));
   }
   /** A tune: [frequency, beats] pairs, played at `beat` seconds a beat. */
-  melody(c,list,{beat=.32,type='triangle',peak=.13}={}){
-    let at=0;for(const [freq,beats] of list){if(freq)this.blip(c,{freq,to:freq,type,dur:beats*beat*.92,peak,at});at+=beats*beat;}
+  melody(c,list,{beat=.32,type='triangle',peak=.13,out=this.master}={}){
+    let at=0;for(const [freq,beats] of list){if(freq)this.blip(c,{freq,to:freq,type,dur:beats*beat*.92,peak,at,out});at+=beats*beat;}
   }
+  /** Fades out a tune still playing (the song, when the party is closed part-way through). */
+  hush(){const bus=this.tune;this.tune=null;if(!bus||!this.context)return;bus.gain.setTargetAtTime(0,this.context.currentTime,.08);setTimeout(()=>bus.disconnect(),900);}
   /** Soft, slightly rubbery double chirp for a pleased dog, rather than a UI beep. */
   petChirp(c){
     const pitch=1+(Math.random()-.5)*.12;
@@ -138,9 +140,16 @@ export class Sounds{
         // A small "mi-aow": up, then a longer fall.
         case 'kot':   this.blip(c,{freq:w(620,.1),to:w(1040,.1),type:'triangle',dur:.08,peak:.13});
                       this.blip(c,{freq:w(1080,.1),to:w(560,.1),type:'sine',dur:.2,peak:.14,at:.07});break;
-        // Happy Birthday to you, twice over: the first two lines, the rest is everybody cheering.
-        case 'birthday':this.melody(c,[[392,.75],[392,.25],[440,1],[392,1],[523,1],[494,2],[392,.75],[392,.25],[440,1],[392,1],[587,1],[523,2]]);
-                      this.melody(c,[[196,3],[262,3],[196,3],[262,3]],{type:'sine',peak:.06});break;
+        // Happy Birthday, all four lines in waltz time, over a soft bass: about nine seconds.
+        case 'birthday':this.hush();this.tune=c.createGain();this.tune.connect(this.master);this.melody(c,[[392,.75],[392,.25],[440,1],[392,1],[523,1],[494,2],[392,.75],[392,.25],[440,1],[392,1],[587,1],[523,2],
+                        [392,.75],[392,.25],[784,1],[659,1],[523,1],[494,1],[440,1],[698,.75],[698,.25],[659,1],[523,1],[587,1],[523,3]],{beat:.36,out:this.tune});
+                      this.melody(c,[[0,1],[131,3],[98,3],[98,3],[131,3],[131,3],[175,3],[131,1.5],[98,1.5],[131,3]],{beat:.36,type:'sine',peak:.06,out:this.tune});break;
+        // A light switch: a small hard click.
+        case 'switch':this.blip(c,{freq:2100,to:1300,type:'square',dur:.018,peak:.07});this.hiss(c,{dur:.03,peak:.05,from:5200,to:3000,q:.7});break;
+        // A candle catching.
+        case 'flame': this.hiss(c,{dur:.09,peak:.035,from:w(2600),to:1200,q:.5});break;
+        // Breath on a candle: a soft, low puff.
+        case 'puff':  this.hiss(c,{dur:.26,peak:.08,from:w(900),to:260,q:.45});break;
         // A party blower: a reedy slide up and a little rasp.
         case 'horn':  this.blip(c,{freq:w(330,.05),to:w(660,.05),type:'sawtooth',dur:.32,peak:.07});this.hiss(c,{dur:.3,peak:.03,from:1800,to:2600,q:2});break;
         // Someone at the door: two knocks.

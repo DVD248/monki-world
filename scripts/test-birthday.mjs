@@ -9,8 +9,8 @@ import {setTimeout as delay} from 'node:timers/promises';
 
 // The birthday surprise on two phones, as it will happen: he writes it before inviting her and
 // previews it; she comes in from the link to the dark room, turns the lights on, blows out the
-// candles, reads the letter, meets Kot at the door, and only then gets the usual welcome; the
-// cake it leaves plays it again; his card says she opened it; and it never plays twice.
+// candles, opens the letter, opens the last present (Kot), and only then gets the usual welcome;
+// the cake it leaves plays it again; his card says she opened it; and it never plays twice.
 const data=await mkdtemp(path.join(os.tmpdir(),'monki-birthday-'));
 const port=53000+Math.floor(Math.random()*4000),base=`http://127.0.0.1:${port}`;
 const output=process.env.MONKI_ARTIFACT_DIR||path.join(data,'screens');await mkdir(output,{recursive:true});
@@ -27,8 +27,11 @@ async function open(context,url){
 const clickText=async(page,text)=>{const ok=await page.evaluate(t=>{const b=[...(document.querySelector('dialog[open]')||document).querySelectorAll('button')].find(b=>b.textContent.trim().startsWith(t)&&!b.disabled&&b.getClientRects().length);b?.click();return !!b;},text);assert.ok(ok,'Missing button '+text);};
 const world=page=>page.evaluate(()=>JSON.parse(localStorage.getItem('monki-world-v1')).world);
 const partyOpen=page=>page.evaluate(()=>document.querySelector('#birthday').open);
-/** A finger on the party, at its own coordinates (400 × 600). */
-async function tap(page,x,y){const r=await page.$eval('#birthday-canvas',c=>{const r=c.getBoundingClientRect();return {l:r.left,t:r.top,w:r.width,h:r.height};});await page.mouse.click(r.l+x*r.w/400,r.t+y*r.h/600);}
+/** A finger on the party, at its own coordinates (400 across, as tall as the screen allows). */
+async function tap(page,x,y){const p=await page.evaluate(async([x,y])=>{const {stageFor}=await import('./birthday.js'),r=document.querySelector('#birthday-canvas').getBoundingClientRect(),s=stageFor(r.width,r.height);return {x:r.left+s.ox+x*s.k,y:r.top+s.oy+y*s.k};},[x,y]);await page.mouse.click(p.x,p.y);}
+const phase=page=>page.$eval('#birthday-canvas',c=>c.dataset.phase);
+/** Taps until the party moves on from this moment (a tap too early is simply not taken). */
+async function tapThrough(page,from,{every=150,most=80}={}){for(let i=0;i<most&&await phase(page)===from&&await partyOpen(page);i++){await tap(page,200,300);await delay(every);}assert.ok(await phase(page)!==from||!await partyOpen(page),'stuck at '+from);}
 const shot=(page,name)=>page.screenshot({path:path.join(output,name)});
 
 try{
@@ -56,6 +59,8 @@ try{
   await david.waitForFunction(()=>{const l=JSON.parse(localStorage.getItem('monki-world-v1'));return l.room&&!l.pending.length;},{timeout:10000});
   const seat=await david.evaluate(()=>JSON.parse(localStorage.getItem('monki-world-v1')));
   assert.equal(await partyOpen(david),false,'never for the one who left it');
+  // He puts his phone away: what reaches a screen that is open and showing counts as seen.
+  await david.close();
 
   // ---- Julia, from the link: the party is the first thing she sees.
   const juliaContext=await browser.createBrowserContext();let julia=await open(juliaContext,`${base}/#join=${seat.room}.${seat.invite}`);
@@ -64,20 +69,27 @@ try{
   await julia.waitForFunction(()=>document.querySelector('#birthday').open,{timeout:10000});
   assert.equal(await julia.$eval('#birthday-close',b=>b.hidden),true,'the real one has no close button');
   await julia.keyboard.press('Escape');await delay(200);assert.ok(await partyOpen(julia),'and Escape does not skip it before the letter');
-  await delay(900);await shot(julia,'birthday-dark.png');
-  // The lights; then, once everybody has jumped out, the wish.
-  await tap(julia,200,300);await delay(3000);await shot(julia,'birthday-wish.png');
-  for(let i=0;i<14;i++){await tap(julia,110+(i*29)%190,480);await delay(120);}
-  await delay(5200);await shot(julia,'birthday-envelope.png');
-  await tap(julia,200,300);await julia.waitForFunction(()=>!document.querySelector('#birthday-letter').hidden,{timeout:4000});
-  assert.equal(await julia.$eval('.birthday-to',e=>e.textContent),'For Julia, on your 21st birthday');
+  await delay(1900);await shot(julia,'birthday-dark.png');
+  // The lights; then the lights go down for the cake, the candles are lit, and she blows them out.
+  await tap(julia,200,300);await delay(700);await shot(julia,'birthday-surprise.png');
+  await julia.waitForFunction(()=>document.querySelector('#birthday-canvas').dataset.phase==='cake',{timeout:8000});
+  await delay(2600);await shot(julia,'birthday-wish.png');
+  await tapThrough(julia,'cake');
+  // In the dark for a moment, then the cheer, and the envelope coming down.
+  await julia.waitForFunction(()=>document.querySelector('#birthday-canvas').dataset.phase==='cheer',{timeout:6000});
+  await delay(1200);await shot(julia,'birthday-cheer.png');await delay(3400);await shot(julia,'birthday-envelope.png');
+  await tapThrough(julia,'cheer',{every:300});
+  await julia.waitForFunction(()=>!document.querySelector('#birthday-letter').hidden,{timeout:4000});
+  assert.deepEqual(await julia.$$eval('.birthday-to > *',e=>e.map(x=>x.textContent)),['For Julia','on your 21st birthday']);
   assert.deepEqual(await julia.$$eval('.birthday-text p',ps=>ps.map(p=>p.innerHTML)),['Happy birthday, Julia.','This little house is for you.<br>Every bit of it.']);
   assert.equal(await julia.$eval('.birthday-from',e=>e.textContent),'Love, David');
-  await shot(julia,'birthday-letter.png');
+  await delay(900);await shot(julia,'birthday-letter.png');
   w=await world(julia);assert.ok(w.birthdays.julia.seenAt,'opened once the letter is');assert.ok(w.cast.includes('kot'));assert.ok(w.decor.includes('cake'));
   assert.equal(await julia.$eval('#birthday-next',b=>b.textContent),'One more thing…');
-  await julia.click('#birthday-next');await delay(3400);await shot(julia,'birthday-kot.png');
-  await tap(julia,200,300);await julia.waitForFunction(()=>!document.querySelector('#birthday').open,{timeout:4000});
+  // One more present, and Kot in it; then into the house.
+  await julia.click('#birthday-next');await delay(1500);assert.equal(await phase(julia),'present');await shot(julia,'birthday-present.png');
+  await tapThrough(julia,'present',{every:250});await delay(1700);await shot(julia,'birthday-kot.png');
+  await tapThrough(julia,'kot',{every:250});await julia.waitForFunction(()=>!document.querySelector('#birthday').open,{timeout:4000});
   // Then the welcome, as it always was.
   await julia.waitForFunction(()=>document.querySelector('#sheet-body h2')?.textContent==='David made this for you.',{timeout:5000});
   await clickText(julia,'Look around');await delay(600);
@@ -98,7 +110,7 @@ try{
   await julia.close();
 
   // ---- His card: she opened it, with a heart to send back; his page now says when.
-  await david.close();david=await open(davidContext,base+'/');
+  david=await open(davidContext,base+'/');
   await david.waitForFunction(()=>document.querySelector('#story-title').textContent==='Julia opened the birthday surprise.',{timeout:10000});
   assert.equal(await david.$eval('#start-adventure',e=>e.textContent),'♡');
   await shot(david,'birthday-his-card.png');
@@ -108,7 +120,7 @@ try{
   assert.equal(await partyOpen(julia),false,'once opened, the next opening is an ordinary one');
 
   assert.deepEqual(errors,[]);
-  console.log('PASS: written and previewed before inviting (nothing saved by a preview), never shown to the one who wrote it, the first thing she sees from the link with no way to skip it before the letter, lights, 21 candles blown out, the letter as written, Kot at the door, then the usual welcome; her own page for one for him gives nothing away; the cake replays it; his card says she opened it; it never plays twice.');
+  console.log('PASS: written and previewed before inviting (nothing saved by a preview), never shown to the one who wrote it, the first thing she sees from the link with no way to skip it before the letter, lights, 21 candles blown out, the letter as written, Kot in the last present, then the usual welcome; her own page for one for him gives nothing away; the cake replays it; his card says she opened it; it never plays twice.');
 }finally{
   await browser?.close();server.kill();await rm(data,{recursive:true,force:true});
 }

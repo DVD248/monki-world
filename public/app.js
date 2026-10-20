@@ -4,7 +4,7 @@ import {AdventurePlayer} from './adventure-player.js';
 import {Sounds} from './audio.js';
 import {icon,spriteCanvas,character,item,rect,fillSprite} from './art.js';
 import {ACTORS,NAMES,ITEMS,PETS,other,createWorld,clamp,favourite,waitingFor,present,residentsHere,isHere,atTheDoor,moveEveryoneIn,birthdayWaiting,birthdayFor,BIRTHDAY_LETTER} from './shared/world.js';
-import {BirthdayParty,fillLetter} from './birthday.js';
+import {BirthdayParty,birthdayPicture,fillLetter,ordinal} from './birthday.js';
 import {ADVENTURES,adventureFor,featuredStepFor,VARIANT_LABELS} from './shared/adventures.js';
 import {testLab,recordCheck} from './test-lab.js';
 import {lifeUI} from './life-ui.js';
@@ -485,11 +485,11 @@ function birthdayParty(mode='first',draft=null){
     closeSheet();hideMenu();scene.toys.clear();scene.stopReplay();scene.resting=true;
     const dialog=$('birthday'),letter=$('birthday-letter');letter.hidden=true;$('birthday-close').hidden=mode==='first';
     let opened=false;
-    const done=()=>{party?.stop();party=null;if(dialog.open)dialog.close();scene.resting=false;render();resolve();};
+    const done=()=>{party?.stop();party=null;sounds.hush();if(dialog.open)dialog.close();scene.resting=false;render();resolve();};
     if(!dialog.open)dialog.showModal();
     party=new BirthdayParty({canvas:$('birthday-canvas'),state:st,birthday:b,mode,sounds,reduced:scene.reduced,onDone:done,
       onLetter:()=>{
-        fillLetter($('birthday-paper'),{birthday:b});letter.hidden=false;$('birthday-paper').scrollTop=0;
+        fillLetter($('birthday-paper'),{birthday:b});letter.hidden=false;
         $('birthday-next').textContent=party.kotComing?'One more thing…':mode==='first'?'Into the house':'Close';$('birthday-next').focus();
         if(mode==='first'&&!opened){opened=true;operate('birthdaySeen');}
       }});
@@ -508,23 +508,36 @@ function birthdaySheet(){
   // Only ever the one you are leaving for them: nothing here says whether one waits for you.
   const them=other(store.actor),b=birthdayFor(store.state,them),mine=!!b;
   showSheet('birthday',`A birthday surprise for ${NAMES[them]}.`,'JUST BETWEEN YOU');
+  // A picture of the party, as it will be: the cake lit, everybody round it.
+  const picture=document.createElement('canvas');picture.className='birthday-picture';picture.setAttribute('aria-hidden','true');body.append(picture);
+  const draw=age=>birthdayPicture(picture,{state:store.state,birthday:{for:them,from:store.actor,age:Number.isInteger(age)&&age>0&&age<=120?age:21}});
   if(mine&&b.seenAt){
+    draw(b.age);
     paragraph(`${NAMES[them]} opened it on ${new Date(b.seenAt).toLocaleDateString('en-GB',{day:'numeric',month:'long'})}. The cake in the house plays it again.`);
     body.append(button('Watch it again','primary-button full',()=>birthdayParty('replay')));return;
   }
-  paragraph(`The first time ${NAMES[them]} opens the app, from the day you choose, the lights go down, everybody jumps out round a cake with a candle for every year, and then your letter.${store.state.cast.includes('kot')?'':' Kot comes to the door as the last guest.'} It is kept in your world only, never in the app itself.`);
   // A letter being written is kept on this phone as it is typed (through a preview, or the
   // sheet being closed) until it is left for them.
   const was=store.local.birthdayDraft||(mine?b:null)||{};
+  const steps=document.createElement('ol');steps.className='birthday-steps';body.append(steps);
+  const told=age=>{const n=Number.isInteger(age)&&age>0&&age<=120?age:21;steps.replaceChildren(...['The lights go out, and everybody waits in the dark.',`${n} candle${n===1?'':'s'} for ${NAMES[them]} to blow out, and the song.`,'Then your letter, in your own words.',...(store.state.cast.includes('kot')?[]:['And one last present, with Kot inside.'])].map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));};
+  paragraph(`It opens the first time ${NAMES[them]} comes in, on or after the day you choose. It is kept in your world only, never in the app itself.`,'birthday-note');
   const form=document.createElement('div');form.className='birthday-form';
   const field=(label,el)=>{const l=document.createElement('label');l.append(document.createTextNode(label),el);return l;};
   const age=document.createElement('input');age.type='number';age.min='1';age.max='120';age.inputMode='numeric';age.value=String(was.age||21);
   const day=document.createElement('input');day.type='date';const local=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};day.value=local(was.showFrom||Date.now());
+  // The letter is written on the paper it will be read on, under the same heading.
+  const paper=document.createElement('div');paper.className='birthday-letterbox';
+  const heading=document.createElement('p');heading.className='birthday-to';const to=document.createElement('span'),on=document.createElement('small');heading.append(to,on);
   const text=document.createElement('textarea');text.maxLength=BIRTHDAY_LETTER;text.placeholder=`Dear ${NAMES[them]},`;text.value=was.message||'';text.setAttribute('aria-label','Your letter');
+  paper.append(heading,text);
   const count=document.createElement('div');count.className='birthday-count';const counted=()=>{count.textContent=`${text.value.length.toLocaleString('en')} / ${BIRTHDAY_LETTER.toLocaleString('en')}`;};text.addEventListener('input',counted);counted();
-  const sign=document.createElement('input');sign.maxLength=60;sign.value=was.signature||`Love, ${NAMES[store.actor]}`;
-  const row=document.createElement('div');row.className='birthday-row';row.append(field('How old',age),field('From',day));
-  form.append(row,field('Your letter',text),count,field('Signed',sign));body.append(form);
+  const sign=document.createElement('input');sign.className='birthday-sign';sign.maxLength=60;sign.value=was.signature||`Love, ${NAMES[store.actor]}`;
+  const row=document.createElement('div');row.className='birthday-row';row.append(field('Turning',age),field('Opens on',day));
+  form.append(row,field('Your letter',paper),count,field('Signed',sign));body.append(form);
+  let redraw=null;
+  const aged=()=>{const n=Number(age.value);to.textContent=`For ${NAMES[them]}`;on.textContent=`on your ${ordinal(Number.isInteger(n)&&n>0&&n<=120?n:21)} birthday`;told(n);return n;};
+  age.addEventListener('input',()=>{const n=aged();clearTimeout(redraw);redraw=setTimeout(()=>draw(n),200);});draw(aged());
   const draft=()=>({for:them,from:store.actor,age:Number(age.value),message:text.value.replace(/\r\n?/g,'\n').trim(),signature:sign.value.trim()||NAMES[store.actor],showFrom:day.value?new Date(`${day.value}T00:00`).getTime():Date.now()});
   let keep=null;const kept=()=>{store.local.birthdayDraft={age:Number(age.value),showFrom:day.value?new Date(`${day.value}T00:00`).getTime():Date.now(),message:text.value,signature:sign.value};clearTimeout(keep);keep=setTimeout(()=>store.save(),500);};
   for(const el of [age,day,text,sign])el.addEventListener('input',kept);
@@ -863,7 +876,7 @@ function settingsSheet(){
 // on every update; once it has been taken, it costs nothing.
 store.addEventListener('change',()=>{render();openingMoment();});store.addEventListener('rejected',e=>toast(e.detail));
 for(const[id,glyph,label]of[['wardrobe','hat','Dress up'],['draw','draw','Draw'],['surprise','gift','Leave a gift'],['history','eye','Moments']])$(id).innerHTML=icon(glyph)+`<span>${label}</span>`;
-$('settings').innerHTML=icon('settings');$('close-sheet').innerHTML=icon('close');$('together-icon').innerHTML=icon('users');$('decorate-icon').innerHTML=icon('house');$('leave-game').innerHTML=icon('close');$('pause-game').innerHTML=icon('pause');
+$('settings').innerHTML=icon('settings');$('close-sheet').innerHTML=icon('close');$('together-icon').innerHTML=icon('users');$('decorate-icon').innerHTML=icon('house');$('leave-game').innerHTML=icon('close');$('pause-game').innerHTML=icon('pause');$('birthday-close').innerHTML=icon('close');
 $('room-tools').addEventListener('toggle',e=>$('open-tools').setAttribute('aria-expanded',String(e.newState==='open')));
 $('close-sheet').addEventListener('click',closeSheet);sheet.addEventListener('close',()=>{if(sheet.open)return;/* reopened before this arrived: that sheet is not closed */sheetKind=null;fridgeDispose?.();fridgeDispose=null;});sheet.addEventListener('click',e=>{if(e.target===sheet){const r=sheet.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeSheet();}});
 $('sound').addEventListener('click',()=>{sounds.toggle();updateSound();});$('settings').addEventListener('click',settingsSheet);$('history').addEventListener('click',albumSheet);$('last-trace').addEventListener('click',()=>store.state?life.mailbox():welcome());$('draw').addEventListener('click',drawSheet);$('surprise').addEventListener('click',collectionSheet);$('together').addEventListener('click',personSheet);$('decorate').addEventListener('click',()=>decor.open());$('wardrobe').addEventListener('click',()=>residentSheet('monki'));$('start-adventure').addEventListener('click',()=>featured?featured():startIncident());
